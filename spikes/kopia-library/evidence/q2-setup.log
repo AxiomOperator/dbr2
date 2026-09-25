@@ -1,0 +1,42 @@
+== maintenance owner:
+Owner: reposerver@dbr2
+
+Updated user credentials will take effect in 5-10 minutes or when the server is restarted.
+To refresh credentials in a running server use 'kopia server refresh' command.
+
+Running full maintenance...
+GC found 0 unused contents (0 B)
+GC found 0 unused contents that are too recent to delete (0 B)
+GC found 0 in-use contents (0 B)
+GC found 2 in-use system-contents (1 KB)
+GC undeleted 0 contents (0 B)
+Compacting an eligible uncompacted epoch...
+Advancing epoch markers...
+Attempting to compact a range of epoch indexes ...
+Cleaning up unneeded epoch markers...
+Cleaning up old index blobs which have already been compacted...
+Cleaned up 0 logs.
+Finished full maintenance.
+
+Updated user credentials will take effect in 5-10 minutes or when the server is restarted.
+To refresh credentials in a running server use 'kopia server refresh' command.
+
+
+Updated user credentials will take effect in 5-10 minutes or when the server is restarted.
+To refresh credentials in a running server use 'kopia server refresh' command.
+
+== default ACLs after 'server acl enable':
+id:e5e9db56941619eb5368ef7b16d8e51c user:*@* access:APPEND target:type=content
+id:2556a7214c7f2693cfd3a248cde8bb0c user:*@* access:READ target:type=policy,policyType=global
+id:06b4761ad22bafcfce56f5b66050f9ad user:*@* access:READ target:type=policy,hostname=OWN_HOST,policyType=host
+id:824e8a3ebbebfef7b3a307c3222c15cd user:*@* access:FULL target:type=policy,hostname=OWN_HOST,username=OWN_USER
+id:fdf96a1c70dc9f520e28073b1b9482b0 user:*@* access:FULL target:type=snapshot,username=OWN_USER,hostname=OWN_HOST
+id:fea241d790dfb91f5afccaf34de64e47 user:*@* access:FULL target:type=user,username=OWN_USER@OWN_HOST
+== final DBR² ACLs:
+id:e5e9db56941619eb5368ef7b16d8e51c user:*@* access:APPEND target:type=content
+id:2556a7214c7f2693cfd3a248cde8bb0c user:*@* access:READ target:type=policy,policyType=global
+id:06b4761ad22bafcfce56f5b66050f9ad user:*@* access:READ target:type=policy,hostname=OWN_HOST,policyType=host
+id:9aab3d64e9f4bbbbc68cb02c94d7439f user:*@* access:APPEND target:type=snapshot,username=OWN_USER,hostname=OWN_HOST
+id:3d9d77fc47328ea24a72bb45da29e7e6 user:*@* access:READ target:type=policy,username=OWN_USER,hostname=OWN_HOST
+id:1ce0a81d9a983897be68ebe3a95f9bbb user:maint@dbr2 access:FULL target:type=snapshot
+id:9e64c6372d667fd27fa3dfb25844319b user:maint@dbr2 access:FULL target:type=policy

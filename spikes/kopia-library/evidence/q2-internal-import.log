@@ -1,0 +1,2 @@
+package github.com/AxiomOperator/dbr2/spikes/kopia-library/probes/internalimport
+	probes/internalimport/main.go:8:2: use of internal package github.com/kopia/kopia/internal/acl not allowed

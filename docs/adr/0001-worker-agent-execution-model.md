@@ -45,3 +45,10 @@ Temporal ──► dbr2-worker (activity)
 
 - Define the protobuf contract (`proto/agent/`) with an explicit command catalog and versioning.
 - Test disconnects during each command type in the real-Docker integration suite.
+
+## Spike results (2026-09-25): `spikes/temporal/RESULTS.md`
+
+- Heartbeat timeouts detect dead or stalled activities quickly (about 4 s in the spike), independently of a long StartToClose.
+- **Amendments:**
+  - Activities that report progress set a **heartbeat timeout longer than the gateway's agent reconnect grace period**, so a brief disconnect does not fail the activity.
+  - The **heartbeat payload carries the agent's checkpoint** (the command's progress state). On retry, the activity passes it back in the command, together with the same `command_id`, so the agent can resume.

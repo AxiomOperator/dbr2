@@ -1,0 +1,7 @@
+Hash:                BLAKE2B-256-128
+Encryption:          AES256-GCM-HMAC-SHA256
+Splitter:            DYNAMIC-4M-BUZHASH
+Format version:      3
+Content compression: true
+Index Format:        v2
+pid=1008268 fingerprint=a1304948c46f401884db428129028ce5d620ffc1c129e2d7e84a3d25651977f8

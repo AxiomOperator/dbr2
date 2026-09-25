@@ -19,7 +19,7 @@ Related documents: `stack_info/final_stack.md` (source of truth, including **Con
 
 | Phase | Name | Tier | Status |
 |---|---|---|---|
-| 0 | Decisions & spikes | v1.0 | In progress |
+| 0 | Decisions & spikes | v1.0 | **Complete** (2026-09-25) |
 | 1 | Foundations | v1.0 | Not started |
 | 2 | Agent, enrollment & gateway | v1.0 | Not started |
 | 3 | Discovery | v1.0 | Not started |
@@ -64,16 +64,18 @@ Goal: remove the architectural unknowns before building.
 - [x] Owner confirms ADR-0013 (Apache-2.0 plus `NOTICE`). Copyright DBR2 Team; `LICENSE` and `NOTICE` added
 - [x] Per-component versioning and changelogs decided (ADR-0015)
 - [x] Swagger-style interactive API docs required (final_stack → Control Plane)
-- [ ] Spike: Kopia used as a library. Repository-server client, tagged snapshot from a path, snapshot from an `io.Reader`, restore (ADR-0007)
-- [ ] Spike: Kopia repository-server ACLs. Agent users append and read their own snapshots only, no delete (ADR-0002)
-- [ ] Spike: where splitting, hashing, compression and encryption happen in repository-server mode, and whether deduplication avoids re-sending data (ADR-0002)
-- [ ] Spike: Kopia filesystem repository on **mocked NFS** (a local directory, plus a containerized NFS server for mount options and outage behavior). **Functional only, no throughput testing** (the dev box is not connected to the NAS)
-- [ ] Spike: Huma serving Swagger UI at `/api/docs` with bearer-token Authorize, plus the OpenAPI JSON and YAML
-- [ ] Spike: Kopia handling of extended attributes, ACLs and SELinux contexts on SELinux-enforcing Rocky and Fedora hosts (ADR-0006)
-- [ ] Spike: Temporal in Docker Compose on PostgreSQL 18 (separate databases), plus workflow-ID conflict policy behavior (ADR-0009, ADR-0011)
+- [x] Spike: Kopia used as a library. **Confirmed** with public packages only; three pitfalls recorded (ADR-0007). `spikes/kopia-library/`
+- [x] Spike: Kopia repository-server ACLs. **Partial**: no-delete and own-only listing verified. Gaps: object-ID reads across agents and a content-existence oracle (documented and accepted; one Repository per host as the option), and agent-triggered retention (closed by pins). The server runs in-process through Kopia's `cli` package (ADR-0002, ADR-0007)
+- [x] Spike: repository-server data path. **Confirmed**: the client splits, hashes and deduplicates (≈0 bytes re-sent for unchanged data); the server compresses and encrypts; the 1 MiB splitter was chosen (ADR-0002)
+- [x] Spike: Kopia on **mocked NFS**. **Confirmed**: local-directory mock plus nfs-ganesha with a privileged client; an outage stalls then recovers with a clean verify; the export restriction works. Found that a repository created on an unmounted path silently lands on local disk, so a mount guard, sentinel and stall watchdog were added (ADR-0002). No throughput testing. `spikes/kopia-fidelity-nfs/`
+- [x] Spike: Swagger UI API docs. **Confirmed**, served from embedded, pinned Swagger UI assets because Huma's renderers load from a CDN. Docs protection, four-part `info.version`, spec export, oasdiff v1.32.1 and spec lint all verified. `spikes/huma-swagger/`
+- [x] Spike: Kopia metadata fidelity and SELinux (Fedora, non-root). **Partial**: extended attributes, ACLs, SELinux labels and hardlinks are lost, and directory mtimes are restored wrong, so a filesystem metadata record was added (ADR-0006, ADR-0004). The Docker daemon here has no `selinux-enabled`, so `:z`/`:Z` do nothing. Root-level tests are deferred (below)
+- [x] Spike: Temporal on PG18 in Compose, workflow-ID exclusivity, schedule-trigger pattern, saga. **Confirmed**. Found an SDK default that silently returns the running workflow instead of an error (fixed by a mandatory start helper); termination skips compensation, so the UI offers Cancel only and the dead-man switch is mandatory (ADR-0005, 0009, 0011). `spikes/temporal/`
 - [x] Choose the CI/CD platform: **GitHub Actions**; source repository `github.com/AxiomOperator/dbr2`
 
-**Deferred until the NAS is connected:** real-NFS throughput testing; seed and incremental timing for the ~500 GB volume against the 60-minute quiesce default (ADR-0005).
+**Deferred until the NAS is connected:** real-NFS throughput testing; seed and incremental timing for the ~500 GB volume against the 60-minute quiesce default (ADR-0005); reposerver throughput with several agents; confirming the splitter choice before creating the production Repository.
+
+**Deferred to a root-capable Rocky and Fedora test host** (procedures in `spikes/kopia-fidelity-nfs/RESULTS.md`): the agent reading data as `unconfined_service_t` under systemd; a Docker daemon with `selinux-enabled`; restoring `trusted.*` extended attributes and SELinux labels as root. Also still to observe: Kopia's scheduled full GC in the reposerver (more than 24 hours; inferred from source).
 
 **Exit criteria:** every ADR is Accepted; the spike results are recorded in the ADRs and in this change log.
 
@@ -88,8 +90,8 @@ Goal: remove the architectural unknowns before building.
 - [ ] PostgreSQL schema and migrations; sqlc store (`internal/store`)
 - [ ] Data model leaves room for future multi-tenancy (organization or tenant ID) so it is not a redesign later
 - [ ] Go control plane: Chi + Huma, OpenAPI generation, `/api/v1`
-- [ ] **Swagger UI API docs** at `/api/docs`, plus `/api/openapi.json` and `/api/openapi.yaml`. Login required by default (`api.docs.public` option); every operation documented; `api/openapi.yaml` committed
-- [ ] Temporal worker skeleton, workflow-ID conventions (ADR-0011) and determinism and versioning guidelines
+- [ ] **Swagger UI API docs** from embedded, pinned assets at `/api/docs` (Huma's docs route disabled), plus `/api/openapi.json` and `/api/openapi.yaml`. Login required by default (`api.docs.public` option; redirect to login); `x-dbr2-permission` metadata that is both documented and enforced; CSRF same-origin check; `dbr2-server openapi -o api/openapi.yaml`; spec lint test. Decide whether to keep Huma's default `$schema`/`Link` response additions
+- [ ] Temporal worker skeleton on the pinned images (server/admin-tools 1.32.0, UI 2.54.1; schema jobs; `dbr2` namespace); `StartApplicationOperation()` helper plus a lint rule; the schedule → trigger → child (ABANDON) pattern; Cancel-only UI and API (no terminate); determinism and versioning guidelines (ADR-0005, 0009, 0011)
 - [ ] Authentication: **Entra ID** through OIDC, with group-to-role mapping
 - [ ] **Master admin**: local username and password (Argon2id), rate limiting and lockout, optional TOTP, a notification on every login, `dbr2 admin reset-master-password` (root on the server host)
 - [ ] RBAC: roles and permissions per the final stack (including `restore.production`); team-ready but operable by one person (ADR-0014)
@@ -126,15 +128,15 @@ Goal: remove the architectural unknowns before building.
 
 ## Phase 4 — Repositories & backup
 
-- [ ] `BackupEngine` interface plus `internal/engine/kopia` (pinned Kopia version) (ADR-0007)
-- [ ] `dbr2-reposerver` deployable; TLS from the DBR² CA (ADR-0002)
-- [ ] Per-agent Kopia users; ACLs allowing append and read of own snapshots only; worker-only maintenance identity
+- [ ] `BackupEngine` interface plus `internal/engine/kopia` (pinned Kopia **v0.23.1**), covering the spike pitfalls: deep restore depth, cancellation bridged to `Uploader.Cancel()`, no saving incomplete manifests, hyphenated tag keys (ADR-0007)
+- [ ] `dbr2-reposerver` deployable: Kopia server in-process through the `cli` package; TLS from the DBR² CA; maintenance and GC owner; **mount guard, sentinel and stall watchdog**; `DYNAMIC-1M-BUZHASH` splitter for new repositories (ADR-0002)
+- [ ] Per-agent Kopia users with the spike-verified ACL set (APPEND own snapshots, READ own policies); `maint@dbr2` for the worker; **every snapshot pinned**, Kopia retention disabled; per-agent storage monitoring; temporary per-source READ ACL for cross-host restore, revoked by compensation
 - [ ] Storage backend: **NFS** (production; mounted only on the reposerver host, `hard` mount, export restricted) plus local filesystem (testing)
 - [ ] NAS guidance documented: scheduled read-only NAS snapshots on the Repository share (the v1.0 immutability substitute)
 - [ ] **Key escrow at Repository creation** to the two escrow recipients. Creation is blocked until escrow is confirmed (ADR-0008)
 - [ ] Recovery manifest schema v1 (`schema_version`), with a JSON schema published in the codebase (ADR-0004)
 - [ ] Backup workflow per the final stack: claim the application → hooks → dumps → quiesce → protect → resume → commit
-- [ ] Components: config, volumes, bind mounts; tagged snapshots; manifest written last (two-phase commit)
+- [ ] Components: config, volumes, bind mounts, plus a **`fsmeta` record** for each filesystem component; tagged (`dbr2-*` keys) and pinned snapshots; manifest written last, **by `maint@dbr2` only**, with component sources validated (ADR-0004)
 - [ ] Required and optional component rules; recovery point status Complete or Partial; failure means no recovery point
 - [ ] Orphan-component garbage collection after a grace period
 - [ ] Consistency modes: Live, Quiesced (pre/post hooks), Offline; minimal-downtime defaults (ADR-0005)
@@ -153,7 +155,7 @@ Goal: remove the architectural unknowns before building.
 - [ ] Bind-mount path remapping
 - [ ] Create missing networks and volumes; pull images by digest (image digest enforcement)
 - [ ] Database restore from the logical dump or RDB file (PostgreSQL, Redis)
-- [ ] Post-restore SELinux relabeling (`restorecon` and recorded contexts) (ADR-0006)
+- [ ] Restore into staging, then apply the `fsmeta` record (hardlinks, ACLs, extended attributes, full SELinux contexts, directory mtimes), verify, and swap in; `IgnorePermissionErrors = false`; sparse writing on (ADR-0006)
 - [ ] Start the application; health-check validation
 - [ ] `restore.production` enforcement plus **single-operator safeguards**: typed confirmation, mandatory reason (ADR-0014)
 - [ ] Recovery history: every restore attempt recorded, including failures
@@ -293,6 +295,28 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Decision / Docs — Phase 0 complete: spike results folded into the ADRs
+- **Notes:**
+  - Ran four time-boxed spikes (code and `RESULTS.md` under `spikes/`; see `spikes/README.md`). Spikes are reference material, not versioned components.
+  - **Kopia as a library** (`spikes/kopia-library/`): confirmed with public packages only.
+    - Pitfalls: shallow restores by default, the uploader ignoring context cancellation, and colon tag keys breaking CLI filtering. Tag keys renamed to `dbr2-*`.
+    - The Kopia server is in `internal/`, so `dbr2-reposerver` runs it in-process through Kopia's public `cli` package, and owns maintenance and GC (ADR-0007, ADR-0002).
+  - **Repository-server ACLs:** no-delete and own-only listing verified with an explicit ACL set. Two gaps were found:
+    1. Object-ID reads across agents plus a content-existence oracle. Documented honestly and accepted for a single-owner deployment; one Repository per host is the mitigation (T1).
+    2. Agent-triggered Kopia retention. Closed by pinning every snapshot and disabling Kopia retention (T20).
+  - **Recovery manifests** are now written only by `maint@dbr2`, and reindexing trusts only that source (ADR-0004).
+  - **Data path:** the client deduplicates (≈0 bytes re-sent when unchanged); the server compresses and encrypts; TLS mandatory; the `DYNAMIC-1M-BUZHASH` splitter chosen for new repositories (to be revisited at real-NAS validation).
+  - **Metadata fidelity** (`spikes/kopia-fidelity-nfs/`): Kopia loses extended attributes, ACLs, SELinux labels and hardlinks, and restores directory mtimes wrong. ACL loss can widen access (T19). Added a required `fsmeta` component per filesystem component, and restore into staging → apply metadata → verify → swap in (ADR-0006, ADR-0004). This Docker daemon lacks `selinux-enabled`, so `:z`/`:Z` are not relied on.
+  - **Mocked NFS:** a local directory plus nfs-ganesha with a privileged client work; an outage stalls, then recovers with a clean verify. A repository created on an unmounted path silently lands on local disk, so a mount guard, sentinel and stall watchdog were added to `dbr2-reposerver` (ADR-0002). No throughput testing.
+  - **Temporal** (`spikes/temporal/`): PG18 works with pinned server/admin-tools 1.32.0 and UI 2.54.1, schema jobs and separate owner roles (ADR-0009).
+    - Workflow-ID exclusivity confirmed, but the Go SDK silently returns the already-running workflow unless `WorkflowExecutionErrorWhenAlreadyStarted` is set, so a mandatory start helper was added (ADR-0011).
+    - The schedule → trigger → child (ABANDON) pattern was adopted.
+    - Saga compensation was verified for failure, cancel and a worker crash. **Termination skips compensation**, so the UI offers Cancel only, quiescing workflows have no workflow timeouts, new operations check for a lease first, and the dead-man switch is mandatory (ADR-0005).
+  - **Swagger UI** (`spikes/huma-swagger/`): confirmed. Huma's renderers load from a CDN, so embedded, pinned Swagger UI 5.31.1 is used. Documented and enforced permissions share one source; spec export, oasdiff v1.32.1 and the lint test are verified.
+  - **Deferred:** real-NAS throughput and 500 GB seed timing; multi-agent reposerver throughput; root-level SELinux and `trusted.*` tests on Rocky and Fedora; observing Kopia's scheduled full GC.
+  - **Host side effects on the dev box:** NFS client kernel modules were auto-loaded (unloading needs root); Docker build cache remains; `fedora-minimal:44` may be in the rootless Podman store. All `dbr2spike-*` containers, networks and volumes were removed.
+- **Files:** `spikes/**` (new), `adr/0001`, `0002`, `0003`, `0004`, `0005`, `0006`, `0007`, `0009`, `0011`, `stack_info/final_stack.md`, `threat_model.md` (T1 revised; T19 and T20 added), `roadmap.md`
 
 ### 2026-09-25 — Decision / Docs — License accepted; GitHub Actions; NFS mocked; per-component versioning; Swagger docs
 - **Notes:**

@@ -1,0 +1,61 @@
+10:15:15 [agent-a@hosta] connect with wrong password                                    expect=DENY  got=DENY  err=unable to establish session for purpose=: error establishing session: unable to initialize session: rpc error: code = PermissionDenied desc = access denied for agent-a@hosta: EOF
+10:15:15 [agent-a@hosta] connect with own server-user password (no repo password)       expect=ALLOW got=ALLOW 
+10:15:16 [agent-a@hosta] connection is NOT direct (cannot run maintenance)              expect=DENY  got=DENY  type=*repo.grpcRepositoryClient err=false
+10:15:16 [agent-a@hosta] create snapshot of own source                                  expect=ALLOW got=ALLOW id=0acd9467ee2e73b4c0c10c8d046f3752
+10:15:16 [agent-b@hostb] create snapshot of own source                                  expect=ALLOW got=ALLOW id=8c0d366740cdb23f6a5ab41244780079
+10:15:16 [agent-a@hosta] list snapshots: sees own                                       expect=ALLOW got=ALLOW visible=[agent-a@hosta]
+10:15:16 [agent-a@hosta] list snapshots: sees agent-b's                                 expect=DENY  got=DENY  err=not visible
+10:15:16 [agent-a@hosta] load agent-b snapshot manifest by ID                           expect=DENY  got=DENY  err=unable to find manifest entries: access denied
+10:15:16 [agent-a@hosta] restore own snapshot                                           expect=ALLOW got=ALLOW 
+10:15:16 [agent-a@hosta] read agent-b root dir object by ID (bypassing manifests)       expect=DENY  got=ALLOW bytes=319
+10:15:16 [agent-a@hosta] read agent-b FILE content by object ID                         expect=DENY  got=ALLOW file=data.bin bytes=262144
+10:15:16 [agent-a@hosta] read random/unknown object ID                                  expect=DENY  got=DENY  err=content k0123456789abcdef0123456789abcdef not found: object not found
+10:15:16 [agent-a@hosta] delete own snapshot                                            expect=DENY  got=DENY  err=access denied
+10:15:16 [agent-a@hosta] delete agent-b snapshot                                        expect=DENY  got=DENY  err=access denied
+10:15:17 [agent-a@hosta] forge snapshot manifest for agent-b@hostb source               expect=DENY  got=DENY  err=error putting manifest: access denied
+10:15:17 [agent-a@hosta] set retention policy on own source                             expect=DENY  got=DENY  err=error writing policy manifest: access denied
+10:15:17 [agent-a@hosta] read global policy (needed by uploader)                        expect=ALLOW got=ALLOW 
+10:15:17 [agent-a@hosta] enumerate server users                                         expect=DENY  got=DENY  visible=0 err=none visible
+10:15:17 [agent-a@hosta] write an ACL manifest granting itself FULL                     expect=DENY  got=DENY  err=access denied
+10:15:20 [agent-a@hosta] trigger server-side retention on own source (12 unpinned)      expect=DENY  got=ALLOW deleted=2 remaining=10 (default global policy keep-latest=10)
+10:15:23 [agent-a@hosta] trigger server-side retention on own source (12 PINNED)        expect=DENY  got=DENY  deleted=0 remaining=12 err=nothing deleted
+10:15:25 [agent-a@hosta] trigger server-side retention on agent-b's path                expect=DENY  got=DENY  rpcErr=<nil> deleted=0 agent-b remaining=12 (server binds request to caller's user@host) err=agent-b snapshots untouched
+10:15:25 [maint@dbr2] list snapshots of all agents                                   expect=ALLOW got=ALLOW visible=[agent-a@hosta agent-b@hostb]
+10:15:25 [maint@dbr2] restore agent-b snapshot (staged cross-host restore)           expect=ALLOW got=ALLOW 
+10:15:25 [maint@dbr2] set policy on agent-a source                                   expect=ALLOW got=ALLOW 
+10:15:26 [maint@dbr2] delete agent-b snapshot                                        expect=ALLOW got=ALLOW 
+10:15:26 [agent-b@hostb] own snapshot gone after maint delete                           expect=ALLOW got=ALLOW remaining=0
+10:15:26 [maint@dbr2] connection is NOT direct (cannot run maintenance/GC)           expect=DENY  got=DENY  type=*repo.grpcRepositoryClient err=false
+
+| identity | operation | expected (DBR² intent) | actual | detail |
+|---|---|---|---|---|
+| agent-a@hosta | connect with wrong password | DENY | DENY | err=unable to establish session for purpose=: error establishing session: unable to initialize session: rpc error: code = PermissionDenied desc = access denied for agent-a@hosta: EOF |
+| agent-a@hosta | connect with own server-user password (no repo password) | ALLOW | ALLOW |  |
+| agent-a@hosta | connection is NOT direct (cannot run maintenance) | DENY | DENY | type=*repo.grpcRepositoryClient err=false |
+| agent-a@hosta | create snapshot of own source | ALLOW | ALLOW | id=0acd9467ee2e73b4c0c10c8d046f3752 |
+| agent-b@hostb | create snapshot of own source | ALLOW | ALLOW | id=8c0d366740cdb23f6a5ab41244780079 |
+| agent-a@hosta | list snapshots: sees own | ALLOW | ALLOW | visible=[agent-a@hosta] |
+| agent-a@hosta | list snapshots: sees agent-b's | DENY | DENY | err=not visible |
+| agent-a@hosta | load agent-b snapshot manifest by ID | DENY | DENY | err=unable to find manifest entries: access denied |
+| agent-a@hosta | restore own snapshot | ALLOW | ALLOW |  |
+| agent-a@hosta | read agent-b root dir object by ID (bypassing manifests) | DENY | **ALLOW** (mismatch) | bytes=319 |
+| agent-a@hosta | read agent-b FILE content by object ID | DENY | **ALLOW** (mismatch) | file=data.bin bytes=262144 |
+| agent-a@hosta | read random/unknown object ID | DENY | DENY | err=content k0123456789abcdef0123456789abcdef not found: object not found |
+| agent-a@hosta | delete own snapshot | DENY | DENY | err=access denied |
+| agent-a@hosta | delete agent-b snapshot | DENY | DENY | err=access denied |
+| agent-a@hosta | forge snapshot manifest for agent-b@hostb source | DENY | DENY | err=error putting manifest: access denied |
+| agent-a@hosta | set retention policy on own source | DENY | DENY | err=error writing policy manifest: access denied |
+| agent-a@hosta | read global policy (needed by uploader) | ALLOW | ALLOW |  |
+| agent-a@hosta | enumerate server users | DENY | DENY | visible=0 err=none visible |
+| agent-a@hosta | write an ACL manifest granting itself FULL | DENY | DENY | err=access denied |
+| agent-a@hosta | trigger server-side retention on own source (12 unpinned) | DENY | **ALLOW** (mismatch) | deleted=2 remaining=10 (default global policy keep-latest=10) |
+| agent-a@hosta | trigger server-side retention on own source (12 PINNED) | DENY | DENY | deleted=0 remaining=12 err=nothing deleted |
+| agent-a@hosta | trigger server-side retention on agent-b's path | DENY | DENY | rpcErr=<nil> deleted=0 agent-b remaining=12 (server binds request to caller's user@host) err=agent-b snapshots untouched |
+| maint@dbr2 | list snapshots of all agents | ALLOW | ALLOW | visible=[agent-a@hosta agent-b@hostb] |
+| maint@dbr2 | restore agent-b snapshot (staged cross-host restore) | ALLOW | ALLOW |  |
+| maint@dbr2 | set policy on agent-a source | ALLOW | ALLOW |  |
+| maint@dbr2 | delete agent-b snapshot | ALLOW | ALLOW |  |
+| agent-b@hostb | own snapshot gone after maint delete | ALLOW | ALLOW | remaining=0 |
+| maint@dbr2 | connection is NOT direct (cannot run maintenance/GC) | DENY | DENY | type=*repo.grpcRepositoryClient err=false |
+
+28 checks, 3 mismatches vs DBR² intent

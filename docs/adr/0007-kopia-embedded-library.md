@@ -35,10 +35,20 @@ Precedent: other backup products (for example Velero) integrate Kopia as a libra
 - **Upgrades are deliberate roadmap items,** each gated by an **engine compatibility suite**. The suite restores fixture repositories created by every previously shipped version.
 - **Where it is embedded:**
   - `dbr2-agent`: a repository-server client
-  - `dbr2-reposerver`: the Kopia repository server
-  - `dbr2-worker`: maintenance-identity operations
+  - `dbr2-reposerver`: the Kopia repository server. **Amended after the spike:** Kopia's server, ACL and user code lives in `internal/` packages, which cannot be imported. `dbr2-reposerver` therefore runs `server start` **in-process through Kopia's public `cli` package** (verified to behave identically to the upstream binary). User and ACL administration uses the same in-process CLI commands. The fallback, if the `cli` package becomes unusable, is supervising the pinned upstream `kopia` binary. This process also owns maintenance and GC (ADR-0002).
+  - `dbr2-worker`: `maint@dbr2` operations (list, delete, set policy, restore). Never maintenance.
   - `dbr2` CLI: offline and agent-only recovery
 - **Last-resort recovery:** repositories remain standard Kopia repositories. If DBR² binaries are unavailable, a stock `kopia` CLI of a compatible version, plus the escrowed repository password (ADR-0008), can still restore the data (ADR-0003). The platform runbook documents this procedure.
+
+## Spike results (2026-09-25): `spikes/kopia-library/RESULTS.md`
+
+- **Confirmed** using only public packages: `repo`, `repo/blob/filesystem`, `snapshot`, `snapshot/upload`, `snapshot/policy`, `snapshot/restore`, `snapshot/snapshotfs`, `fs/localfs`, `fs/virtualfs`. Covered: create and connect, tagged path snapshots, `io.Reader` stream snapshots, the manifest snapshot, restore with checksum verification, and progress and cancellation. The same engine wrapper (about 330 lines) worked against the repository server.
+- **Pitfalls, which the engine compatibility suite must cover:**
+  1. **Restores are shallow by default.** Set `RestoreDirEntryAtDepth = math.MaxInt32`.
+  2. **The uploader ignores context cancellation.** Bridge `ctx.Done()` to `Uploader.Cancel()`, and **never save a manifest marked incomplete**.
+  3. **Tag keys must not contain `:`**, or the stock CLI cannot filter by them. Use `dbr2-rp`, `dbr2-app`, `dbr2-component` and `dbr2-kind` (ADR-0004).
+  4. Restore options from ADR-0006: `IgnorePermissionErrors = false` and sparse writing on.
+- A stock `kopia` CLI lists DBR²'s tagged snapshots and prints the recovery manifest, which confirms the ADR-0003 last-resort recovery path.
 
 ## Consequences
 

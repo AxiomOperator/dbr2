@@ -28,14 +28,15 @@ A **Recovery Point (RP)** is an immutable, point-in-time, restorable capture of 
 | `bind_mount` | One bind-mount source path | Kopia snapshot of the host path |
 | `database` | One logical database dump | Dump tool stdout streamed into a Kopia snapshot (Zstandard-compressed stream) |
 | `image` (optional) | `docker save` output | Streamed into a Kopia snapshot |
+| `fsmeta` (one for each `volume` and `bind_mount`) | Filesystem metadata Kopia does not keep: extended attributes, ACLs, SELinux contexts, hardlink groups, directory mtimes (ADR-0006) | Agent-generated compressed JSON Lines, streamed into a Kopia snapshot; **required** whenever its parent component is present |
 
 Every component snapshot is tagged:
 
 ```text
-dbr2:rp=<rp_id>
-dbr2:app=<application_id>
-dbr2:component=<component_name>
-dbr2:kind=<component_kind>
+dbr2-rp=<rp_id>
+dbr2-app=<application_id>
+dbr2-component=<component_name>
+dbr2-kind=<component_kind>
 ```
 
 ### The manifest
@@ -52,7 +53,7 @@ The manifest is a JSON document (`schema_version`, RP ID, application identity, 
 
 It also records the image references and digests, the recovery-contract evaluation at capture time, and the IDs of the workflow that produced it.
 
-The manifest is written into the Repository as its own small Kopia snapshot tagged `dbr2:kind=manifest` and `dbr2:rp=<rp_id>`. Tag-based lookup makes reindexing (ADR-0003) cheap, and a stock `kopia` CLI can read the manifest.
+The manifest is written into the Repository as its own small Kopia snapshot tagged `dbr2-kind=manifest` and `dbr2-rp=<rp_id>`. **It is written by `dbr2-worker` under the `maint@dbr2` identity, never by an agent** (source `maint@dbr2:/manifests/<application_id>`). Reindexing (ADR-0003) **trusts only manifests from that source**, because the spike showed an agent can create manifest-tagged snapshots on its own source. Agents write components only. Tag-based lookup makes reindexing (ADR-0003) cheap, and a stock `kopia` CLI can read the manifest.
 
 ### Atomic commit (two-phase)
 
@@ -92,3 +93,10 @@ Live-mode RPs are flagged `crash_consistent_only`. Database components carry the
 - Restore, the UI, the CLI and reindexing all key on the manifest, never on individual snapshots.
 - Retention operates on whole RPs.
 - Consistency Groups (several applications with a shared consistency point) extend this model later by writing a group manifest that references member RPs.
+
+## Spike amendments (2026-09-25: `spikes/kopia-library/RESULTS.md`)
+
+- Tag keys use hyphens (`dbr2-rp`, `dbr2-app`, `dbr2-component`, `dbr2-kind`). Colons break filtering in the stock CLI.
+- **Every component and manifest snapshot is pinned** (`Pins=["dbr2"]`), so Kopia retention can never delete it (ADR-0002). Deleting a recovery point means `maint@dbr2` deletes the manifest first and then the components, as before.
+- **The manifest's recorded components must match their sources:** each component's snapshot source (`user@host`) must be the agent recorded for the recovery point. The commit step validates this, and so does reindexing.
+- Space is reclaimed about 24–48 hours after deletion, through reposerver maintenance.

@@ -1,0 +1,29 @@
+10:07:21.721711 ==== (a) initialize + connect filesystem repository
+10:07:22.262851 connected: *repo.directRepository user=agent-a host=hosta
+10:07:22.262965 ==== (b) snapshot a directory with DBR² tags, list by tag
+10:07:22.302495 volume snapshot id=eb357f216837ae512d907c3f685dee51 root=kdbd195b12b1b2126953baf8d2db70b29 files=25 bytes=1638400
+10:07:22.314368 list by tag dbr2-rp=rp_01SPIKE1790348842 -> 1 snapshot(s)
+10:07:22.314676 list all snapshots -> 2 snapshot(s)
+10:07:22.314787 PASS: tag filter returns exactly the tagged snapshot
+10:07:22.314804 ==== (c) snapshot from io.Reader stream
+10:07:22.470716 stream snapshot id=949e582fc8ed1f9b0585fe25941a1d81 bytes=8388608
+10:07:22.470840 ==== (d) write recovery manifest snapshot (two-phase commit)
+10:07:22.483861 PASS: RP is committed: exactly one manifest snapshot found by tag
+10:07:22.484084 snapshots in RP rp_01SPIKE1790348842: 3 (volume, database, manifest)
+10:07:22.484105 ==== (e) restore directory + stream and verify checksums
+10:07:22.490768 restored files=25 bytes=1638400
+10:07:22.494693 PASS: restored tree sha256 matches source (25 files)
+10:07:22.521406 PASS: restored stream sha256 matches (8388608 bytes)
+10:07:22.521843 PASS: recovery manifest round-trips byte-for-byte
+10:07:22.521862 ==== (f) progress callbacks + cancel mid-snapshot
+10:07:23.070396   progress: hashed=0 MiB uploaded=0 MiB files=0
+10:07:23.120507   progress: hashed=70 MiB uploaded=0 MiB files=0
+10:07:23.143077 snapshot returned after 73ms, hashed=70 MiB, err=upload: context canceled
+10:07:23.143118 PASS: cancellation surfaces as an error
+10:07:23.143122 PASS: progress callback fired (2 ticks)
+10:07:23.143231 PASS: no snapshot manifest persisted for canceled run (4 before, 4 after)
+10:07:23.143422 repo size before=9 MiB after canceled run=9 MiB (pack blobs written before cancel remain until maintenance)
+10:07:23.589408 post-cancel full snapshot ok id=bda3d1e02709d01f5333aa35b8008acb bytes=335544320 (uploaded this run: 320 MiB) repo size now=329 MiB
+10:07:24.166579 PASS: post-cancel snapshot restores intact
+
+Q1: ALL CHECKS PASSED
