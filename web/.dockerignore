@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Build context for web/Dockerfile: dependencies are installed with `npm ci`
+# inside the image; local build output and secrets never enter the context.
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+.env*
+*.pem
+npm-debug.log*
+.DS_Store
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+CHANGELOG.md
+AGENTS.md
+CLAUDE.md

@@ -1,0 +1,20 @@
+# Changelog — api
+
+All notable changes to the `api` component. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are `MAJOR.MINOR.BUGFIX.BUILD` (ADR-0015).
+
+## [Unreleased]
+
+### Added
+- Component scaffold (Phase 1).
+- `/api/v1` REST API (Huma v2 + Chi), OpenAPI 3.1 document committed as `api/openapi.yaml` (22 paths, 24 operations).
+- System: `GET /version`, `GET /health/live`, `GET /health/ready` (PostgreSQL critical; Temporal, Valkey degrade).
+- Authentication: master admin login (TOTP step, `account_locked` 423 and `rate_limited` 429 with `Retry-After`), logout, `/auth/me`, password change, TOTP enroll/confirm/disable, Entra ID OIDC login/callback (PKCE, nonce, browser-bound state), personal API tokens (`/tokens`).
+- Users: users list, roles list, manual role assignment, enable/disable, Entra ID group → role mappings (`user.read` / `user.manage`).
+- Audit: paged `GET /audit-events` (`audit.read`).
+- Swagger UI at `/api/docs` from embedded, pinned Swagger UI 5.31.1 assets; `/api/openapi.json` and `/api/openapi.yaml`; login required unless `DBR2_API_DOCS_PUBLIC=true` (browsers are redirected to the console login).
+- Error model: RFC 9457 problem+json with a stable `code` field.
+- Security schemes: `bearerAuth` (API tokens) and `sessionCookie`; per-operation permission published as `x-dbr2-permission` and enforced from the same metadata.
+
+### Notes
+- Decision: Huma's default `$schema` body field and `Link` response header are **disabled** (they pointed at an example schema host and add noise to the contract).
+- Spec lint test (`TestSpecLint`) fails on undocumented operations or unknown permissions.

@@ -49,6 +49,7 @@
 | T18 | **Single operator** (ADR-0014): one compromised account can issue destructive operations | Deletion grace period; typed confirmation plus a reason; audit notifications; NAS snapshots; Entra ID conditional access and MFA on the operator's account | Accepted until a second operator exists and approvals are enabled |
 | T19 | **Restore silently widens file access** (Kopia drops POSIX ACLs; a 0600 file with an ACL restored with group read/write) or silently skips ownership | Filesystem metadata record reapplied in staging before swap-in; restore with `IgnorePermissionErrors = false`; post-restore fidelity verification (ADR-0006) | — |
 | T20 | **Agent abuses repository-server features**: triggering Kopia retention on its own snapshots, forging manifest-tagged snapshots, or filling storage | Pins on every snapshot (retention can't delete them); manifests trusted only from the `maint@dbr2` source, with component sources validated; per-agent storage monitoring and quotas | — |
+| T21 | **Spoofed client IP** via a client-supplied `X-Forwarded-For` (evades the login rate limit, falsifies audit source IPs) | The Caddy edge proxy discards client `X-Forwarded-*`; `dbr2-server` trusts `X-Forwarded-For` only from Caddy's fixed address and uses the rightmost untrusted hop; verified end to end (a spoofed `6.6.6.6` was recorded as the real peer). The Next.js `/api` proxy is development-only | Deployments that bypass the edge proxy lose this guarantee |
 
 ## Security requirements derived from this model (tracked in `roadmap.md`)
 

@@ -1,0 +1,260 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# DBR² continuous integration. Gates are documented in scripts/ci/README.md.
+# Third-party actions are pinned to full commit SHAs (Dependabot keeps them current).
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  BUILD: ${{ github.run_number }}
+
+jobs:
+  go:
+    name: Go (lint, test, build, generated code)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Lint (vet, gofmt, SPDX)
+        run: make lint
+      - name: Unit tests
+        run: make test
+      - name: Build binaries
+        run: make build BUILD="$BUILD"
+      - name: Generated code is up to date
+        run: make check-generated
+
+  integration:
+    name: Go integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Integration tests (testcontainers, Docker)
+        run: make test-integration
+
+  nfs-functional:
+    name: NFS storage guard (containerized NFS, functional only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      # nfs-ganesha server + privileged client; drives the real dbr2-reposerver
+      # (mount guard, sentinel, stall watchdog). No throughput testing.
+      - name: NFS functional test
+        run: tests/nfs/run.sh
+
+  web:
+    name: Web (lint, typecheck, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install, test and build
+        run: make web-install web-test web-build BUILD="$BUILD"
+
+  api-contract:
+    name: API contract (OpenAPI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Export OpenAPI and compare with the committed copy
+        run: |
+          make openapi
+          if ! git ls-files --error-unmatch api/openapi.yaml >/dev/null 2>&1; then
+            echo "::error file=api/openapi.yaml::api/openapi.yaml is not committed. Run 'make openapi' and commit it."
+            exit 1
+          fi
+          git diff --exit-code api/openapi.yaml || {
+            echo "::error file=api/openapi.yaml::api/openapi.yaml is out of date. Run 'make openapi' and commit the result (and add an api/CHANGELOG.md entry)."
+            exit 1
+          }
+      - name: Breaking-change check (oasdiff)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/ci/check-api-contract.sh "origin/$BASE_REF"
+
+  proto:
+    name: Protocol (buf)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: buf lint and breaking
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/ci/check-proto.sh ${BASE_REF:+"origin/$BASE_REF"}
+
+  changelog:
+    name: Changelog (ADR-0015)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check component changelogs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Labels are read live so re-running this job picks up a newly added 'no-changelog' label.
+          PR_LABELS=$(gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name' | paste -sd, -)
+          export PR_LABELS
+          scripts/ci/check-changelog.sh "$BASE_SHA" "$HEAD_SHA"
+
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check Signed-off-by on every commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: scripts/ci/check-dco.sh "$BASE_SHA" "$HEAD_SHA"
+
+  license:
+    name: License (SPDX, third-party notices, allow-list)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: SPDX headers
+        run: scripts/ci/check-spdx.sh
+      - name: Install web dependencies (for license texts)
+        run: make web-install
+      - name: THIRD_PARTY_NOTICES is current and dependency licenses are allowed
+        run: scripts/ci/third-party-notices.sh --check
+
+  security:
+    name: Security (govulncheck, npm audit, gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: govulncheck
+        run: |
+          mapfile -t pkgs < <(go list -e ./... | grep -v '/node_modules/')
+          "$(scripts/ci/install-tool.sh govulncheck)" "${pkgs[@]}"
+      - name: npm audit (production dependencies)
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
+      - name: gitleaks (secret scan of the git history)
+        run: |
+          "$(scripts/ci/install-tool.sh gitleaks)" git --redact --no-banner --exit-code 1 --gitleaks-ignore-path .github -v .
+
+  actionlint:
+    name: Workflow lint (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: actionlint (uses the runner's shellcheck)
+        run: '"$(scripts/ci/install-tool.sh actionlint)" -color'
+
+  ci-scripts:
+    name: CI script tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck -x scripts/ci/*.sh scripts/ci/lib/*.sh scripts/ci/test/*.sh scripts/release/*.sh
+      - name: Script test suite
+        run: scripts/ci/test/run.sh

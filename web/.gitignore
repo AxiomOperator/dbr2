@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+/test-results/
+/playwright-report/
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+
+# env files (never commit secrets)
+.env*
+
+# vercel
+.vercel

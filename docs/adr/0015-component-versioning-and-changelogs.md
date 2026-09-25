@@ -104,8 +104,9 @@ Changelogs follow the Keep a Changelog layout, using the four-part version in ea
 ### CI enforcement (GitHub Actions)
 
 - **Changelog check (PR):** if files under a component's path change, that component's `CHANGELOG.md` `[Unreleased]` section must gain an entry. The `no-changelog` label is allowed only for PRs that change nothing but tests, CI or docs.
-- **API contract check (PR):** regenerate `api/openapi.yaml` and diff it against the committed copy. A breaking change requires an `api` MAJOR bump (for example using `oasdiff`).
-- **Protocol check (PR):** `buf breaking` on `proto/agent/`. A breaking change requires an `agent-protocol` MAJOR bump.
+- **API contract check (PR):** regenerate `api/openapi.yaml` and diff it against the committed copy. A breaking change requires an `api` version bump (oasdiff).
+- **Protocol check (PR):** `buf breaking` on `proto/agent/`. A breaking change requires an `agent-protocol` version bump.
+- **Breaking-change bump rule (amended 2026-09-25):** while a component is below 1.0 (MAJOR = 0), a MINOR (or MAJOR) bump permits a breaking change, following the semantic-versioning 0.x convention; this keeps components below 1.0.0 until the v1.0 release as intended. From 1.x on, only a MAJOR bump permits it. A BUGFIX-only bump never does.
 - **Release workflow:** compute `VERSION` + `.run_number`, stamp the artifacts, move `[Unreleased]` to the release heading, tag the commit, and publish.
 
 ## Consequences

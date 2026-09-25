@@ -20,7 +20,7 @@ Related documents: `stack_info/final_stack.md` (source of truth, including **Con
 | Phase | Name | Tier | Status |
 |---|---|---|---|
 | 0 | Decisions & spikes | v1.0 | **Complete** (2026-09-25) |
-| 1 | Foundations | v1.0 | Not started |
+| 1 | Foundations | v1.0 | **Complete** (2026-09-25) |
 | 2 | Agent, enrollment & gateway | v1.0 | Not started |
 | 3 | Discovery | v1.0 | Not started |
 | 4 | Repositories & backup | v1.0 | Not started |
@@ -75,38 +75,40 @@ Goal: remove the architectural unknowns before building.
 
 **Deferred until the NAS is connected:** real-NFS throughput testing; seed and incremental timing for the ~500 GB volume against the 60-minute quiesce default (ADR-0005); reposerver throughput with several agents; confirming the splitter choice before creating the production Repository.
 
+**Deferred until a real Entra ID tenant is configured:** end-to-end sign-in against Entra ID (Phase 1 verified the flow against a standards-compliant fake OIDC provider), including groups-overage behavior. **Deferred until an OTLP collector is available:** confirming trace and metric export.
+
 **Deferred to a root-capable Rocky and Fedora test host** (procedures in `spikes/kopia-fidelity-nfs/RESULTS.md`): the agent reading data as `unconfined_service_t` under systemd; a Docker daemon with `selinux-enabled`; restoring `trusted.*` extended attributes and SELinux labels as root. Also still to observe: Kopia's scheduled full GC in the reposerver (more than 24 hours; inferred from source).
 
 **Exit criteria:** every ADR is Accepted; the spike results are recorded in the ADRs and in this change log.
 
 ## Phase 1 — Foundations
 
-- [ ] Monorepo scaffold per the final stack codebase structure (`cmd/`, `internal/`, `workflows/`, `proto/`, `db/`, `web/`, `deployments/`, `tests/`)
+- [x] Monorepo scaffold per the final stack codebase structure (`cmd/`, `internal/`, `workflows/`, `proto/`, `db/`, `web/`, `deployments/`, `tests/`)
 - [x] `LICENSE` (Apache-2.0) and `NOTICE` crediting the original repository (ADR-0013)
-- [ ] SPDX headers, `THIRD_PARTY_NOTICES`, DCO sign-off check (ADR-0013)
-- [ ] Per-component `VERSION` (starting at `0.1.0`) and `CHANGELOG.md` for api, server, worker, agent, reposerver, cli, web, agent-protocol, manifest-schema, db-schema and deployment; root `CHANGELOG.md` (ADR-0015)
-- [ ] Version stamping: `-ldflags` for Go binaries, `--version` on every binary, `GET /api/v1/version`, version in the web footer, and agent / agent-protocol versions reported at `Connect` (ADR-0015)
-- [ ] Docker Compose deployment: `dbr2-web`, `dbr2-server`, `dbr2-worker`, `dbr2-reposerver`, `postgres`, `valkey`, `temporal`
-- [ ] PostgreSQL schema and migrations; sqlc store (`internal/store`)
-- [ ] Data model leaves room for future multi-tenancy (organization or tenant ID) so it is not a redesign later
-- [ ] Go control plane: Chi + Huma, OpenAPI generation, `/api/v1`
-- [ ] **Swagger UI API docs** from embedded, pinned assets at `/api/docs` (Huma's docs route disabled), plus `/api/openapi.json` and `/api/openapi.yaml`. Login required by default (`api.docs.public` option; redirect to login); `x-dbr2-permission` metadata that is both documented and enforced; CSRF same-origin check; `dbr2-server openapi -o api/openapi.yaml`; spec lint test. Decide whether to keep Huma's default `$schema`/`Link` response additions
-- [ ] Temporal worker skeleton on the pinned images (server/admin-tools 1.32.0, UI 2.54.1; schema jobs; `dbr2` namespace); `StartApplicationOperation()` helper plus a lint rule; the schedule → trigger → child (ABANDON) pattern; Cancel-only UI and API (no terminate); determinism and versioning guidelines (ADR-0005, 0009, 0011)
-- [ ] Authentication: **Entra ID** through OIDC, with group-to-role mapping
-- [ ] **Master admin**: local username and password (Argon2id), rate limiting and lockout, optional TOTP, a notification on every login, `dbr2 admin reset-master-password` (root on the server host)
-- [ ] RBAC: roles and permissions per the final stack (including `restore.production`); team-ready but operable by one person (ADR-0014)
-- [ ] Audit log: append-oriented, structured JSON, stable event IDs (SIEM-friendly)
-- [ ] Observability: `slog` JSON logging, OpenTelemetry traces and metrics, OTLP export, secret redaction in logs
-- [ ] CI on **GitHub Actions**: Go and web builds, unit tests, dependency and security scanning, license checks, SBOM, container signing
-- [ ] CI versioning gates: per-component changelog check (`no-changelog` label only for test, CI or docs PRs), OpenAPI breaking-change diff (oasdiff), `buf breaking`, release workflow (`VERSION` + `run_number`, tags `<component>/vX.Y.Z.B`, `release-manifest.json`) (ADR-0015)
-- [ ] Dev storage profile: mocked NFS (a local directory at the production mount path) and a containerized NFS server for functional tests
+- [x] SPDX headers (CI check, 147 files), generated `THIRD_PARTY_NOTICES` with a license allow-list, DCO sign-off check (ADR-0013)
+- [x] Per-component `VERSION` (starting at `0.1.0`) and `CHANGELOG.md` for api, server, worker, agent, reposerver, cli, web, agent-protocol, manifest-schema, db-schema and deployment; root `CHANGELOG.md` (ADR-0015)
+- [x] Version stamping: `-ldflags` for Go binaries, `version` on every binary, `GET /api/v1/version`, version in the web footer and About page; agent / agent-protocol version fields defined in the `Connect` handshake (`Hello`). Enforcing them at `Connect` moved to Phase 2 with the Agent Gateway (ADR-0015)
+- [x] Docker Compose deployment: Caddy edge proxy, `dbr2-web`, `dbr2-server`, `dbr2-worker`, `dbr2-reposerver`, `postgres`, `valkey`, `temporal` (+ schema and namespace jobs, UI on loopback); secrets generator; verified end to end in a real browser
+- [x] PostgreSQL schema and migrations (goose, embedded); sqlc store (`internal/store`)
+- [x] Data model leaves room for future multi-tenancy (`organizations` + `org_id` on tenant-scoped tables)
+- [x] Go control plane: Chi + Huma, OpenAPI generation, `/api/v1` (22 paths, 24 operations)
+- [x] **Swagger UI API docs** from embedded, pinned assets at `/api/docs` (Huma's docs route disabled), plus `/api/openapi.json` and `/api/openapi.yaml`. Login required by default (`DBR2_API_DOCS_PUBLIC`; browsers redirected to login); `x-dbr2-permission` documented and enforced from one source; CSRF same-origin check; `dbr2-server openapi -o api/openapi.yaml` (deterministic); spec lint test. Huma's `$schema`/`Link` additions **disabled**
+- [x] Temporal worker skeleton on the pinned images (server/admin-tools 1.32.0, UI 2.54.1; schema jobs; `dbr2` namespace); `StartApplicationOperation()` helper plus a lint rule; the schedule → trigger → child (ABANDON) pattern; Cancel-only (lint forbids `TerminateWorkflow`; no terminate API); `saga` compensation helper; `docs/dev/temporal-guidelines.md`; verified against a real Temporal 1.32.0 server (ADR-0005, 0009, 0011)
+- [x] Authentication: **Entra ID** through OIDC (authorization code + PKCE, nonce, browser-bound state, lazy discovery), with group-to-role mapping synced at sign-in; users with no role denied. Verified against a fake OIDC provider (validation against a real Entra tenant is listed under Deferred)
+- [x] **Master admin**: local username and password (Argon2id), per-IP rate limiting and progressive lockout, optional replay-safe TOTP, a notification-outbox entry on every login, bootstrap password in a root-only file, `dbr2-server admin reset-master-password` on the server host (a server subcommand, not the CLI, because it needs database access)
+- [x] RBAC: roles and permissions per the final stack (including `restore.production`) plus `user.read` / `user.manage`; manual roles, enable/disable, group mappings; master admin immutable; self-lockout prevented (ADR-0014)
+- [x] Audit log: append-only (database triggers reject UPDATE/DELETE/TRUNCATE), structured JSON log mirror, 19 stable event types (`docs/dev/audit-events.md`), before/after state
+- [x] Observability: `slog` JSON logging with trace correlation, OpenTelemetry traces and metrics, OTLP export (`DBR2_OTEL_ENABLED`), secret redaction in logs and audit details
+- [x] CI on **GitHub Actions**: Go and web builds, unit and integration tests, NFS functional test, govulncheck, npm audit, gitleaks, license checks, SBOM, cosign container signing; actions pinned by SHA; Dependabot
+- [x] CI versioning gates: per-component changelog check (`no-changelog` label only for test, CI or docs PRs), OpenAPI breaking-change diff (oasdiff), `buf breaking` (pre-1.0: MINOR bump permits breaking changes), release workflow (`VERSION` + `run_number`, tags `<component>/vX.Y.Z.B`, `release-manifest.json`) (ADR-0015)
+- [x] Dev storage profile: mocked NFS (`.dev/repo` bind-mounted at `/mnt/dbr2-repo`) and a containerized NFS server for functional tests (`tests/nfs/run.sh`: 12 checks on a real nfs4 mount, including stall detection)
 
 ## Phase 2 — Agent, enrollment & gateway
 
 - [ ] `dbr2-agent` native static binary (AMD64) and systemd unit (ADR-0006); **RPM packages for Rocky and Fedora**
 - [ ] DBR² CA; agent certificate issuance, renewal, suspension and revocation
 - [ ] Enrollment: single-use, expiring registration tokens; **host approval workflow** (Pending → Active)
-- [ ] Agent Gateway in `dbr2-server`: `AgentService.Connect` stream, session leases in PostgreSQL (ADR-0001)
+- [ ] Agent Gateway in `dbr2-server`: `AgentService.Connect` stream, session leases in PostgreSQL (ADR-0001); enforce agent / agent-protocol versions from `Hello` (reject a mismatched protocol MAJOR, flag outdated agents; moved from Phase 1)
 - [ ] Command protocol: idempotent `command_id`, deadlines, local command journal, status report on reconnect
 - [ ] Temporal activity dispatch through the gateway, with heartbeats
 - [ ] Agent health reporting, and `agent.connection_state` / `agent.latency` metrics
@@ -169,7 +171,8 @@ Goal: remove the architectural unknowns before building.
 - [ ] Manual Back Up and Restore flows with live progress over SSE
 - [ ] Recovery point browser (the manifest view; Complete or Partial status)
 - [ ] Agent approval UI
-- [ ] Playwright end-to-end tests for the core flows
+- [ ] Playwright end-to-end tests for the core flows (Phase 1 ran an ad-hoc headless Chromium check against the real stack)
+- [ ] Content-Security-Policy with nonces for console pages (Next.js inline scripts); other security headers already set
 
 ## Phase 7 — Scheduling, retention & notifications
 
@@ -295,6 +298,51 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Feature / Deployment — Phase 1 (Foundations) complete
+- **Notes:**
+  - **Control plane:**
+    - `dbr2-server` with Chi + Huma: 22 API paths.
+    - OpenAPI 3.1 export, committed and deterministic.
+    - Swagger UI from embedded, pinned assets, behind login by default.
+    - problem+json errors with stable codes.
+  - **Authentication:**
+    - Master admin: Argon2id, per-IP rate limit, progressive lockout, replay-safe TOTP, bootstrap password in a 0600 file, offline reset through `dbr2-server admin reset-master-password`.
+    - Entra ID OIDC: PKCE, nonce, browser-bound state, group → role sync; users with no role are denied.
+    - Server-side sessions and personal API tokens.
+  - **Access control and audit:**
+    - RBAC with `user.read` / `user.manage` added.
+    - CSRF same-origin check.
+    - Audit log that is append-only, enforced by database triggers, with 19 stable event types.
+    - Notification outbox entry for every master admin login.
+  - **Temporal:**
+    - `dbr2-worker`, and the `StartApplicationOperation` helper that fixes the SDK's silent-attach default.
+    - Schedule → trigger → child pattern, `saga` compensation helper.
+    - Lint rules: no `TerminateWorkflow`; `ExecuteWorkflow` only in `temporalx`.
+    - Verified on a real Temporal 1.32.0 server.
+  - **Storage and components:**
+    - `dbr2-reposerver` storage guard: mount check, sentinel, stall watchdog. Verified on a real nfs4 mount (12/12 checks, including stall detection and recovery).
+    - `dbr2-agent` / `dbr2` CLI version-level binaries.
+    - Agent protocol v1 handshake (`buf` STANDARD lint).
+  - **Web console** (Next.js 16): login with TOTP and Entra ID, dashboard, audit log, security settings, About page, version footer.
+  - **Deployment:**
+    - Docker Compose with a **Caddy edge proxy**. Decision: the Next.js proxy cannot sanitize a client-supplied `X-Forwarded-For`; Caddy discards it and the server trusts only Caddy, which prevents audit IP and rate-limit spoofing. Verified: a spoofed `6.6.6.6` was recorded as the real peer. Recorded as threat T21.
+    - Distroless Go images, Compose secrets, PostgreSQL with separate roles.
+    - Dev override with mocked NFS.
+    - The full stack was verified in headless Chromium: login, dashboard, audit page and Swagger UI with 24 operations.
+  - **CI (GitHub Actions):**
+    - Go, web, integration and NFS functional jobs.
+    - api-contract (oasdiff), proto (`buf breaking`), changelog, DCO, license/SPDX/`THIRD_PARTY_NOTICES`, security (govulncheck, npm audit, gitleaks), actionlint and CI-script tests.
+    - Image build with SBOM and cosign; release workflow; Dependabot.
+  - **Decisions:**
+    - Huma `$schema`/`Link` additions disabled.
+    - Pre-1.0 breaking changes are allowed with a MINOR bump (ADR-0015 amended).
+    - sharp/libvips LGPL-3.0 exception approved for the optional Next.js image libraries. **Pending owner review**; remove sharp to drop it.
+    - Wrong current password on a password change returns 400, so the console does not treat it as an expired session.
+  - **Verification:** `make lint`, `make test` (race), `make test-integration`, `make generate` (no drift), web lint, typecheck, 55 tests and build, CI script tests (71), actionlint and `tests/nfs/run.sh` all green locally.
+  - **Moved to Phase 2:** enforcing agent versions at `Connect`, because `Connect` is a Phase 2 deliverable.
+  - **Deferred:** a real Entra ID tenant, OTLP collector validation, and a console CSP with nonces (Phase 6).
+- **Files:** `cmd/**`, `internal/**`, `workflows/**`, `db/**`, `proto/**`, `api/**`, `web/**`, `deployments/**`, `tests/nfs/**`, `.github/**`, `scripts/**`, `Makefile`, `buf*.yaml`, `sqlc.yaml`, `go.mod`, `README.md`, `CHANGELOG.md`, `THIRD_PARTY_NOTICES`, all component `VERSION`/`CHANGELOG.md`, `docs/stack_info/final_stack.md`, `docs/adr/0015`, `docs/threat_model.md` (T21), `docs/dev/*`, `docs/roadmap.md`
 
 ### 2026-09-25 — Decision / Docs — Phase 0 complete: spike results folded into the ADRs
 - **Notes:**

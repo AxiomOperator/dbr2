@@ -1,0 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#171717"/>
+  <text x="3" y="22" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#fafafa">DB</text>
+  <text x="23" y="13" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#fafafa">2</text>
+</svg>

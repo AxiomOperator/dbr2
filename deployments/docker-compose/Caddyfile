@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# DBR² edge proxy. DBR2_TLS is "internal" (Caddy's local CA) or
+# "/certs/<cert>.pem /certs/<key>.pem" for your own certificate.
+{
+	admin off
+}
+
+{$DBR2_HOSTNAME} {
+	tls {$DBR2_TLS}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	# API, OpenAPI documents and Swagger UI go straight to the control plane.
+	handle /api/* {
+		reverse_proxy dbr2-server:8080
+	}
+	handle {
+		reverse_proxy dbr2-web:3000
+	}
+}

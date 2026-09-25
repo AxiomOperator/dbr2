@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Commits exempt from the DCO sign-off check (scripts/ci/check-dco.sh).
+# One full 40-character SHA per line; "#" starts a comment.
+# Only commits made before the DCO policy (ADR-0013) belong here. The list is
+# read from the PR's base commit, so additions take effect after they merge.
+
+6693ecffc01508d033ff3e3a7567a6bcb8b2f664  # first commit
+d611287d3fe1c0e9b4da4d91662682df24fcba28  # docs: architecture foundation, ADRs, roadmap and Apache-2.0 license
+b8641ea2f00821b8aa4156b2686e2a718b688c55  # Phase 0: spikes complete; fold results into ADRs

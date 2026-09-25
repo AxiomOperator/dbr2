@@ -1,0 +1,1580 @@
+components:
+  schemas:
+    APIToken:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        expires_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        last_used_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        name:
+          type: string
+        prefix:
+          description: First characters of the token, for identification.
+          type: string
+        revoked_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - name
+        - prefix
+        - created_at
+        - expires_at
+        - last_used_at
+        - revoked_at
+      type: object
+    AuditEvent:
+      additionalProperties: false
+      properties:
+        actor_display:
+          type: string
+        actor_kind:
+          enum:
+            - user
+            - system
+            - anonymous
+          type: string
+        after: {}
+        before: {}
+        details: {}
+        event_id:
+          format: uuid
+          type: string
+        event_type:
+          description: Stable event identifier.
+          examples:
+            - auth.login.succeeded
+          type: string
+        occurred_at:
+          format: date-time
+          type: string
+        reason:
+          type:
+            - string
+            - "null"
+        request_id:
+          type:
+            - string
+            - "null"
+        result:
+          enum:
+            - success
+            - failure
+            - denied
+          type: string
+        source_ip:
+          type:
+            - string
+            - "null"
+        target_id:
+          type:
+            - string
+            - "null"
+        target_type:
+          type:
+            - string
+            - "null"
+        trace_id:
+          type:
+            - string
+            - "null"
+      required:
+        - event_id
+        - occurred_at
+        - event_type
+        - actor_display
+        - actor_kind
+        - source_ip
+        - target_type
+        - target_id
+        - result
+        - reason
+        - details
+        - request_id
+        - trace_id
+      type: object
+    AuditListOutputBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+          type:
+            - array
+            - "null"
+        next_cursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - next_cursor
+      type: object
+    CodeInputBody:
+      additionalProperties: false
+      properties:
+        code:
+          pattern: ^[0-9]{6}$
+          type: string
+      required:
+        - code
+      type: object
+    Cookie:
+      additionalProperties: false
+      properties:
+        Domain:
+          type: string
+        Expires:
+          format: date-time
+          type: string
+        HttpOnly:
+          type: boolean
+        MaxAge:
+          format: int64
+          type: integer
+        Name:
+          type: string
+        Partitioned:
+          type: boolean
+        Path:
+          type: string
+        Quoted:
+          type: boolean
+        Raw:
+          type: string
+        RawExpires:
+          type: string
+        SameSite:
+          format: int64
+          type: integer
+        Secure:
+          type: boolean
+        Unparsed:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        Value:
+          type: string
+      required:
+        - Name
+        - Value
+        - Quoted
+        - Path
+        - Domain
+        - Expires
+        - RawExpires
+        - MaxAge
+        - Secure
+        - HttpOnly
+        - SameSite
+        - Partitioned
+        - Raw
+        - Unparsed
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        location:
+          description: Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'
+          type: string
+        message:
+          description: Error message text
+          type: string
+        value:
+          description: The value at the given location
+      type: object
+    GroupMapping:
+      additionalProperties: false
+      properties:
+        group_id:
+          description: Entra ID group object ID.
+          maxLength: 256
+          minLength: 1
+          type: string
+        provider:
+          examples:
+            - entra
+          type: string
+        role:
+          examples:
+            - auditor
+          type: string
+      required:
+        - provider
+        - group_id
+        - role
+      type: object
+    LoginInputBody:
+      additionalProperties: false
+      properties:
+        password:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        totp_code:
+          description: Required when TOTP is enabled (the first attempt returns code totp_required).
+          pattern: ^[0-9]{6}$
+          type: string
+        username:
+          maxLength: 256
+          minLength: 1
+          type: string
+      required:
+        - username
+        - password
+      type: object
+    LoginOutputBody:
+      additionalProperties: false
+      properties:
+        user:
+          $ref: "#/components/schemas/Me"
+      required:
+        - user
+      type: object
+    MappingsOutputBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/GroupMapping"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    Me:
+      additionalProperties: false
+      properties:
+        display_name:
+          type: string
+        email:
+          description: Email address, if known.
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        kind:
+          enum:
+            - master_admin
+            - oidc
+          type: string
+        permissions:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        roles:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        totp_enabled:
+          type: boolean
+        username:
+          type: string
+      required:
+        - id
+        - username
+        - display_name
+        - email
+        - kind
+        - roles
+        - permissions
+        - totp_enabled
+      type: object
+    PasswordInputBody:
+      additionalProperties: false
+      properties:
+        current_password:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        new_password:
+          maxLength: 1024
+          minLength: 1
+          type: string
+      required:
+        - current_password
+        - new_password
+      type: object
+    Problem:
+      additionalProperties: false
+      properties:
+        code:
+          description: Stable machine-readable error code.
+          examples:
+            - invalid_credentials
+          type: string
+        detail:
+          description: Explanation specific to this occurrence.
+          examples:
+            - invalid username or password
+          type: string
+        errors:
+          description: Individual validation errors.
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          type:
+            - array
+            - "null"
+        status:
+          description: HTTP status code.
+          examples:
+            - 401
+          format: int64
+          type: integer
+        title:
+          description: Short summary of the problem type.
+          examples:
+            - Unauthorized
+          type: string
+      required:
+        - title
+        - status
+      type: object
+    ProviderInfo:
+      additionalProperties: false
+      properties:
+        display_name:
+          examples:
+            - Microsoft Entra ID
+          type: string
+        id:
+          examples:
+            - entra
+          type: string
+        login_url:
+          examples:
+            - /api/v1/auth/oidc/entra/login
+          type: string
+      required:
+        - id
+        - display_name
+        - login_url
+      type: object
+    ProvidersOutputBody:
+      additionalProperties: false
+      properties:
+        master_admin:
+          description: The local master admin sign-in is always available.
+          type: boolean
+        oidc:
+          items:
+            $ref: "#/components/schemas/ProviderInfo"
+          type:
+            - array
+            - "null"
+      required:
+        - master_admin
+        - oidc
+      type: object
+    Role:
+      additionalProperties: false
+      properties:
+        description:
+          type: string
+        display_name:
+          type: string
+        permissions:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        role:
+          type: string
+      required:
+        - role
+        - display_name
+        - description
+        - permissions
+      type: object
+    RoleAssignment:
+      additionalProperties: false
+      properties:
+        role:
+          examples:
+            - backup_administrator
+          type: string
+        source:
+          description: manual grants, Entra ID group mapping, or the implicit master admin role.
+          enum:
+            - manual
+            - oidc_group
+            - master_admin
+          type: string
+      required:
+        - role
+        - source
+      type: object
+    RolesOutputBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Role"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    SetRolesInputBody:
+      additionalProperties: false
+      properties:
+        reason:
+          description: Why the change is made (stored in the audit log).
+          maxLength: 500
+          minLength: 1
+          type: string
+        roles:
+          description: Complete list of manually granted roles (group-mapped roles are managed by Entra ID).
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - roles
+        - reason
+      type: object
+    SetStatusInputBody:
+      additionalProperties: false
+      properties:
+        disabled:
+          type: boolean
+        reason:
+          maxLength: 500
+          minLength: 1
+          type: string
+      required:
+        - disabled
+        - reason
+      type: object
+    StatusBody:
+      additionalProperties: false
+      properties:
+        checks:
+          additionalProperties:
+            type: string
+          description: "Per-dependency result: ok or an error summary."
+          type: object
+        status:
+          description: Overall status.
+          enum:
+            - ok
+            - degraded
+            - unavailable
+          type: string
+      required:
+        - status
+      type: object
+    TokenCreateInputBody:
+      additionalProperties: false
+      properties:
+        expires_in_days:
+          default: 90
+          description: 0 means no expiry.
+          format: int64
+          maximum: 365
+          minimum: 0
+          type: integer
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+      required:
+        - name
+      type: object
+    TokenCreateOutputBody:
+      additionalProperties: false
+      properties:
+        api_token:
+          $ref: "#/components/schemas/APIToken"
+        token:
+          description: The token secret. Shown only once.
+          type: string
+      required:
+        - token
+        - api_token
+      type: object
+    TokenListOutputBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/APIToken"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    TotpEnrollOutputBody:
+      additionalProperties: false
+      properties:
+        otpauth_url:
+          description: otpauth:// URL for authenticator apps (render as a QR code).
+          type: string
+        secret:
+          description: Base32 TOTP secret (shown once).
+          type: string
+      required:
+        - secret
+        - otpauth_url
+      type: object
+    User:
+      additionalProperties: false
+      properties:
+        disabled:
+          type: boolean
+        display_name:
+          type: string
+        email:
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        kind:
+          enum:
+            - master_admin
+            - oidc
+          type: string
+        last_login_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        roles:
+          items:
+            $ref: "#/components/schemas/RoleAssignment"
+          type:
+            - array
+            - "null"
+        username:
+          type: string
+      required:
+        - id
+        - kind
+        - username
+        - display_name
+        - email
+        - disabled
+        - last_login_at
+        - roles
+      type: object
+    UsersOutputBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/User"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    VersionBody:
+      additionalProperties: false
+      properties:
+        components:
+          additionalProperties:
+            type: string
+          description: Version of every component, keyed by component name.
+          type: object
+        platform:
+          description: DBR² platform version (MAJOR.MINOR.BUGFIX.BUILD).
+          examples:
+            - 0.1.0.0
+          type: string
+      required:
+        - platform
+        - components
+      type: object
+  securitySchemes:
+    bearerAuth:
+      description: Personal API token (`dbr2pat_…`). Paste it into Authorize without the `Bearer ` prefix.
+      scheme: bearer
+      type: http
+    sessionCookie:
+      description: Browser session issued by the console login (master admin or Entra ID).
+      in: cookie
+      name: dbr2_session
+      type: apiKey
+info:
+  description: |-
+    Docker Backup, Recovery & Restore (DBR²) control-plane API.
+
+    Authenticate with a personal API token (`dbr2pat_…`, created under /api/v1/tokens) in **Authorize**, or use your console session. Requests made from this page run with **your own** permissions; each operation lists the permission it needs in `x-dbr2-permission`.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: DBR² API
+  version: 0.1.0.0
+openapi: 3.1.0
+paths:
+  /api/v1/audit-events:
+    get:
+      description: |-
+        Pages through the append-only audit log, newest first.
+
+        Requires permission `audit.read`.
+      operationId: list-audit-events
+      parameters:
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+        - description: Opaque cursor from next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from next_cursor.
+            type: string
+        - description: Filter by stable event type, e.g. auth.login.failed.
+          explode: false
+          in: query
+          name: event_type
+          schema:
+            description: Filter by stable event type, e.g. auth.login.failed.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditListOutputBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List audit events
+      tags:
+        - Audit
+      x-dbr2-permission: audit.read
+  /api/v1/auth/login:
+    post:
+      description: "Authenticates the local master admin (username + password, plus a TOTP code when enabled) and sets the `dbr2_session` cookie. Error codes: `invalid_credentials`, `totp_required`, `invalid_totp`, `account_locked` (423 + Retry-After), `rate_limited` (429 + Retry-After). Every master admin sign-in is audited and raises a notification."
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginOutputBody"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "423":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Locked
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Too Many Requests
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      security: []
+      summary: Sign in as the master admin
+      tags:
+        - Authentication
+  /api/v1/auth/logout:
+    post:
+      description: Revokes the current session and clears the session cookie.
+      operationId: logout
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Sign out
+      tags:
+        - Authentication
+  /api/v1/auth/me:
+    get:
+      description: Returns the caller's identity, roles and effective permissions.
+      operationId: get-me
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Get the signed-in user
+      tags:
+        - Authentication
+  /api/v1/auth/oidc/{provider}/callback:
+    get:
+      description: Redirect target registered with the identity provider. Validates state, PKCE and the ID token, maps Entra ID groups to roles, sets the session cookie and redirects to the console. Failures redirect to the login page with ?error=<code>.
+      operationId: oidc-callback
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: code
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: state
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: error
+          schema:
+            type: string
+        - in: cookie
+          name: dbr2_oidc_state
+          schema:
+            $ref: "#/components/schemas/Cookie"
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Error
+      security: []
+      summary: Complete an OIDC sign-in
+      tags:
+        - Authentication
+  /api/v1/auth/oidc/{provider}/login:
+    get:
+      description: Redirects the browser to the identity provider (authorization code + PKCE) and sets a short-lived state cookie. Navigate to this URL; do not call it with fetch.
+      operationId: oidc-login
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            examples:
+              - entra
+            type: string
+        - description: Console path to return to after sign-in (same-origin relative paths only).
+          explode: false
+          in: query
+          name: return_to
+          schema:
+            description: Console path to return to after sign-in (same-origin relative paths only).
+            type: string
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      security: []
+      summary: Start an OIDC sign-in
+      tags:
+        - Authentication
+  /api/v1/auth/password:
+    post:
+      description: Changes the master admin password (minimum 12 characters) and revokes every other session. Not available to Entra ID users.
+      operationId: change-password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Change the master admin password
+      tags:
+        - Authentication
+  /api/v1/auth/providers:
+    get:
+      description: "Returns the available sign-in methods: the local master admin and configured OIDC providers (Entra ID)."
+      operationId: list-auth-providers
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvidersOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Error
+      security: []
+      summary: List sign-in options
+      tags:
+        - Authentication
+  /api/v1/auth/totp/confirm:
+    post:
+      description: Activates TOTP after verifying a code from the authenticator app.
+      operationId: confirm-totp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Confirm TOTP enrollment
+      tags:
+        - Authentication
+  /api/v1/auth/totp/disable:
+    post:
+      description: Disables TOTP after verifying a current code.
+      operationId: disable-totp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Disable TOTP
+      tags:
+        - Authentication
+  /api/v1/auth/totp/enroll:
+    post:
+      description: Generates a new TOTP secret for the master admin. TOTP becomes active only after /auth/totp/confirm. Entra ID users use Entra ID MFA instead.
+      operationId: enroll-totp
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpEnrollOutputBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Start TOTP enrollment
+      tags:
+        - Authentication
+  /api/v1/health/live:
+    get:
+      description: Returns 200 while the process is running. Does not check dependencies.
+      operationId: get-health-live
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Error
+      security: []
+      summary: Liveness probe
+      tags:
+        - System
+  /api/v1/health/ready:
+    get:
+      description: Checks PostgreSQL (critical), Temporal and Valkey. Returns 503 when a critical dependency is unavailable; `degraded` when only a non-critical one is.
+      operationId: get-health-ready
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusBody"
+          description: OK
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Service Unavailable
+      security: []
+      summary: Readiness probe
+      tags:
+        - System
+  /api/v1/oidc/group-mappings:
+    get:
+      description: |-
+        Lists identity-provider group → role mappings. Roles are synced at each sign-in.
+
+        Requires permission `user.read`.
+      operationId: list-group-mappings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappingsOutputBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List Entra ID group mappings
+      tags:
+        - Users
+      x-dbr2-permission: user.read
+    post:
+      description: |-
+        Maps an Entra ID group (object ID) to a DBR² role.
+
+        Requires permission `user.manage`.
+      operationId: add-group-mapping
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMapping"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Add a group mapping
+      tags:
+        - Users
+      x-dbr2-permission: user.manage
+  /api/v1/oidc/group-mappings/remove:
+    post:
+      description: |-
+        Removes a group → role mapping; affected users lose the role at their next sign-in.
+
+        Requires permission `user.manage`.
+      operationId: remove-group-mapping
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMapping"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Remove a group mapping
+      tags:
+        - Users
+      x-dbr2-permission: user.manage
+  /api/v1/roles:
+    get:
+      description: |-
+        Lists the built-in roles and their permissions.
+
+        Requires permission `user.read`.
+      operationId: list-roles
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolesOutputBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List roles
+      tags:
+        - Users
+      x-dbr2-permission: user.read
+  /api/v1/tokens:
+    get:
+      description: Lists the caller's personal API tokens (secrets are never returned).
+      operationId: list-api-tokens
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenListOutputBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List my API tokens
+      tags:
+        - Authentication
+    post:
+      description: Creates a personal API token for the CLI, automation or Swagger UI's Authorize dialog. The token carries the caller's own permissions, evaluated at every use.
+      operationId: create-api-token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenCreateInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenCreateOutputBody"
+          description: Created
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Create an API token
+      tags:
+        - Authentication
+  /api/v1/tokens/{id}:
+    delete:
+      description: Revokes one of the caller's API tokens.
+      operationId: revoke-api-token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Revoke an API token
+      tags:
+        - Authentication
+  /api/v1/users:
+    get:
+      description: |-
+        Lists every user with role assignments.
+
+        Requires permission `user.read`.
+      operationId: list-users
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsersOutputBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List users
+      tags:
+        - Users
+      x-dbr2-permission: user.read
+  /api/v1/users/{id}/roles:
+    put:
+      description: |-
+        Replaces the user's manually granted roles. The master admin cannot be changed, and you cannot remove your own administrator role.
+
+        Requires permission `user.manage`.
+      operationId: set-user-roles
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetRolesInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Set a user's manual roles
+      tags:
+        - Users
+      x-dbr2-permission: user.manage
+  /api/v1/users/{id}/status:
+    put:
+      description: |-
+        Disabling a user revokes all of their sessions. The master admin cannot be disabled.
+
+        Requires permission `user.manage`.
+      operationId: set-user-status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetStatusInputBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Enable or disable a user
+      tags:
+        - Users
+      x-dbr2-permission: user.manage
+  /api/v1/version:
+    get:
+      description: Returns the DBR² platform version and the four-part version of every component (ADR-0015).
+      operationId: get-version
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Error
+      security: []
+      summary: Get platform and component versions
+      tags:
+        - System
+security:
+  - bearerAuth: []
+  - sessionCookie: []
+tags:
+  - description: Version, health and readiness.
+    name: System
+  - description: Sign-in (master admin and Entra ID), sessions, TOTP and API tokens.
+    name: Authentication
+  - description: Users, roles and Entra ID group mappings.
+    name: Users
+  - description: Append-only audit log.
+    name: Audit

@@ -1,0 +1,12 @@
+# Changelog — deployment
+
+All notable changes to the `deployment` component. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are `MAJOR.MINOR.BUGFIX.BUILD` (ADR-0015).
+
+## [Unreleased]
+
+### Added
+- Component scaffold (Phase 1).
+- Docker Compose deployment: Caddy edge proxy (TLS; `/api/*` → dbr2-server, rest → dbr2-web; discards client `X-Forwarded-*`), dbr2-web, dbr2-server, dbr2-worker, dbr2-reposerver, PostgreSQL 18.6, Valkey 8.1.4 (cache only), Temporal 1.32.0 (schema and namespace jobs), Temporal UI 2.54.1 (loopback only).
+- `init-secrets.sh` (Compose secrets + `.env`), PostgreSQL init script (separate roles/databases for dbr2 and Temporal).
+- `compose.dev.yaml`: builds from source and mocks the NFS Repository with a local directory.
+- `deployments/docker/Dockerfile.services`: one distroless (nonroot) image recipe for the Go services with binary-based HEALTHCHECK.

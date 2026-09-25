@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+/bin/
+/.dev/
+*.out
+coverage*
+.env
+/server
+/worker
+/reposerver
+/agent
+/dbr2
