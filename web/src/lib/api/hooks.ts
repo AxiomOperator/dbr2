@@ -37,3 +37,64 @@ export function useAuthProviders() {
     staleTime: 5 * 60_000,
   });
 }
+
+/** Host list refresh interval (live connection state and health). */
+export const AGENTS_REFRESH_MS = 15_000;
+
+export function useAgents(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.agents,
+    queryFn: ({ signal }) => api.agents(signal),
+    refetchInterval: AGENTS_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useAgent(id: string) {
+  return useQuery({
+    queryKey: queryKeys.agent(id),
+    queryFn: ({ signal }) => api.agent(id, signal),
+    refetchInterval: AGENTS_REFRESH_MS,
+  });
+}
+
+export function useAgentInventory(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.agentInventory(id),
+    queryFn: ({ signal }) => api.agentInventory(id, signal),
+    enabled: options.enabled ?? true,
+    staleTime: 60_000,
+  });
+}
+
+export function useRegistrationTokens(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.registrationTokens,
+    queryFn: ({ signal }) => api.registrationTokens(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useApplications(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.applications,
+    queryFn: ({ signal }) => api.applications(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useApplication(id: string) {
+  return useQuery({
+    queryKey: queryKeys.application(id),
+    queryFn: ({ signal }) => api.application(id, signal),
+  });
+}
+
+/** The masked Compose definition (safe to cache). */
+export function useApplicationCompose(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.applicationCompose(id),
+    queryFn: ({ signal }) => api.applicationCompose(id, false, signal),
+    enabled: options.enabled ?? true,
+  });
+}

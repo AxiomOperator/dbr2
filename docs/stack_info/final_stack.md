@@ -421,6 +421,43 @@ dbr2-worker (activity) ──Dispatch(agent_id, command)──► Agent Gateway 
 * The agent journals commands locally. A command keeps running if the stream drops, and its status is reported on reconnect.
 * Progress is relayed as Temporal activity heartbeats. If the agent does not return, the heartbeat timeout fails the activity, and Temporal retries it with the same `command_id`.
 * Backup payloads never pass through the gateway or the worker.
+* **`command_id`** = workflow ID + run ID + activity ID (stable across retries). The agent's fsynced journal keeps every result, so a command runs at most once per ID (ADR-0001 amendment).
+
+## Enrollment and agent PKI (ADR-0016)
+
+```text
+Admin (host.manage) → POST /api/v1/agents/registration-tokens → join command
+Host: dbr2-agent enroll --server <gateway:8443> --token <single-use> --ca-sha256 <CA fingerprint>
+      → CA pinned by fingerprint → CSR (key stays on host) → 90-day client certificate → status: pending
+Admin → approve → the agent's session is accepted (suspend / resume / revoke later)
+```
+
+* **CA:** ECDSA P-256, created by dbr2-server. The key is sealed in PostgreSQL with `DBR2_SECRET_KEY`.
+* **Gateway listener:** published directly (mTLS end to end, TLS 1.3), with a server certificate from the CA that rotates automatically.
+* **Checks on every connection:** certificate not revoked, agent active, agent-protocol MAJOR matches. Outdated agents are flagged.
+* **Renewal:** at two-thirds of the certificate's lifetime, with a fresh key; older certificates are revoked.
+* **Worker → gateway:** an internal control listener (`:9090`, not published) authenticated with `DBR2_INTERNAL_TOKEN`.
+* **Metrics:** `agent.connection_state` (gauge per agent) and `agent.latency` (heartbeat round-trip, ms) are exported through OpenTelemetry. The latest latency, Docker health and last-seen time are also stored per agent for the console.
+
+## Discovery (Phase 3)
+
+* The **agent reports raw facts** through the Docker/Moby Go SDK (`moby/moby/client`) and never shells out:
+  * the engine and host (`DockerRootDir`, storage driver, SELinux, rootless);
+  * containers (labels, environment, mounts with Docker-resolved paths, networks, ports, restart policy, writable-layer changes);
+  * volumes (driver and options), networks, and images (repository digests, OS/architecture/variant);
+  * the **original Compose files and `.env`** of hand-deployed projects, read from the paths in the `com.docker.compose.*` labels (at most 1 MiB per file).
+* **The server analyzes** (`internal/inventory`), so policy changes need no agent upgrade:
+  * Grouping into Applications: a Compose project, a standalone container, or a manual group.
+  * Compose provenance: **Original** or **Reconstructed**. Reconstructed YAML is generated with a header and `${VAR}` placeholders for secrets.
+  * Volume classes (ADR-0006): **Local**; **External** (driver-backed or network filesystem; not protected by default); **Ephemeral** (tmpfs, cache or temp).
+  * External dependencies: external networks and volumes, network storage, shared network namespaces.
+  * **Unprotected-data detection:** writable-layer paths that no mount backs, grouped per data directory. Mount-point parents, system paths, `/tmp` and Docker-managed files are excluded. Severity is judged per file: logs, caches, certificates and `/etc` are low.
+* **Secrets:**
+  * Environment values and Compose/`.env` values that look secret are **sealed** before storage (AES-256-GCM, bound to the agent).
+  * The API and UI return them masked (`********`).
+  * `GET /applications/{id}/compose?reveal=true` requires `secrets.read` and is audited (`secrets.revealed`).
+  * Variables that only point to a secret (`*_FILE`, `*_PATH` holding a path) and empty values are not treated as secrets.
+* **Freshness:** agents push their inventory every `discovery_interval` (default 5 minutes). `POST /api/v1/agents/{id}/discover` runs the `DiscoverHost` workflow on demand, with the Temporal workflow ID `host/<id>/discover` (one run at a time).
 
 ---
 

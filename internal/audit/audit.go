@@ -39,6 +39,20 @@ const (
 	GroupMappingAdded        = "rbac.group_mapping.added"
 	GroupMappingRemoved      = "rbac.group_mapping.removed"
 	AccessDenied             = "authz.denied"
+	AgentEnrolled            = "agent.enrolled"
+	AgentEnrollmentFailed    = "agent.enrollment.failed"
+	AgentApproved            = "agent.approved"
+	AgentSuspended           = "agent.suspended"
+	AgentResumed             = "agent.resumed"
+	AgentRevoked             = "agent.revoked"
+	AgentCertRenewed         = "agent.certificate_renewed"
+	RegTokenCreated          = "agent.registration_token.created"
+	RegTokenRevoked          = "agent.registration_token.revoked"
+	DiscoveryRequested       = "agent.discovery.requested"
+	ApplicationCreated       = "application.created"
+	ApplicationUpdated       = "application.updated"
+	ApplicationDeleted       = "application.deleted"
+	SecretsRevealed          = "secrets.revealed"
 )
 
 // Result values.

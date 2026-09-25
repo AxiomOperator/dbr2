@@ -9,3 +9,4 @@ coverage*
 /reposerver
 /agent
 /dbr2
+/dist/

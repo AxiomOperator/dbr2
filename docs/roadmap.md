@@ -21,8 +21,8 @@ Related documents: `stack_info/final_stack.md` (source of truth, including **Con
 |---|---|---|---|
 | 0 | Decisions & spikes | v1.0 | **Complete** (2026-09-25) |
 | 1 | Foundations | v1.0 | **Complete** (2026-09-25) |
-| 2 | Agent, enrollment & gateway | v1.0 | Not started |
-| 3 | Discovery | v1.0 | Not started |
+| 2 | Agent, enrollment & gateway | v1.0 | **Complete** (2026-09-25) |
+| 3 | Discovery | v1.0 | **Complete** (2026-09-25) |
 | 4 | Repositories & backup | v1.0 | Not started |
 | 5 | Restore | v1.0 | Not started |
 | 6 | Web console | v1.0 | Not started |
@@ -105,28 +105,28 @@ Goal: remove the architectural unknowns before building.
 
 ## Phase 2 — Agent, enrollment & gateway
 
-- [ ] `dbr2-agent` native static binary (AMD64) and systemd unit (ADR-0006); **RPM packages for Rocky and Fedora**
-- [ ] DBR² CA; agent certificate issuance, renewal, suspension and revocation
-- [ ] Enrollment: single-use, expiring registration tokens; **host approval workflow** (Pending → Active)
-- [ ] Agent Gateway in `dbr2-server`: `AgentService.Connect` stream, session leases in PostgreSQL (ADR-0001); enforce agent / agent-protocol versions from `Hello` (reject a mismatched protocol MAJOR, flag outdated agents; moved from Phase 1)
-- [ ] Command protocol: idempotent `command_id`, deadlines, local command journal, status report on reconnect
-- [ ] Temporal activity dispatch through the gateway, with heartbeats
-- [ ] Agent health reporting, and `agent.connection_state` / `agent.latency` metrics
-- [ ] Integration test: agent disconnect mid-command, then reconnect and resume
+- [x] `dbr2-agent` native static binary (AMD64) and hardened systemd unit (ADR-0006); **RPM packages for Rocky and Fedora** (nfpm; `tests/packaging/rpm-test.sh`: 53 checks on Rocky 9.8 and Fedora 44 — install, upgrade, remove keeps state)
+- [x] DBR² CA (ECDSA P-256, key sealed in PostgreSQL); agent certificate issuance (CSR, CA-set identity), renewal at 2/3 lifetime with a fresh key, suspension and revocation checked on every connection (ADR-0016)
+- [x] Enrollment: single-use, expiring registration tokens with a join command and CA fingerprint pinning; **host approval workflow** (Pending → Active; suspend, resume, revoke)
+- [x] Agent Gateway in `dbr2-server`: `AgentService.Connect` stream (mTLS, TLS 1.3), session leases in PostgreSQL (ADR-0001); agent-protocol MAJOR enforced from `Hello`, outdated agents flagged
+- [x] Command protocol: idempotent `command_id` (workflow ID + run ID + activity ID — ADR-0001 amended), deadlines, fsynced local command journal, in-flight report and result replay on reconnect
+- [x] Temporal activity dispatch through the gateway (internal control channel, internal token), with heartbeats; `DiscoverHost` workflow
+- [x] Agent health reporting (Docker reachability and version, uptime), heartbeat latency, last seen; `agent.connection_state` / `agent.latency` OpenTelemetry metrics (export not yet validated against a collector — see Deferred)
+- [x] Integration test: agent disconnect mid-command, then reconnect and resume — exactly one execution (`internal/gateway`, and through Temporal in `workflows/hosts`)
 
 ## Phase 3 — Discovery
 
-- [ ] `ContainerRuntime` interface; `DockerRuntime` (rootful) using the Docker/Moby Go SDK
-- [ ] Discover hosts, containers, volumes, networks and bind mounts; paths resolved from Docker, never hard-coded
-- [ ] Compose Project detection through `com.docker.compose.*` labels, for **hand-deployed** projects; collect the original Compose files, multiple `-f` files and `.env`
-- [ ] Group resources into **Applications**; manual Applications for non-Compose containers
-- [ ] Reconstructed Compose definition for applications without Compose files (flagged **Reconstructed**)
-- [ ] Volume classification: Local, External (driver-backed or network-backed; not protected by default) or Ephemeral
-- [ ] External dependency flags: external networks and external volumes
-- [ ] **Unprotected-data detection**: writable container paths that no volume or bind mount backs (core feature)
-- [ ] Image references with digest and platform recorded
-- [ ] Secret detection in environment variables and `.env` files; masked in the UI and API; `secrets.read` required to reveal
-- [ ] Application ownership metadata: owner, environment, criticality
+- [x] `ContainerRuntime` interface; `DockerRuntime` (rootful) using the Moby Go SDK (`moby/moby/client`)
+- [x] Discover hosts, containers, volumes, networks and bind mounts; paths resolved from Docker, never hard-coded
+- [x] Compose Project detection through `com.docker.compose.*` labels, for **hand-deployed** projects; original Compose files (multiple `-f`) and `.env` collected
+- [x] Group resources into **Applications** (compose, standalone container); manual Applications grouping non-Compose containers
+- [x] Reconstructed Compose definition for applications without (readable) Compose files, flagged **Reconstructed**, secrets as `${VAR}` placeholders
+- [x] Volume classification: Local, External (driver-backed or network-backed; not protected by default) or Ephemeral
+- [x] External dependency flags: external networks and volumes, network storage, shared network namespaces
+- [x] **Unprotected-data detection**: writable container paths that no volume or bind mount backs, grouped per data directory with severity (core feature)
+- [x] Image references with digest and platform recorded (locally built images shown without a digest)
+- [x] Secret detection in environment variables, `.env` and Compose files; sealed at rest; masked in the UI and API; `secrets.read` required to reveal (audited)
+- [x] Application ownership metadata: owner, environment, criticality, display name (API and console)
 
 ## Phase 4 — Repositories & backup
 
@@ -167,10 +167,10 @@ Goal: remove the architectural unknowns before building.
 
 - [ ] Next.js, ShadCN, Tailwind, TanStack Query and Table; OpenAPI-generated client and Zod schemas
 - [ ] Navigation: Dashboard, Docker (Hosts, Applications, Containers, Volumes), Protection (Policies, Jobs, Recovery Points), Recovery (Restore, Restore Testing), Storage (Repositories, Usage), System (Agents, Users, Notifications, Audit Log, Settings)
-- [ ] Application inventory with **protection status** and **protection coverage** (components protected, unresolved dependencies)
+- [ ] Application inventory with **protection status** and **protection coverage** (components protected, unresolved dependencies). *Early delivery in Phase 3:* Applications list and detail pages (unprotected data, volume classes, dependencies, Original/Reconstructed Compose with audited reveal, metadata editing, manual grouping); protection status arrives with backups (Phase 4)
 - [ ] Manual Back Up and Restore flows with live progress over SSE
 - [ ] Recovery point browser (the manifest view; Complete or Partial status)
-- [ ] Agent approval UI
+- [x] Agent approval UI — delivered early with Phase 2 (Hosts page: approve/suspend/resume/revoke with reasons, typed-hostname revoke, registration tokens with join command, run discovery)
 - [ ] Playwright end-to-end tests for the core flows (Phase 1 ran an ad-hoc headless Chromium check against the real stack)
 - [ ] Content-Security-Policy with nonces for console pages (Next.js inline scripts); other security headers already set
 
@@ -298,6 +298,40 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Feature — Phase 2 (agents, enrollment, gateway) and Phase 3 (discovery) complete
+- **Notes:**
+  - **Agent:** `dbr2-agent` supports `enroll`, `run`, `status` and `version`.
+    - CA pinned by fingerprint; the key stays on the host (CSR).
+    - Outbound mTLS session with backoff that honours `retry_after`; heartbeat echo, health reports and an inventory push every 5 minutes.
+    - Certificate renewal at two-thirds of its lifetime with a fresh key.
+    - Durable fsynced command journal: exactly-once per `command_id`, with results replayed until acknowledged.
+    - Keeps running when Docker is unavailable.
+  - **Packaging:** RPM (nfpm) plus a hardened systemd unit. `RestrictSUIDSGID`, `PrivateTmp` and `ProtectSystem=full` were deliberately **not** used because they would break future restores (documented in the unit). Tested on Rocky 9.8 and Fedora 44.
+  - **Gateway** (in dbr2-server, ADR-0016):
+    - CA in PostgreSQL with a sealed key; single-use expiring registration tokens with a join command.
+    - Pending → approve / suspend / resume / revoke, with status, revocation and protocol-MAJOR checks on every connection.
+    - PostgreSQL session leases and heartbeat latency.
+    - Idempotent dispatcher that re-sends on reconnect; internal control channel for the worker.
+    - Metrics `agent.connection_state` and `agent.latency`.
+  - **ADR-0001 amended:** `command_id` = workflow ID + run ID + activity ID. The original "+ attempt" would have broken idempotency across retries.
+  - **Discovery:**
+    - The agent collects raw facts through the Moby Go SDK: host, containers, writable-layer changes, volumes, networks, images with digests, and original Compose/`.env` files.
+    - The server does the analysis: application grouping (Compose, container, manual), Original vs Reconstructed Compose, volume classes (Local, External, Ephemeral), external dependencies and unprotected-data detection.
+    - Secrets are sealed at rest, masked in the API and UI, and revealed only with `secrets.read`, audited.
+    - A `DiscoverHost` Temporal workflow runs on demand.
+  - **Real-data fixes found by the end-to-end run:**
+    - `*_FILE` / `*_PATH` variables and empty values are no longer treated as secrets.
+    - Parents of mount points are no longer reported as unprotected.
+    - Severity is judged per file, so written CA certificates count as low.
+  - **Console** (delivered early from Phase 6): Hosts (approval actions, add host with join command, registration tokens, discovery, host detail with inventory) and Applications (list and filters, detail with unprotected data first, volume classes, dependencies, images, masked environment, Compose tab with audited reveal, metadata editing, manual grouping). Dashboard protection overview.
+  - **Verification:**
+    - **Unit and integration:** unit tests (race); integration suites for the gateway lifecycle, Temporal dispatch through the gateway with a mid-command drop (exactly once), the hosts and applications API, and discovery against a real Compose project on Docker. The Phase 1 suites also pass.
+    - **Web:** 78 tests.
+    - **Packaging and CI:** RPM 53/53, CI script tests, actionlint, `buf breaking` against `main` (additive changes only), no generated-code drift.
+    - **Real dev stack:** a native agent was enrolled, approved and discovered this machine's 11 applications, including DBR² itself. It reconnected on its own after a server restart. Masking, reveal auditing and metadata all verified.
+  - **Deferred:** OTLP export of the agent metrics (needs a collector); multi-instance gateway forwarding (Later); rootless Docker (v2).
+- **Files:** `cmd/agent`, `cmd/server`, `cmd/worker`, `internal/{agent,gateway,fleet,inventory,runtime,secrets,pki,config,api,audit,temporalx}`, `workflows/hosts`, `proto/agent/v1`, `proto/control/v1`, `db/migrations/00002_*`, `db/queries/{agents,inventory}.sql`, `deployments/{docker-compose,packaging}`, `tests/packaging`, `.github/workflows`, `web/**`, `api/openapi.yaml`, `THIRD_PARTY_NOTICES`, component changelogs, `docs/adr/0001`, `docs/adr/0016` (new), `docs/stack_info/final_stack.md`, `docs/threat_model.md` (T22–T25), `docs/domain_model.md`, `docs/dev/audit-events.md`, `README.md`, `docs/roadmap.md`
 
 ### 2026-09-25 — Decision / Maintenance — Dependabot PRs merged; automatic PRs stopped; push directly to `main`
 - **Notes:**

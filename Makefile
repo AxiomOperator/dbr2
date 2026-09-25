@@ -21,6 +21,7 @@ PROTOC_GEN_GRPC := v1.5.1
 OASDIFF_VERSION := v1.32.1
 ACTIONLINT      := v1.7.8
 GOVULNCHECK     := v1.1.4
+NFPM_VERSION    := v2.47.0
 
 BINARIES := server worker agent reposerver dbr2
 # Output name for each cmd/<dir>.
@@ -32,7 +33,7 @@ name_dbr2       := dbr2
 
 .PHONY: all build $(BINARIES) test test-integration lint fmt fmt-check vet generate versions \
         sqlc proto openapi check-generated tools web-install web-build web-test \
-        images dev-up dev-password dev-down clean help
+        images dev-up dev-password dev-down clean help rpm rpm-test nfpm
 
 all: generate build test ## Generate, build and test everything
 
@@ -112,6 +113,25 @@ web-build: ## Build the Next.js console
 web-test: ## Web unit tests + lint + typecheck
 	cd web && npm run lint && npm run typecheck && npm test
 
+## ---- Packages ----------------------------------------------------------------
+
+AGENT_VERSION = $(shell cat cmd/agent/VERSION)
+AGENT_RPM     = dist/dbr2-agent-$(AGENT_VERSION)-$(BUILD).x86_64.rpm
+
+nfpm: ## Install the pinned nfpm into ./bin (skipped when already at the pin)
+	@mkdir -p $(BIN)
+	@$(GO) version -m $(BIN)/nfpm 2>/dev/null | grep -qE '^\s+mod\s+github.com/goreleaser/nfpm/v2\s+$(NFPM_VERSION)\s' \
+		|| { echo "installing nfpm $(NFPM_VERSION)"; GOBIN=$(BIN) $(GO) install github.com/goreleaser/nfpm/v2/cmd/nfpm@$(NFPM_VERSION); }
+
+rpm: agent nfpm ## Build the agent RPM: dist/dbr2-agent-<VERSION>-<BUILD>.x86_64.rpm
+	@mkdir -p dist
+	rm -f $(AGENT_RPM)
+	DBR2_AGENT_VERSION=$(AGENT_VERSION) DBR2_BUILD=$(BUILD) \
+		$(BIN)/nfpm package --config deployments/packaging/nfpm-agent.yaml --packager rpm --target $(AGENT_RPM)
+
+rpm-test: ## Build the agent RPM and test it in Rocky Linux and Fedora containers (Docker)
+	BUILD=$(BUILD) tests/packaging/rpm-test.sh
+
 ## ---- Containers & dev stack ------------------------------------------------
 
 images: ## Build container images (tag: <component VERSION>.<BUILD>)
@@ -121,7 +141,7 @@ images: ## Build container images (tag: <component VERSION>.<BUILD>)
 	docker build -f web/Dockerfile --build-arg BUILD=$(BUILD) -t dbr2-web:$$(cat web/VERSION).$(BUILD) web
 
 dev-up: ## Start the development stack (mocked NFS; see deployments/docker-compose)
-	@test -e deployments/docker-compose/.env || deployments/docker-compose/init-secrets.sh
+	@deployments/docker-compose/init-secrets.sh >/dev/null
 	@mkdir -p .dev/repo
 	docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml up -d --build
 

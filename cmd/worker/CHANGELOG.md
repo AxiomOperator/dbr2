@@ -5,6 +5,8 @@ All notable changes to the `worker` component. Format: [Keep a Changelog](https:
 ## [Unreleased]
 
 ### Added
+- `DiscoverHost` workflow (ID `host/<agent>/discover`, one at a time) and the gateway-dispatching activity: stable `command_id` across retries, heartbeats with agent progress, non-retryable failure for non-active agents; control-channel client (`DBR2_GATEWAY_CONTROL_ADDR`, `DBR2_INTERNAL_TOKEN[_FILE]`).
+- `temporalx.StartHostOperation` for host-level operations.
 - Component scaffold (Phase 1).
 - `dbr2-worker` Temporal worker (task queue `dbr2-control`, namespace `dbr2`) with `/healthz` and `healthcheck`/`version` subcommands.
 - `temporalx.StartApplicationOperation`: the only sanctioned start path for application operations (conflict policy FAIL, reuse ALLOW_DUPLICATE, `WorkflowExecutionErrorWhenAlreadyStarted`, no workflow-level timeouts).

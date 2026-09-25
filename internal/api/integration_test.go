@@ -27,6 +27,9 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/api"
 	"github.com/AxiomOperator/dbr2/internal/audit"
 	"github.com/AxiomOperator/dbr2/internal/auth"
+	"github.com/AxiomOperator/dbr2/internal/fleet"
+	"github.com/AxiomOperator/dbr2/internal/gateway"
+	"github.com/AxiomOperator/dbr2/internal/inventory"
 	"github.com/AxiomOperator/dbr2/internal/store"
 	"github.com/AxiomOperator/dbr2/internal/testutil"
 )
@@ -35,6 +38,7 @@ type env struct {
 	t      *testing.T
 	pool   *pgxpool.Pool
 	svc    *auth.Service
+	gw     *gateway.Gateway
 	srv    *httptest.Server
 	idp    *testutil.FakeOIDC
 	adminU string
@@ -66,8 +70,20 @@ func newEnv(t *testing.T, rateLimit int) *env {
 	t.Cleanup(e.srv.Close)
 	svc.RegisterOIDC(auth.OIDCConfig{ID: "entra", DisplayName: "Microsoft Entra ID", Issuer: e.idp.URL,
 		ClientID: "dbr2-client", ClientSecret: "s3cret", RedirectURL: e.srv.URL + "/api/v1/auth/oidc/entra/callback"})
+	box, _ := auth.NewSecretBox(key)
+	q := store.New(pool)
+	ca, _, err := gateway.LoadOrCreateCA(context.Background(), q, box, uuid.MustParse(db.DefaultOrgID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := audit.NewRecorder(q, log)
+	e.gw, err = gateway.New(gateway.Config{OrgID: uuid.MustParse(db.DefaultOrgID), Hostnames: []string{"localhost"}}, pool, box, ca, rec, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fl := fleet.New(fleet.Options{OrgID: uuid.MustParse(db.DefaultOrgID), GatewayAddress: "dbr2.example.lan:8443", TaskQueue: "q"}, pool, rec, e.gw, box, nil)
 	e.srv.Config.Handler = api.NewHandler(&api.Deps{
-		Auth: svc, Log: log, WebLoginPath: "/login", PublicURL: e.srv.URL, AllowedOrigins: []string{e.srv.URL},
+		Auth: svc, Fleet: fl, Log: log, WebLoginPath: "/login", PublicURL: e.srv.URL, AllowedOrigins: []string{e.srv.URL},
 		Ready: []api.ReadyCheck{{Name: "postgres", Critical: true, Check: pool.Ping}},
 	})
 	return e
@@ -374,5 +390,120 @@ func TestEntraOIDCGroupMappingAndRBAC(t *testing.T) {
 	}
 	if !bytes.Contains(before, []byte("auditor")) || !bytes.Contains(after, []byte("backup_administrator")) {
 		t.Fatalf("before/after: %s -> %s", before, after)
+	}
+}
+
+func TestHostsAndApplicationsAPI(t *testing.T) {
+	e := newEnv(t, 100)
+	ctx := context.Background()
+	admin := e.browser()
+	admin.expect(200, "POST", "/api/v1/auth/login", map[string]any{"username": "dbr2-admin", "password": e.adminP})
+
+	// Registration tokens: secret and join command shown once, never listed.
+	r := admin.expect(201, "POST", "/api/v1/agents/registration-tokens", map[string]any{"description": "rack 4", "expires_in_hours": 2})
+	tok := r.body["token"].(string)
+	if !strings.HasPrefix(tok, "dbr2reg_") || !strings.Contains(r.body["join_command"].(string), tok) ||
+		!strings.Contains(r.body["join_command"].(string), r.body["ca_sha256"].(string)) || !strings.Contains(r.body["join_command"].(string), "dbr2.example.lan:8443") {
+		t.Fatalf("token response: %s", r.raw)
+	}
+	list := admin.expect(200, "GET", "/api/v1/agents/registration-tokens", nil)
+	if strings.Contains(string(list.raw), tok) {
+		t.Fatal("token secret listed")
+	}
+	admin.expect(422, "POST", "/api/v1/agents/registration-tokens", map[string]any{"description": "x", "expires_in_hours": 500})
+
+	// An agent + inventory (enrollment itself is covered by the gateway tests).
+	q := store.New(e.pool)
+	ag, err := q.CreateAgent(ctx, store.CreateAgentParams{OrgID: uuid.MustParse(db.DefaultOrgID), Hostname: "docker-01", AgentVersion: "0.1.0.3", ProtocolVersion: "0.1.0.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := ag.ID.String()
+	inv := inventory.Inventory{SchemaVersion: 1, CollectedAt: time.Now().UTC(), Containers: []inventory.Container{
+		{ID: "a", Name: "shop-db-1", Image: "postgres:18", State: "running", Labels: map[string]string{inventory.LabelProject: "shop", inventory.LabelService: "db"},
+			Env:     []inventory.EnvVar{{Key: "POSTGRES_PASSWORD", Value: "s3cr3t-value"}, {Key: "TZ", Value: "UTC"}},
+			Changes: []inventory.Change{{Path: "/data/orders.db", Kind: "A"}}},
+		{ID: "b", Name: "tool-a", Image: "busybox", State: "running"},
+		{ID: "c", Name: "tool-b", Image: "busybox", State: "running"},
+	}}
+	data, _ := json.Marshal(inv)
+	if _, err := e.gw.IngestInventory(ctx, id, data); err != nil {
+		t.Fatal(err)
+	}
+
+	// Status transitions (host.manage) with enforced rules.
+	admin.expect(200, "GET", "/api/v1/agents/"+id, nil)
+	if r := admin.expect(200, "POST", "/api/v1/agents/"+id+"/approve", map[string]any{"reason": "verified host"}); r.body["status"] != "active" {
+		t.Fatalf("approve: %s", r.raw)
+	}
+	admin.expect(409, "POST", "/api/v1/agents/"+id+"/approve", map[string]any{"reason": "again"})
+	admin.expect(200, "POST", "/api/v1/agents/"+id+"/suspend", map[string]any{"reason": "maintenance"})
+	admin.expect(200, "POST", "/api/v1/agents/"+id+"/resume", map[string]any{"reason": "done"})
+	admin.expect(422, "POST", "/api/v1/agents/"+id+"/suspend", map[string]any{"reason": ""}) // reason required
+
+	// Applications: masked secrets, unprotected data, metadata.
+	apps := admin.expect(200, "GET", "/api/v1/applications", nil)
+	var shopID string
+	for _, a := range apps.body["items"].([]any) {
+		m := a.(map[string]any)
+		if m["name"] == "shop" {
+			shopID = m["id"].(string)
+			if m["unprotected_high"].(float64) != 1 || m["secrets_count"].(float64) != 1 {
+				t.Fatalf("shop summary: %v", m)
+			}
+		}
+	}
+	det := admin.expect(200, "GET", "/api/v1/applications/"+shopID, nil)
+	if strings.Contains(string(det.raw), "s3cr3t-value") || !strings.Contains(string(det.raw), `"value":"********"`) {
+		t.Fatalf("secret not masked in detail: %s", det.raw)
+	}
+	comp := admin.expect(200, "GET", "/api/v1/applications/"+shopID+"/compose", nil)
+	if comp.body["source"] != "reconstructed" || strings.Contains(string(comp.raw), "s3cr3t-value") || !strings.Contains(comp.body["reconstructed"].(string), "${POSTGRES_PASSWORD}") {
+		t.Fatalf("compose: %s", comp.raw)
+	}
+	admin.expect(400, "PATCH", "/api/v1/applications/"+shopID, map[string]any{"environment": "prod"})
+	if m := admin.expect(200, "PATCH", "/api/v1/applications/"+shopID, map[string]any{"owner": "Shop team", "environment": "production", "criticality": "high"}); m.body["criticality"] != "high" {
+		t.Fatalf("metadata: %s", m.raw)
+	}
+
+	// An auditor (read-only, no secrets.read) can read but not manage or reveal.
+	admin.expect(204, "POST", "/api/v1/oidc/group-mappings", map[string]any{"provider": "entra", "group_id": "g-aud", "role": "auditor"})
+	aud := e.browser()
+	e.oidcLogin(aud, testutil.Identity{Subject: "s-aud", PreferredUsername: "aud@example.org", Groups: []string{"g-aud"}}, "/")
+	aud.expect(200, "GET", "/api/v1/agents", nil)
+	aud.expect(403, "POST", "/api/v1/agents/"+id+"/suspend", map[string]any{"reason": "x"})
+	aud.expect(403, "GET", "/api/v1/applications/"+shopID+"/compose?reveal=true", nil)
+	aud.expect(403, "PATCH", "/api/v1/applications/"+shopID, map[string]any{"owner": "x"})
+
+	// Admin reveal works and is audited.
+	rev := admin.expect(200, "GET", "/api/v1/applications/"+shopID+"/compose?reveal=true", nil)
+	if rev.body["secrets"].(map[string]any)["POSTGRES_PASSWORD"] != "s3cr3t-value" {
+		t.Fatalf("reveal: %s", rev.raw)
+	}
+	if auditTypes(t, e.pool)[audit.SecretsRevealed] != 1 {
+		t.Fatal("reveal not audited")
+	}
+
+	// Manual grouping of standalone containers.
+	admin.expect(400, "POST", "/api/v1/applications", map[string]any{"name": "bad", "host_id": id, "containers": []string{"shop-db-1"}})
+	man := admin.expect(201, "POST", "/api/v1/applications", map[string]any{"name": "Tools", "host_id": id, "containers": []string{"tool-a", "tool-b"}})
+	names := func() string { return string(admin.expect(200, "GET", "/api/v1/applications", nil).raw) }
+	if s := names(); strings.Contains(s, `"name":"tool-a"`) || !strings.Contains(s, `"name":"Tools"`) {
+		t.Fatalf("manual grouping: %s", s)
+	}
+	admin.expect(400, "DELETE", "/api/v1/applications/"+shopID, nil) // not manual
+	admin.expect(204, "DELETE", "/api/v1/applications/"+man.body["id"].(string), nil)
+	if s := names(); !strings.Contains(s, `"name":"tool-a"`) {
+		t.Fatalf("containers not restored as standalone: %s", s)
+	}
+
+	// Revoke is permanent.
+	admin.expect(200, "POST", "/api/v1/agents/"+id+"/revoke", map[string]any{"reason": "decommissioned"})
+	admin.expect(409, "POST", "/api/v1/agents/"+id+"/resume", map[string]any{"reason": "oops"})
+	for _, want := range []string{audit.RegTokenCreated, audit.AgentApproved, audit.AgentSuspended, audit.AgentResumed, audit.AgentRevoked,
+		audit.ApplicationUpdated, audit.ApplicationCreated, audit.ApplicationDeleted} {
+		if auditTypes(t, e.pool)[want] == 0 {
+			t.Errorf("missing audit event %s", want)
+		}
 	}
 }

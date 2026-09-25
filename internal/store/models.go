@@ -12,6 +12,74 @@ import (
 	"github.com/google/uuid"
 )
 
+type Agent struct {
+	ID                  uuid.UUID
+	OrgID               uuid.UUID
+	Hostname            string
+	Status              string
+	StatusReason        *string
+	StatusChangedAt     time.Time
+	StatusChangedBy     *uuid.UUID
+	EnrolledAt          time.Time
+	ApprovedAt          *time.Time
+	AgentVersion        string
+	ProtocolVersion     string
+	OsRelease           *string
+	Architecture        *string
+	CertSerial          *string
+	CertFingerprint     *string
+	CertNotAfter        *time.Time
+	LastSeenAt          *time.Time
+	LastLatencyMs       *int32
+	DockerReachable     *bool
+	DockerVersion       *string
+	HealthError         *string
+	RegistrationTokenID *uuid.UUID
+}
+
+type AgentCertificate struct {
+	Serial      string
+	AgentID     uuid.UUID
+	Fingerprint string
+	NotBefore   time.Time
+	NotAfter    time.Time
+	IssuedAt    time.Time
+	RevokedAt   *time.Time
+}
+
+type AgentCommand struct {
+	CommandID string
+	AgentID   uuid.UUID
+	Kind      string
+	State     string
+	Error     *string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type AgentRegistrationToken struct {
+	ID          uuid.UUID
+	OrgID       uuid.UUID
+	TokenHash   []byte
+	Prefix      string
+	Description string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
+	UsedAt      *time.Time
+	UsedByAgent *uuid.UUID
+	RevokedAt   *time.Time
+}
+
+type AgentSession struct {
+	AgentID         uuid.UUID
+	SessionID       string
+	GatewayInstance string
+	RemoteAddr      *string
+	ConnectedAt     time.Time
+	LastHeartbeatAt time.Time
+}
+
 type ApiToken struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -22,6 +90,25 @@ type ApiToken struct {
 	ExpiresAt  *time.Time
 	LastUsedAt *time.Time
 	RevokedAt  *time.Time
+}
+
+type Application struct {
+	ID               uuid.UUID
+	OrgID            uuid.UUID
+	AgentID          uuid.UUID
+	Key              string
+	Kind             string
+	Name             string
+	DisplayName      *string
+	Owner            *string
+	Environment      *string
+	Criticality      *string
+	ManualContainers []string
+	FirstSeenAt      time.Time
+	LastSeenAt       time.Time
+	MissingSince     *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type AuditEvent struct {
@@ -43,6 +130,15 @@ type AuditEvent struct {
 	AfterState   json.RawMessage
 	RequestID    *string
 	TraceID      *string
+}
+
+type InventorySnapshot struct {
+	AgentID       uuid.UUID
+	OrgID         uuid.UUID
+	SchemaVersion int32
+	CollectedAt   time.Time
+	ReceivedAt    time.Time
+	Data          json.RawMessage
 }
 
 type LocalCredential struct {
@@ -91,6 +187,15 @@ type Organization struct {
 	Slug      string
 	Name      string
 	CreatedAt time.Time
+}
+
+type PkiAuthority struct {
+	Name        string
+	OrgID       uuid.UUID
+	CertDer     []byte
+	KeyEnc      []byte
+	Fingerprint string
+	CreatedAt   time.Time
 }
 
 type Session struct {

@@ -22,6 +22,7 @@ put temporal_db_password "$(rand 48 40)"
 put dbr2_db_password "$(rand 48 40)"
 put dbr2_database_url "postgres://dbr2:$(cat secrets/dbr2_db_password)@postgres:5432/dbr2?sslmode=disable"
 put dbr2_secret_key "$(openssl rand -base64 32 | tr -d '\n')"
+put dbr2_internal_token "$(rand 96 64)"
 [[ -e secrets/dbr2_entra_client_secret ]] || { : > secrets/dbr2_entra_client_secret; chmod 644 secrets/dbr2_entra_client_secret; }
 
 if [[ ! -e .env ]]; then
@@ -31,6 +32,8 @@ DBR2_HOSTNAME=localhost
 # "internal" = Caddy local CA; or "/certs/cert.pem /certs/key.pem"
 DBR2_TLS=internal
 DBR2_HTTPS_PORT=443
+# Agent Gateway port (agents on protected hosts connect here, mTLS)
+DBR2_GATEWAY_PORT=8443
 # Repository storage: NFS mount on this Docker host (v1.0: single NAS over NFS)
 DBR2_REPO_HOST_PATH=/mnt/dbr2-repo
 DBR2_REPOSITORY_ID=primary

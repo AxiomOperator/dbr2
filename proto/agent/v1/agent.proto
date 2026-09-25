@@ -25,6 +25,12 @@ message ConnectRequest {
   oneof body {
     Hello hello = 1;
     Heartbeat heartbeat = 2;
+    // Progress or the terminal result of a command (also re-sent after a
+    // reconnect for journaled commands the gateway has not acknowledged).
+    CommandUpdate command_update = 3;
+    // Unsolicited periodic discovery result.
+    InventoryReport inventory = 4;
+    HealthReport health = 5;
   }
 }
 
@@ -33,6 +39,13 @@ message ConnectResponse {
   oneof body {
     Welcome welcome = 1;
     Heartbeat heartbeat = 2;
+    Command command = 3;
+    // The session is refused (pending approval, suspended, revoked, version
+    // mismatch); the gateway closes the stream after sending it.
+    Reject reject = 4;
+    // The gateway persisted the terminal result; the agent may drop it from
+    // its journal.
+    CommandAck command_ack = 5;
   }
 }
 
@@ -60,7 +73,152 @@ message Welcome {
   uint32 heartbeat_interval_seconds = 4;
 }
 
-// Heartbeat keeps the session and its PostgreSQL lease alive.
+// Heartbeat keeps the session and its PostgreSQL lease alive. The gateway
+// sends heartbeats; the agent answers with echo_unix_ms set to the value it
+// received, which gives the gateway the round-trip latency.
 message Heartbeat {
   int64 sent_unix_ms = 1;
+  int64 echo_unix_ms = 2;
+}
+
+// Reject refuses a session.
+message Reject {
+  // pending_approval | suspended | revoked | protocol_version_mismatch |
+  // unknown_agent | superseded
+  string code = 1;
+  string message = 2;
+  // Seconds the agent should wait before reconnecting (0 = default backoff).
+  uint32 retry_after_seconds = 3;
+}
+
+// Command is dispatched by the gateway (ADR-0001). command_id is the
+// idempotency key: the agent never runs the same command_id twice; it returns
+// the journaled result or keeps reporting the running execution.
+message Command {
+  string command_id = 1;
+  int64 deadline_unix_ms = 2;
+  // Opaque checkpoint from a previous attempt (Temporal heartbeat details).
+  bytes checkpoint = 3;
+  oneof kind {
+    DiscoverCommand discover = 10;
+    EchoCommand echo = 11;
+  }
+}
+
+// DiscoverCommand collects the host inventory (Phase 3).
+message DiscoverCommand {
+  // Collect container filesystem changes for unprotected-data detection.
+  bool include_filesystem_changes = 1;
+}
+
+// EchoCommand is a diagnostic command: it runs for duration_ms, then echoes
+// the message. Used to test dispatch, disconnects and resumption.
+message EchoCommand {
+  string message = 1;
+  uint32 duration_ms = 2;
+}
+
+// CommandState is the lifecycle state of a command on the agent.
+enum CommandState {
+  COMMAND_STATE_UNSPECIFIED = 0;
+  COMMAND_STATE_ACCEPTED = 1;
+  COMMAND_STATE_RUNNING = 2;
+  COMMAND_STATE_SUCCEEDED = 3;
+  COMMAND_STATE_FAILED = 4;
+}
+
+// CommandUpdate reports progress or the terminal result of a command.
+message CommandUpdate {
+  string command_id = 1;
+  CommandState state = 2;
+  // JSON progress document (command specific).
+  bytes progress = 3;
+  // Opaque checkpoint the gateway relays as Temporal heartbeat details.
+  bytes checkpoint = 4;
+  string error = 5;
+  bool retryable = 6;
+  oneof result {
+    DiscoverResult discover = 10;
+    EchoResult echo = 11;
+  }
+}
+
+// DiscoverResult carries the inventory document (internal/inventory schema).
+message DiscoverResult {
+  bytes inventory_json = 1;
+}
+
+// EchoResult is the result of an EchoCommand.
+message EchoResult {
+  string message = 1;
+}
+
+// CommandAck acknowledges a persisted terminal result.
+message CommandAck {
+  string command_id = 1;
+}
+
+// InventoryReport is an unsolicited periodic discovery result.
+message InventoryReport {
+  bytes inventory_json = 1;
+}
+
+// HealthReport describes the agent's view of its host.
+message HealthReport {
+  bool docker_reachable = 1;
+  string docker_version = 2;
+  string docker_error = 3;
+  int64 uptime_seconds = 4;
+}
+
+// EnrollmentService is served on the gateway port. GetCA and Enroll work
+// without a client certificate; Renew requires the agent's current one.
+service EnrollmentService {
+  // GetCA returns the DBR² CA certificate. Agents verify its SHA-256
+  // fingerprint against the one given by the administrator before trusting it.
+  rpc GetCA(GetCARequest) returns (GetCAResponse);
+  // Enroll exchanges a single-use registration token and a CSR for an agent
+  // identity and certificate. The agent starts in the pending state.
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  // Renew issues a new certificate for the calling agent (mTLS).
+  rpc Renew(RenewRequest) returns (RenewResponse);
+}
+
+// GetCARequest is empty.
+message GetCARequest {}
+
+// GetCAResponse carries the CA certificate.
+message GetCAResponse {
+  bytes ca_certificate_der = 1;
+}
+
+// EnrollRequest enrolls a host.
+message EnrollRequest {
+  string token = 1;
+  // PKCS#10 CSR (the private key never leaves the host).
+  bytes csr_der = 2;
+  string hostname = 3;
+  string agent_version = 4;
+  string protocol_version = 5;
+  string os_release = 6;
+  string architecture = 7;
+}
+
+// EnrollResponse returns the new identity.
+message EnrollResponse {
+  string agent_id = 1;
+  bytes certificate_der = 2;
+  bytes ca_certificate_der = 3;
+  // pending (awaiting administrator approval)
+  string status = 4;
+}
+
+// RenewRequest asks for a new certificate.
+message RenewRequest {
+  bytes csr_der = 1;
+}
+
+// RenewResponse returns the renewed certificate.
+message RenewResponse {
+  bytes certificate_der = 1;
 }

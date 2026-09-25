@@ -20,6 +20,11 @@ export function useCurrentUser(): Me {
   return me;
 }
 
+/** Provides a known user without the /auth/me round trip (tests, previews). */
+export function CurrentUserProvider({ me, children }: { me: Me; children: ReactNode }) {
+  return <MeContext.Provider value={me}>{children}</MeContext.Provider>;
+}
+
 export function hasPermission(me: Me, permission: string): boolean {
   return me.permissions.includes(permission);
 }

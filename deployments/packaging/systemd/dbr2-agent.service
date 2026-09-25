@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# DBR² agent (ADR-0006): native service on each protected Docker host.
+# Installed by the dbr2-agent RPM to /usr/lib/systemd/system/. Local overrides
+# belong in a drop-in (`systemctl edit dbr2-agent`), not in this file.
+#
+# Hardening rule: nothing here may stop a backup from reading, or a restore
+# from writing, any Docker volume or bind-mount path with full fidelity
+# (numeric ownership, setuid/setgid bits, xattrs, ACLs, SELinux labels).
+# Directives that would are deliberately absent; see the notes at the end.
+
+[Unit]
+Description=DBR² agent (Docker Backup, Recovery & Restore)
+Documentation=https://github.com/AxiomOperator/dbr2
+# Ordering only: start after Docker when it exists, never depend on it. The
+# agent must keep running while Docker is absent, broken or being reinstalled
+# (bare-host recovery, ADR-0006).
+After=network-online.target docker.service
+Wants=network-online.target
+# Not enrolled yet (`dbr2-agent enroll` writes this file): skip the start
+# cleanly instead of crash-looping on a missing config.
+ConditionPathExists=/etc/dbr2/agent.yaml
+
+[Service]
+# `exec`: the start fails visibly if the binary cannot be executed.
+Type=exec
+ExecStart=/usr/bin/dbr2-agent run --config /etc/dbr2/agent.yaml
+# Root is required: the Docker socket, and reading/restoring any path with
+# numeric ownership, trusted.* xattrs and SELinux labels (ADR-0006).
+User=root
+Group=root
+# The agent must come back after any exit (it runs the offline dead-man
+# switch, ADR-0005). 5s x the default burst never trips the start limit.
+Restart=always
+RestartSec=5s
+# SIGTERM to the agent first so it can checkpoint its command journal, then
+# SIGKILL to any helper process it left behind once the timeout expires.
+KillMode=mixed
+TimeoutStopSec=60
+# Many open files while walking large volumes.
+LimitNOFILE=65536
+# Keys, certificates and the journal are created private by default.
+UMask=0077
+
+# /var/lib/dbr2/agent (keys, certificates, command journal) and /etc/dbr2
+# (agent.yaml): created root-owned 0700 if missing. The RPM ships both too.
+StateDirectory=dbr2/agent
+StateDirectoryMode=0700
+ConfigurationDirectory=dbr2
+ConfigurationDirectoryMode=0700
+
+## ---- Hardening (each line is restore-compatible) --------------------------
+# Read-only /usr, /boot and /efi. Not `full`: `full` also makes /etc read-only,
+# and Compose bind mounts under /etc (TLS material, proxy configs) must be
+# restorable in place. /var, /srv, /opt, /home and other data paths stay
+# writable. Hosts with bind mounts under /usr need a drop-in `ProtectSystem=no`.
+ProtectSystem=yes
+# No privilege gain through setuid binaries or file capabilities in anything
+# the agent executes. Root keeps its own capabilities; restoring setuid files
+# is unaffected (that is RestrictSUIDSGID=, which is NOT set, see below).
+NoNewPrivileges=yes
+# /proc/sys and /sys read-only: the agent never tunes the kernel.
+ProtectKernelTunables=yes
+# No kernel module loading (explicit modprobe or implicit autoload).
+ProtectKernelModules=yes
+# No access to the kernel log ring buffer.
+ProtectKernelLogs=yes
+# /sys/fs/cgroup read-only: the agent does not manage cgroups (Docker does).
+ProtectControlGroups=yes
+# No changes to the system clock. File timestamps (utimensat) are unaffected.
+ProtectClock=yes
+# No hostname/domainname changes.
+ProtectHostname=yes
+# Fix the execution domain (personality) to the native one.
+LockPersonality=yes
+# No realtime scheduling: backups must never starve the host's workloads.
+RestrictRealtime=yes
+# Only native (x86-64) system calls; blocks the 32-bit/x32 syscall ABIs.
+SystemCallArchitectures=native
+# No writable+executable memory (Go does not need it).
+MemoryDenyWriteExecute=yes
+# Sockets: Unix (Docker socket), IPv4/IPv6 (Agent Gateway), netlink (network
+# interface discovery).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# No new namespaces: the agent reads host paths directly; helper containers are
+# created by dockerd, not by the agent.
+RestrictNamespaces=yes
+
+# Deliberately NOT set (each would break a backup or restore):
+#  PrivateTmp=            the agent would see a private /tmp and /var/tmp, so
+#                         volumes or bind mounts there would be backed up from,
+#                         and restored into, the wrong place.
+#  RestrictSUIDSGID=      forbids creating setuid/setgid files; restores must
+#                         preserve those mode bits (ADR-0006 fidelity table).
+#  ProtectHome=           bind mounts under /home, /root and /run/user.
+#  PrivateDevices=        LVM/ZFS/Btrfs snapshots need block devices (ADR-0005).
+#  CapabilityBoundingSet= restores need CAP_CHOWN, CAP_FOWNER, CAP_FSETID,
+#                         CAP_DAC_*, CAP_MKNOD, CAP_SETFCAP and CAP_SYS_ADMIN
+#                         (trusted.* xattrs, snapshots): nothing useful to drop.
+#  SystemCallFilter=      mknod, mount (snapshots) and xattr calls are needed;
+#                         revisit once the snapshot integration is final.
+
+[Install]
+WantedBy=multi-user.target

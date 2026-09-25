@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
+  actionErrorMessage,
   ApiError,
   apiRequest,
   ErrorCodes,
@@ -160,3 +161,31 @@ describe("parseRetryAfter / formatRetryAfter", () => {
     expect(formatRetryAfter(61)).toBe("Try again in 2 minutes.");
   });
 });
+
+describe("actionErrorMessage", () => {
+  it("explains 409 conflict, 400 validation_failed (with field errors) and 403 forbidden", async () => {
+    const conflict = await errorFromResponseFor(409, { title: "Conflict", status: 409, detail: "agent is revoked", code: "conflict" });
+    expect(actionErrorMessage(conflict)).toBe(
+      "agent is revoked The resource changed in the meantime: refresh and try again.",
+    );
+
+    const invalid = await errorFromResponseFor(400, {
+      title: "Bad Request",
+      status: 400,
+      detail: "validation failed",
+      code: "validation_failed",
+      errors: [{ message: "expected length <= 500", location: "body.reason" }],
+    });
+    expect(actionErrorMessage(invalid)).toBe("validation failed (body.reason: expected length <= 500)");
+
+    const forbidden = await errorFromResponseFor(403, { title: "Forbidden", status: 403, detail: "missing host.manage", code: "forbidden" });
+    expect(actionErrorMessage(forbidden)).toBe("You do not have permission to do this. (missing host.manage)");
+
+    expect(actionErrorMessage(new Error("boom"))).toBe("boom");
+  });
+});
+
+async function errorFromResponseFor(status: number, body: object): Promise<ApiError> {
+  const fetchImpl = vi.fn<typeof fetch>(async () => problemResponse(status, body));
+  return captureError(apiRequest("/x", { method: "POST", body: {}, fetchImpl }));
+}

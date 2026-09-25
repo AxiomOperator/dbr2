@@ -18,6 +18,7 @@ import (
 
 	"github.com/AxiomOperator/dbr2/internal/auth"
 	"github.com/AxiomOperator/dbr2/internal/docsui"
+	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/version"
 )
 
@@ -53,6 +54,7 @@ type ReadyCheck struct {
 // the OpenAPI document can be exported without a database.
 type Deps struct {
 	Auth           *auth.Service
+	Fleet          *fleet.Service
 	Log            *slog.Logger
 	Ready          []ReadyCheck
 	DocsPublic     bool
@@ -101,6 +103,8 @@ func HumaConfig() huma.Config {
 		{Name: "Authentication", Description: "Sign-in (master admin and Entra ID), sessions, TOTP and API tokens."},
 		{Name: "Users", Description: "Users, roles and Entra ID group mappings."},
 		{Name: "Audit", Description: "Append-only audit log."},
+		{Name: "Hosts", Description: "Agents, enrollment (registration tokens), approval, suspension, revocation and discovery."},
+		{Name: "Applications", Description: "Discovered applications, ownership metadata, manual grouping and Compose definitions."},
 	}
 	return cfg
 }
@@ -114,6 +118,7 @@ func NewAPI(r chi.Router, d *Deps) huma.API {
 	registerTokens(a, d)
 	registerUsers(a, d)
 	registerAudit(a, d)
+	registerFleet(a, d)
 	return a
 }
 

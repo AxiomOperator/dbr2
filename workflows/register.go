@@ -7,12 +7,17 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/AxiomOperator/dbr2/workflows/diag"
+	"github.com/AxiomOperator/dbr2/workflows/hosts"
 	"github.com/AxiomOperator/dbr2/workflows/ops"
 )
 
 // Register adds all workflows and activities to w.
-func Register(w worker.Registry, diagActs *diag.Activities) {
+func Register(w worker.Registry, diagActs *diag.Activities, hostActs *hosts.Activities) {
 	w.RegisterWorkflow(ops.ScheduledOperationTrigger)
 	w.RegisterWorkflow(diag.ApplicationSelfTest)
 	w.RegisterActivity(diagActs)
+	w.RegisterWorkflow(hosts.DiscoverHost)
+	if hostActs != nil {
+		w.RegisterActivity(hostActs)
+	}
 }

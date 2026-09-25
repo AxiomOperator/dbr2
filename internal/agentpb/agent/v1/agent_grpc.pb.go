@@ -132,3 +132,197 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "agent/v1/agent.proto",
 }
+
+const (
+	EnrollmentService_GetCA_FullMethodName  = "/agent.v1.EnrollmentService/GetCA"
+	EnrollmentService_Enroll_FullMethodName = "/agent.v1.EnrollmentService/Enroll"
+	EnrollmentService_Renew_FullMethodName  = "/agent.v1.EnrollmentService/Renew"
+)
+
+// EnrollmentServiceClient is the client API for EnrollmentService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// EnrollmentService is served on the gateway port. GetCA and Enroll work
+// without a client certificate; Renew requires the agent's current one.
+type EnrollmentServiceClient interface {
+	// GetCA returns the DBR² CA certificate. Agents verify its SHA-256
+	// fingerprint against the one given by the administrator before trusting it.
+	GetCA(ctx context.Context, in *GetCARequest, opts ...grpc.CallOption) (*GetCAResponse, error)
+	// Enroll exchanges a single-use registration token and a CSR for an agent
+	// identity and certificate. The agent starts in the pending state.
+	Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error)
+	// Renew issues a new certificate for the calling agent (mTLS).
+	Renew(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*RenewResponse, error)
+}
+
+type enrollmentServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewEnrollmentServiceClient(cc grpc.ClientConnInterface) EnrollmentServiceClient {
+	return &enrollmentServiceClient{cc}
+}
+
+func (c *enrollmentServiceClient) GetCA(ctx context.Context, in *GetCARequest, opts ...grpc.CallOption) (*GetCAResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCAResponse)
+	err := c.cc.Invoke(ctx, EnrollmentService_GetCA_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *enrollmentServiceClient) Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnrollResponse)
+	err := c.cc.Invoke(ctx, EnrollmentService_Enroll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *enrollmentServiceClient) Renew(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*RenewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenewResponse)
+	err := c.cc.Invoke(ctx, EnrollmentService_Renew_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// EnrollmentServiceServer is the server API for EnrollmentService service.
+// All implementations must embed UnimplementedEnrollmentServiceServer
+// for forward compatibility.
+//
+// EnrollmentService is served on the gateway port. GetCA and Enroll work
+// without a client certificate; Renew requires the agent's current one.
+type EnrollmentServiceServer interface {
+	// GetCA returns the DBR² CA certificate. Agents verify its SHA-256
+	// fingerprint against the one given by the administrator before trusting it.
+	GetCA(context.Context, *GetCARequest) (*GetCAResponse, error)
+	// Enroll exchanges a single-use registration token and a CSR for an agent
+	// identity and certificate. The agent starts in the pending state.
+	Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error)
+	// Renew issues a new certificate for the calling agent (mTLS).
+	Renew(context.Context, *RenewRequest) (*RenewResponse, error)
+	mustEmbedUnimplementedEnrollmentServiceServer()
+}
+
+// UnimplementedEnrollmentServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedEnrollmentServiceServer struct{}
+
+func (UnimplementedEnrollmentServiceServer) GetCA(context.Context, *GetCARequest) (*GetCAResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCA not implemented")
+}
+func (UnimplementedEnrollmentServiceServer) Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Enroll not implemented")
+}
+func (UnimplementedEnrollmentServiceServer) Renew(context.Context, *RenewRequest) (*RenewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Renew not implemented")
+}
+func (UnimplementedEnrollmentServiceServer) mustEmbedUnimplementedEnrollmentServiceServer() {}
+func (UnimplementedEnrollmentServiceServer) testEmbeddedByValue()                           {}
+
+// UnsafeEnrollmentServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to EnrollmentServiceServer will
+// result in compilation errors.
+type UnsafeEnrollmentServiceServer interface {
+	mustEmbedUnimplementedEnrollmentServiceServer()
+}
+
+func RegisterEnrollmentServiceServer(s grpc.ServiceRegistrar, srv EnrollmentServiceServer) {
+	// If the following call pancis, it indicates UnimplementedEnrollmentServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&EnrollmentService_ServiceDesc, srv)
+}
+
+func _EnrollmentService_GetCA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCARequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EnrollmentServiceServer).GetCA(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EnrollmentService_GetCA_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EnrollmentServiceServer).GetCA(ctx, req.(*GetCARequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EnrollmentService_Enroll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnrollRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EnrollmentServiceServer).Enroll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EnrollmentService_Enroll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EnrollmentServiceServer).Enroll(ctx, req.(*EnrollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EnrollmentService_Renew_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EnrollmentServiceServer).Renew(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EnrollmentService_Renew_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EnrollmentServiceServer).Renew(ctx, req.(*RenewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// EnrollmentService_ServiceDesc is the grpc.ServiceDesc for EnrollmentService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var EnrollmentService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agent.v1.EnrollmentService",
+	HandlerType: (*EnrollmentServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetCA",
+			Handler:    _EnrollmentService_GetCA_Handler,
+		},
+		{
+			MethodName: "Enroll",
+			Handler:    _EnrollmentService_Enroll_Handler,
+		},
+		{
+			MethodName: "Renew",
+			Handler:    _EnrollmentService_Renew_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agent/v1/agent.proto",
+}

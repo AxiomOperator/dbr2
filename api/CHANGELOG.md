@@ -5,6 +5,8 @@ All notable changes to the `api` component. Format: [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Hosts: `GET /agents`, `GET /agents/{id}`, `POST /agents/{id}/{approve,suspend,resume,revoke}` (reason required), `POST /agents/{id}/discover` (202), `GET /agents/{id}/inventory` (secrets masked), registration tokens (`GET`/`POST`/`DELETE /agents/registration-tokens`; token and join command shown once).
+- Applications: `GET /applications`, `GET /applications/{id}` (analysis: services, volumes with class, bind mounts, networks, images with digest/platform, dependencies, unprotected paths; containers with masked env), `PATCH /applications/{id}` (owner, environment, criticality, display name), `POST /applications` (manual grouping), `DELETE /applications/{id}` (manual only), `GET /applications/{id}/compose` (original masked or reconstructed; `reveal=true` requires `secrets.read`, audited).
 - `GET /health/ready` description documents the platform-service checks (proxy, worker, reposerver). No schema change.
 - Component scaffold (Phase 1).
 - `/api/v1` REST API (Huma v2 + Chi), OpenAPI 3.1 document committed as `api/openapi.yaml` (22 paths, 24 operations).

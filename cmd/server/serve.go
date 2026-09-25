@@ -104,10 +104,17 @@ func serve(ctx context.Context) error {
 		checks = append(checks, api.HTTPReadyCheck(hc.Name, hc.URL))
 	}
 
+	gw, fl, stopGateway, err := startGateway(ctx, cfg, pool, log, tc)
+	if err != nil {
+		return err
+	}
+	defer stopGateway()
+	_ = gw
+
 	go janitor(ctx, pool, log)
 
 	handler := api.NewHandler(&api.Deps{
-		Auth: svc, Log: log, Ready: checks, DocsPublic: cfg.DocsPublic, CookieSecure: cfg.CookieSecure,
+		Auth: svc, Fleet: fl, Log: log, Ready: checks, DocsPublic: cfg.DocsPublic, CookieSecure: cfg.CookieSecure,
 		WebLoginPath: cfg.WebLoginPath, PublicURL: cfg.PublicURL, AllowedOrigins: cfg.AllowedOrigins(),
 		TrustedProxies: cfg.TrustedProxies(),
 	})

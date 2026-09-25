@@ -4,6 +4,13 @@ All notable changes to the `server` component. Format: [Keep a Changelog](https:
 
 ## [Unreleased]
 
+### Added
+- **Agent Gateway (Phase 2, ADR-0001/0016):** mTLS gRPC listener (`DBR2_GATEWAY_ADDR`, TLS 1.3); agent CA created on first start and stored sealed in PostgreSQL; enrollment with single-use registration tokens; `Connect` sessions with PostgreSQL leases, status, revocation and protocol-major checks, heartbeat round-trip latency; idempotent command dispatcher (re-sends on reconnect); certificate renewal with revocation of older certificates; `ForceReconnect`.
+- Internal control listener (`DBR2_CONTROL_ADDR`, `DBR2_INTERNAL_TOKEN[_FILE]`) used by dbr2-worker to dispatch commands.
+- **Inventory ingestion and analysis (Phase 3):** secrets sealed before storage; applications reconciled per host (Compose, standalone container, manual); missing applications flagged.
+- Fleet service: registration tokens with join command, approve/suspend/resume/revoke with enforced transitions, on-demand discovery via Temporal, application metadata, manual grouping, Compose view and audited secret reveal.
+- OpenTelemetry metrics `agent.connection_state` and `agent.latency`.
+
 ### Changed
 - `golang.org/x/oauth2` 0.36.0 → 0.37.0 (Dependabot PR #3; used by Entra ID sign-in; applies to every Go binary).
 

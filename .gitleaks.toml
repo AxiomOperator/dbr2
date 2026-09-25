@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# gitleaks configuration: default rules, plus an allowlist for deliberately
+# fake secrets in test fixtures and development mocks. Real code stays
+# fully scanned.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "test fixtures and development mocks with fake secrets"
+paths = [
+  '''internal/runtime/testdata/''',
+  '''web/src/test/''',
+  '''web/scripts/mock-.*\.mjs''',
+]

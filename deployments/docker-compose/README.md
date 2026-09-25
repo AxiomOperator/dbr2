@@ -80,3 +80,20 @@ make dev-down      # stops the stack and DELETES its volumes (a new password is 
 ## Backups of this deployment
 
 Protect `secrets/`, `.env` and the `pgdata` volume. Platform self-backup and key escrow arrive in Phase 9 (ADR-0008). Until then, Veeam's VM backup is the recovery layer.
+
+## Adding a Docker host (agents)
+
+1. In the console, go to **Hosts → Add host** (or call `POST /api/v1/agents/registration-tokens`). Copy the **join command**; it contains a single-use token and the CA fingerprint.
+2. On the Docker host (Rocky or Fedora), install the RPM (`deployments/packaging/README.md`) and run the join command:
+
+   ```bash
+   sudo dbr2-agent enroll --server <DBR2_HOSTNAME>:8443 --token dbr2reg_… --ca-sha256 <fingerprint>
+   sudo systemctl enable --now dbr2-agent
+   ```
+
+3. **Approve** the host in the console. The agent is refused until you do.
+4. The agent reports its inventory every 5 minutes. **Run discovery** triggers it immediately.
+
+The Agent Gateway port (`DBR2_GATEWAY_PORT`, default 8443) must be reachable from the Docker hosts. It carries mTLS only, and the HTTP console stays behind Caddy.
+
+**Development:** the gateway is published on `localhost:18443`. You can run a native agent on this machine with `./bin/dbr2-agent enroll --server localhost:18443 … --config .dev/agent/agent.yaml --state-dir .dev/agent/state`, then `./bin/dbr2-agent run --config .dev/agent/agent.yaml`.

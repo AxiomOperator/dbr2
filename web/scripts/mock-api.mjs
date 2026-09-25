@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
 //
-// Tiny in-memory mock of the Phase 1 DBR² API contract, for developing the
-// console without the Go backend. NOT a security reference implementation.
+// Tiny in-memory mock of the DBR² API contract (Phase 1 auth/audit, plus the
+// Phase 2/3 Hosts and Applications endpoints in ./mock-fleet.mjs), for
+// developing the console without the Go backend. NOT a security reference
+// implementation.
 //
 //   node scripts/mock-api.mjs            # listens on 127.0.0.1:8099
 //   MOCK_API_PORT=8098 node scripts/mock-api.mjs
@@ -11,10 +13,13 @@
 // Accounts:
 //   master admin   admin / correct-horse-battery   (TOTP code in mock: 123456)
 //   OIDC (entra)   "Sign in with Microsoft" logs in as a read-only operator
+//                  (host.read + application.read: no manage actions, no
+//                  "Reveal secrets")
 // Five wrong passwords lock the master admin for 60 s (423 + Retry-After).
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { fleetRoutes } from "./mock-fleet.mjs";
 
 const HOST = process.env.MOCK_API_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.MOCK_API_PORT ?? 8099);
@@ -39,7 +44,17 @@ const masterAdmin = () => ({
   email: null,
   kind: "master_admin",
   roles: ["administrator"],
-  permissions: ["audit.read", "users.manage", "settings.manage", "restore.production"],
+  permissions: [
+    "application.manage",
+    "application.read",
+    "audit.read",
+    "host.manage",
+    "host.read",
+    "restore.production",
+    "secrets.read",
+    "settings.manage",
+    "users.manage",
+  ],
   totp_enabled: state.totpEnabled,
 });
 
@@ -50,7 +65,7 @@ const oidcUser = {
   email: "ada@example.com",
   kind: "oidc",
   roles: ["operator"],
-  permissions: ["hosts.read"],
+  permissions: ["application.read", "host.read"],
   totp_enabled: false,
 };
 
@@ -318,6 +333,20 @@ const routes = {
     send(res, 200, { openapi: "3.1.0", info: { title: "DBR² API (mock)", version: "0.1.0.0" }, paths: {} }),
 };
 
+const paramRoutes = fleetRoutes({ send, problem, readJson, audit });
+
+/** Exact routes first, then the parameterised fleet routes. */
+function resolve(method, pathname) {
+  const exact = routes[`${method} ${pathname}`];
+  if (exact) return { handler: exact, match: null };
+  for (const [m, re, handler] of paramRoutes) {
+    if (m !== method) continue;
+    const match = re.exec(pathname);
+    if (match) return { handler, match };
+  }
+  return null;
+}
+
 const PUBLIC = new Set([
   "GET /api/v1/version",
   "GET /api/v1/health/live",
@@ -334,9 +363,9 @@ const PUBLIC = new Set([
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const key = `${req.method} ${url.pathname}`;
-  const handler = routes[key];
+  const found = resolve(req.method ?? "GET", url.pathname);
   try {
-    if (!handler) {
+    if (!found) {
       return problem(res, 404, "not_found", "Not Found", `No route for ${key}.`);
     }
     if (!csrfOk(req)) {
@@ -347,7 +376,7 @@ const server = createServer(async (req, res) => {
       user = sessionUser(req);
       if (!user) return problem(res, 401, "unauthenticated", "Unauthorized", "Sign in required.");
     }
-    await handler(req, res, url, user);
+    await found.handler(req, res, url, user, found.match);
   } catch (err) {
     console.error(err);
     if (!res.headersSent) problem(res, 500, "internal", "Internal Server Error", "Mock failure.");

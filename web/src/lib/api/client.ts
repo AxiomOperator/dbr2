@@ -18,6 +18,10 @@ export const ErrorCodes = {
   accountLocked: "account_locked",
   rateLimited: "rate_limited",
   weakPassword: "weak_password",
+  forbidden: "forbidden",
+  notFound: "not_found",
+  validationFailed: "validation_failed",
+  conflict: "conflict",
   networkError: "network_error",
   invalidResponse: "invalid_response",
 } as const;
@@ -212,4 +216,29 @@ export function errorMessage(err: unknown): string {
   }
   if (err instanceof Error) return err.message;
   return "Something went wrong.";
+}
+
+/**
+ * User-facing message for a failed create/update/delete action. Adds context
+ * for the problem codes a mutation can realistically hit: 409 `conflict`
+ * (the resource changed in the meantime), 400 `validation_failed` (with the
+ * individual field errors) and 403 `forbidden`.
+ */
+export function actionErrorMessage(err: unknown): string {
+  if (!isApiError(err)) return errorMessage(err);
+  const detail = err.detail || err.title;
+  if (err.code === ErrorCodes.conflict || err.status === 409) {
+    return `${detail ?? "Conflict."} The resource changed in the meantime: refresh and try again.`;
+  }
+  if (err.code === ErrorCodes.validationFailed || err.status === 400 || err.status === 422) {
+    const fields = (err.problem?.errors ?? [])
+      .map((e) => [e.location, e.message].filter(Boolean).join(": "))
+      .filter((m) => m !== "");
+    const base = detail ?? "The request was not valid.";
+    return fields.length > 0 ? `${base} (${fields.join("; ")})` : base;
+  }
+  if (err.code === ErrorCodes.forbidden || err.status === 403) {
+    return `You do not have permission to do this.${detail ? ` (${detail})` : ""}`;
+  }
+  return errorMessage(err);
 }

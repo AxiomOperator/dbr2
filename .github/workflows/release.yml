@@ -7,7 +7,8 @@
 #     (scripts/release/finalize-changelogs.sh) and write release-manifest.json.
 #  3. Commit (DCO signed-off) as github-actions[bot], tag v<platform> and
 #     <component>/v<version> for released components, push.
-#  4. Build Go binaries, checksums and SBOMs; create the GitHub Release.
+#  4. Build Go binaries, the agent RPM, checksums and SBOMs; create the
+#     GitHub Release.
 #  5. Build, sign and push the container images (images.yml) and attach their SBOMs.
 # With dry_run, steps 3-5 only upload the would-be commit and artifacts.
 name: Release
@@ -121,6 +122,9 @@ jobs:
             mv "dist/$b" "dist/$b-linux-amd64"
           done
 
+      - name: Build the agent RPM
+        run: make rpm BUILD="$BUILD"
+
       - name: Install syft
         id: syft
         uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
@@ -133,7 +137,7 @@ jobs:
           for f in *-linux-amd64; do
             "$SYFT" scan "file:$f" -o "spdx-json=$f.spdx.json"
           done
-          sha256sum -- *-linux-amd64 *.spdx.json release-manifest.json > SHA256SUMS
+          sha256sum -- *-linux-amd64 *.rpm *.spdx.json release-manifest.json > SHA256SUMS
           cat SHA256SUMS
 
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -166,7 +170,7 @@ jobs:
         run: |
           cd dist
           gh release create "v$PLATFORM" --verify-tag --title "DBR² v$PLATFORM" --notes-file NOTES.md \
-            -- *-linux-amd64 *.spdx.json release-manifest.json SHA256SUMS SHA256SUMS.sigstore.json
+            -- *-linux-amd64 *.rpm *.spdx.json release-manifest.json SHA256SUMS SHA256SUMS.sigstore.json
 
       - name: Upload dry-run output
         if: inputs.dry_run

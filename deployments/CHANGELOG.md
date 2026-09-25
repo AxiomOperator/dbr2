@@ -5,6 +5,8 @@ All notable changes to the `deployment` component. Format: [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Added
+- Agent Gateway published by `dbr2-server` (`DBR2_GATEWAY_PORT`, default 8443; dev 18443), `DBR2_GATEWAY_HOSTNAMES`/`DBR2_GATEWAY_PUBLIC_ADDRESS`; internal control listener and `dbr2_internal_token` secret shared by server and worker (`init-secrets.sh`, idempotent — `make dev-up` now always runs it).
+- Agent RPM packaging (`deployments/packaging/`): nfpm recipe (nfpm v2.47.0 pinned, installed into `./bin`), `dbr2-agent.service` systemd unit and upgrade-aware RPM scriptlets. Hardening keeps restores to arbitrary paths working, so `PrivateTmp`, `RestrictSUIDSGID` and `ProtectSystem=full` are left out. The unit is ordered after `docker.service` without requiring it and is gated on `/etc/dbr2/agent.yaml`. New `make rpm` and `make rpm-test` targets. `tests/packaging/rpm-test.sh` installs, verifies, upgrades and removes the RPM in Rocky Linux 9.8 and Fedora 44 containers, and runs as the CI job `rpm`. Release builds attach the RPM to the GitHub Release and include it in the signed `SHA256SUMS`.
 - Caddy internal health endpoint (`http://:8090/healthz`, not published) and proxy container HEALTHCHECK. dbr2-server probes the proxy, worker and reposerver through `DBR2_READY_HTTP_CHECKS`, so they appear on the Platform status card.
 - Component scaffold (Phase 1).
 - Docker Compose deployment: Caddy edge proxy (TLS; `/api/*` → dbr2-server, rest → dbr2-web; discards client `X-Forwarded-*`), dbr2-web, dbr2-server, dbr2-worker, dbr2-reposerver, PostgreSQL 18.6, Valkey 8.1.4 (cache only), Temporal 1.32.0 (schema and namespace jobs), Temporal UI 2.54.1 (loopback only).

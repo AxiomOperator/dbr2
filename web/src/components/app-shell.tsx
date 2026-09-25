@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api/endpoints";
+import { PERMISSION_APPLICATION_READ, PERMISSION_HOST_READ } from "@/lib/api/fleet-schemas";
 import { PERMISSION_AUDIT_READ } from "@/lib/api/schemas";
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/lib/version";
@@ -46,6 +47,18 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const items: NavItem[] = [
     { href: "/", label: "Dashboard", match: "/", visible: true },
+    {
+      href: "/hosts",
+      label: "Hosts",
+      match: "/hosts",
+      visible: hasPermission(me, PERMISSION_HOST_READ),
+    },
+    {
+      href: "/applications",
+      label: "Applications",
+      match: "/applications",
+      visible: hasPermission(me, PERMISSION_APPLICATION_READ),
+    },
     {
       href: "/audit",
       label: "Audit",

@@ -52,3 +52,15 @@ Temporal ──► dbr2-worker (activity)
 - **Amendments:**
   - Activities that report progress set a **heartbeat timeout longer than the gateway's agent reconnect grace period**, so a brief disconnect does not fail the activity.
   - The **heartbeat payload carries the agent's checkpoint** (the command's progress state). On retry, the activity passes it back in the command, together with the same `command_id`, so the agent can resume.
+
+## Implementation amendment (Phase 2, 2026-09-25)
+
+- **`command_id` = workflow ID + run ID + activity ID, without the attempt number.**
+  - The original text included the attempt, which would give every Temporal retry a new ID and defeat idempotency.
+  - Without it, a retried activity re-dispatches the *same* `command_id`, and the agent returns its journaled result or keeps reporting the running execution.
+  - Verified: a session dropped mid-command still results in exactly one execution (`internal/gateway` and `workflows/hosts` integration tests).
+- **Result retention.** The agent journal keeps a terminal result after the gateway's `CommandAck`, so a later re-dispatch of the same ID still gets it.
+- **Waiting for agents.** The dispatcher waits for an offline agent up to `wait_for_agent_seconds`, and re-sends the command on every new session. The activity heartbeats on a timer while it waits. The heartbeat timeout (2 minutes) is longer than the reconnect backoff.
+- **Session leases** are stored in `agent_sessions`. In v1.0 a single gateway instance serves every session; forwarding across instances remains a Later item.
+- Enrollment and PKI details: ADR-0016.
+

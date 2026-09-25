@@ -25,7 +25,10 @@ services:
       args: { CMD: server, BUILD: "0" }
     environment:
       DBR2_PUBLIC_URL: https://localhost:${DBR2_DEV_HTTPS_PORT:-9443}
+      DBR2_GATEWAY_PUBLIC_ADDRESS: localhost:${DBR2_DEV_GATEWAY_PORT:-18443}
       DBR2_LOG_LEVEL: debug
+    ports: !override
+      - "${DBR2_DEV_GATEWAY_PORT:-18443}:8443"
 
   dbr2-worker:
     image: dbr2-worker:dev

@@ -30,6 +30,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// CommandState is the lifecycle state of a command on the agent.
+type CommandState int32
+
+const (
+	CommandState_COMMAND_STATE_UNSPECIFIED CommandState = 0
+	CommandState_COMMAND_STATE_ACCEPTED    CommandState = 1
+	CommandState_COMMAND_STATE_RUNNING     CommandState = 2
+	CommandState_COMMAND_STATE_SUCCEEDED   CommandState = 3
+	CommandState_COMMAND_STATE_FAILED      CommandState = 4
+)
+
+// Enum value maps for CommandState.
+var (
+	CommandState_name = map[int32]string{
+		0: "COMMAND_STATE_UNSPECIFIED",
+		1: "COMMAND_STATE_ACCEPTED",
+		2: "COMMAND_STATE_RUNNING",
+		3: "COMMAND_STATE_SUCCEEDED",
+		4: "COMMAND_STATE_FAILED",
+	}
+	CommandState_value = map[string]int32{
+		"COMMAND_STATE_UNSPECIFIED": 0,
+		"COMMAND_STATE_ACCEPTED":    1,
+		"COMMAND_STATE_RUNNING":     2,
+		"COMMAND_STATE_SUCCEEDED":   3,
+		"COMMAND_STATE_FAILED":      4,
+	}
+)
+
+func (x CommandState) Enum() *CommandState {
+	p := new(CommandState)
+	*p = x
+	return p
+}
+
+func (x CommandState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CommandState) Descriptor() protoreflect.EnumDescriptor {
+	return file_agent_v1_agent_proto_enumTypes[0].Descriptor()
+}
+
+func (CommandState) Type() protoreflect.EnumType {
+	return &file_agent_v1_agent_proto_enumTypes[0]
+}
+
+func (x CommandState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CommandState.Descriptor instead.
+func (CommandState) EnumDescriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{0}
+}
+
 // ConnectRequest is a message sent by the agent on the session stream.
 type ConnectRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -37,6 +93,9 @@ type ConnectRequest struct {
 	//
 	//	*ConnectRequest_Hello
 	//	*ConnectRequest_Heartbeat
+	//	*ConnectRequest_CommandUpdate
+	//	*ConnectRequest_Inventory
+	//	*ConnectRequest_Health
 	Body          isConnectRequest_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -97,6 +156,33 @@ func (x *ConnectRequest) GetHeartbeat() *Heartbeat {
 	return nil
 }
 
+func (x *ConnectRequest) GetCommandUpdate() *CommandUpdate {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectRequest_CommandUpdate); ok {
+			return x.CommandUpdate
+		}
+	}
+	return nil
+}
+
+func (x *ConnectRequest) GetInventory() *InventoryReport {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectRequest_Inventory); ok {
+			return x.Inventory
+		}
+	}
+	return nil
+}
+
+func (x *ConnectRequest) GetHealth() *HealthReport {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectRequest_Health); ok {
+			return x.Health
+		}
+	}
+	return nil
+}
+
 type isConnectRequest_Body interface {
 	isConnectRequest_Body()
 }
@@ -109,9 +195,30 @@ type ConnectRequest_Heartbeat struct {
 	Heartbeat *Heartbeat `protobuf:"bytes,2,opt,name=heartbeat,proto3,oneof"`
 }
 
+type ConnectRequest_CommandUpdate struct {
+	// Progress or the terminal result of a command (also re-sent after a
+	// reconnect for journaled commands the gateway has not acknowledged).
+	CommandUpdate *CommandUpdate `protobuf:"bytes,3,opt,name=command_update,json=commandUpdate,proto3,oneof"`
+}
+
+type ConnectRequest_Inventory struct {
+	// Unsolicited periodic discovery result.
+	Inventory *InventoryReport `protobuf:"bytes,4,opt,name=inventory,proto3,oneof"`
+}
+
+type ConnectRequest_Health struct {
+	Health *HealthReport `protobuf:"bytes,5,opt,name=health,proto3,oneof"`
+}
+
 func (*ConnectRequest_Hello) isConnectRequest_Body() {}
 
 func (*ConnectRequest_Heartbeat) isConnectRequest_Body() {}
+
+func (*ConnectRequest_CommandUpdate) isConnectRequest_Body() {}
+
+func (*ConnectRequest_Inventory) isConnectRequest_Body() {}
+
+func (*ConnectRequest_Health) isConnectRequest_Body() {}
 
 // ConnectResponse is a message sent by the gateway on the session stream.
 type ConnectResponse struct {
@@ -120,6 +227,9 @@ type ConnectResponse struct {
 	//
 	//	*ConnectResponse_Welcome
 	//	*ConnectResponse_Heartbeat
+	//	*ConnectResponse_Command
+	//	*ConnectResponse_Reject
+	//	*ConnectResponse_CommandAck
 	Body          isConnectResponse_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -180,6 +290,33 @@ func (x *ConnectResponse) GetHeartbeat() *Heartbeat {
 	return nil
 }
 
+func (x *ConnectResponse) GetCommand() *Command {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectResponse_Command); ok {
+			return x.Command
+		}
+	}
+	return nil
+}
+
+func (x *ConnectResponse) GetReject() *Reject {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectResponse_Reject); ok {
+			return x.Reject
+		}
+	}
+	return nil
+}
+
+func (x *ConnectResponse) GetCommandAck() *CommandAck {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectResponse_CommandAck); ok {
+			return x.CommandAck
+		}
+	}
+	return nil
+}
+
 type isConnectResponse_Body interface {
 	isConnectResponse_Body()
 }
@@ -192,9 +329,31 @@ type ConnectResponse_Heartbeat struct {
 	Heartbeat *Heartbeat `protobuf:"bytes,2,opt,name=heartbeat,proto3,oneof"`
 }
 
+type ConnectResponse_Command struct {
+	Command *Command `protobuf:"bytes,3,opt,name=command,proto3,oneof"`
+}
+
+type ConnectResponse_Reject struct {
+	// The session is refused (pending approval, suspended, revoked, version
+	// mismatch); the gateway closes the stream after sending it.
+	Reject *Reject `protobuf:"bytes,4,opt,name=reject,proto3,oneof"`
+}
+
+type ConnectResponse_CommandAck struct {
+	// The gateway persisted the terminal result; the agent may drop it from
+	// its journal.
+	CommandAck *CommandAck `protobuf:"bytes,5,opt,name=command_ack,json=commandAck,proto3,oneof"`
+}
+
 func (*ConnectResponse_Welcome) isConnectResponse_Body() {}
 
 func (*ConnectResponse_Heartbeat) isConnectResponse_Body() {}
+
+func (*ConnectResponse_Command) isConnectResponse_Body() {}
+
+func (*ConnectResponse_Reject) isConnectResponse_Body() {}
+
+func (*ConnectResponse_CommandAck) isConnectResponse_Body() {}
 
 // Hello opens a session and reports versions (ADR-0015: the gateway rejects
 // a mismatched agent-protocol MAJOR and flags outdated agents).
@@ -356,10 +515,13 @@ func (x *Welcome) GetHeartbeatIntervalSeconds() uint32 {
 	return 0
 }
 
-// Heartbeat keeps the session and its PostgreSQL lease alive.
+// Heartbeat keeps the session and its PostgreSQL lease alive. The gateway
+// sends heartbeats; the agent answers with echo_unix_ms set to the value it
+// received, which gives the gateway the round-trip latency.
 type Heartbeat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SentUnixMs    int64                  `protobuf:"varint,1,opt,name=sent_unix_ms,json=sentUnixMs,proto3" json:"sent_unix_ms,omitempty"`
+	EchoUnixMs    int64                  `protobuf:"varint,2,opt,name=echo_unix_ms,json=echoUnixMs,proto3" json:"echo_unix_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -401,18 +563,1024 @@ func (x *Heartbeat) GetSentUnixMs() int64 {
 	return 0
 }
 
+func (x *Heartbeat) GetEchoUnixMs() int64 {
+	if x != nil {
+		return x.EchoUnixMs
+	}
+	return 0
+}
+
+// Reject refuses a session.
+type Reject struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// pending_approval | suspended | revoked | protocol_version_mismatch |
+	// unknown_agent | superseded
+	Code    string `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// Seconds the agent should wait before reconnecting (0 = default backoff).
+	RetryAfterSeconds uint32 `protobuf:"varint,3,opt,name=retry_after_seconds,json=retryAfterSeconds,proto3" json:"retry_after_seconds,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *Reject) Reset() {
+	*x = Reject{}
+	mi := &file_agent_v1_agent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reject) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reject) ProtoMessage() {}
+
+func (x *Reject) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reject.ProtoReflect.Descriptor instead.
+func (*Reject) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Reject) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *Reject) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *Reject) GetRetryAfterSeconds() uint32 {
+	if x != nil {
+		return x.RetryAfterSeconds
+	}
+	return 0
+}
+
+// Command is dispatched by the gateway (ADR-0001). command_id is the
+// idempotency key: the agent never runs the same command_id twice; it returns
+// the journaled result or keeps reporting the running execution.
+type Command struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	CommandId      string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	DeadlineUnixMs int64                  `protobuf:"varint,2,opt,name=deadline_unix_ms,json=deadlineUnixMs,proto3" json:"deadline_unix_ms,omitempty"`
+	// Opaque checkpoint from a previous attempt (Temporal heartbeat details).
+	Checkpoint []byte `protobuf:"bytes,3,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*Command_Discover
+	//	*Command_Echo
+	Kind          isCommand_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Command) Reset() {
+	*x = Command{}
+	mi := &file_agent_v1_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Command) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command) ProtoMessage() {}
+
+func (x *Command) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command.ProtoReflect.Descriptor instead.
+func (*Command) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Command) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+func (x *Command) GetDeadlineUnixMs() int64 {
+	if x != nil {
+		return x.DeadlineUnixMs
+	}
+	return 0
+}
+
+func (x *Command) GetCheckpoint() []byte {
+	if x != nil {
+		return x.Checkpoint
+	}
+	return nil
+}
+
+func (x *Command) GetKind() isCommand_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *Command) GetDiscover() *DiscoverCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_Discover); ok {
+			return x.Discover
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetEcho() *EchoCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_Echo); ok {
+			return x.Echo
+		}
+	}
+	return nil
+}
+
+type isCommand_Kind interface {
+	isCommand_Kind()
+}
+
+type Command_Discover struct {
+	Discover *DiscoverCommand `protobuf:"bytes,10,opt,name=discover,proto3,oneof"`
+}
+
+type Command_Echo struct {
+	Echo *EchoCommand `protobuf:"bytes,11,opt,name=echo,proto3,oneof"`
+}
+
+func (*Command_Discover) isCommand_Kind() {}
+
+func (*Command_Echo) isCommand_Kind() {}
+
+// DiscoverCommand collects the host inventory (Phase 3).
+type DiscoverCommand struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collect container filesystem changes for unprotected-data detection.
+	IncludeFilesystemChanges bool `protobuf:"varint,1,opt,name=include_filesystem_changes,json=includeFilesystemChanges,proto3" json:"include_filesystem_changes,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *DiscoverCommand) Reset() {
+	*x = DiscoverCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscoverCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscoverCommand) ProtoMessage() {}
+
+func (x *DiscoverCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscoverCommand.ProtoReflect.Descriptor instead.
+func (*DiscoverCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DiscoverCommand) GetIncludeFilesystemChanges() bool {
+	if x != nil {
+		return x.IncludeFilesystemChanges
+	}
+	return false
+}
+
+// EchoCommand is a diagnostic command: it runs for duration_ms, then echoes
+// the message. Used to test dispatch, disconnects and resumption.
+type EchoCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	DurationMs    uint32                 `protobuf:"varint,2,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EchoCommand) Reset() {
+	*x = EchoCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EchoCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EchoCommand) ProtoMessage() {}
+
+func (x *EchoCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EchoCommand.ProtoReflect.Descriptor instead.
+func (*EchoCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *EchoCommand) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *EchoCommand) GetDurationMs() uint32 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+// CommandUpdate reports progress or the terminal result of a command.
+type CommandUpdate struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	CommandId string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	State     CommandState           `protobuf:"varint,2,opt,name=state,proto3,enum=agent.v1.CommandState" json:"state,omitempty"`
+	// JSON progress document (command specific).
+	Progress []byte `protobuf:"bytes,3,opt,name=progress,proto3" json:"progress,omitempty"`
+	// Opaque checkpoint the gateway relays as Temporal heartbeat details.
+	Checkpoint []byte `protobuf:"bytes,4,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	Error      string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	Retryable  bool   `protobuf:"varint,6,opt,name=retryable,proto3" json:"retryable,omitempty"`
+	// Types that are valid to be assigned to Result:
+	//
+	//	*CommandUpdate_Discover
+	//	*CommandUpdate_Echo
+	Result        isCommandUpdate_Result `protobuf_oneof:"result"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandUpdate) Reset() {
+	*x = CommandUpdate{}
+	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandUpdate) ProtoMessage() {}
+
+func (x *CommandUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandUpdate.ProtoReflect.Descriptor instead.
+func (*CommandUpdate) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CommandUpdate) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+func (x *CommandUpdate) GetState() CommandState {
+	if x != nil {
+		return x.State
+	}
+	return CommandState_COMMAND_STATE_UNSPECIFIED
+}
+
+func (x *CommandUpdate) GetProgress() []byte {
+	if x != nil {
+		return x.Progress
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetCheckpoint() []byte {
+	if x != nil {
+		return x.Checkpoint
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *CommandUpdate) GetRetryable() bool {
+	if x != nil {
+		return x.Retryable
+	}
+	return false
+}
+
+func (x *CommandUpdate) GetResult() isCommandUpdate_Result {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetDiscover() *DiscoverResult {
+	if x != nil {
+		if x, ok := x.Result.(*CommandUpdate_Discover); ok {
+			return x.Discover
+		}
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetEcho() *EchoResult {
+	if x != nil {
+		if x, ok := x.Result.(*CommandUpdate_Echo); ok {
+			return x.Echo
+		}
+	}
+	return nil
+}
+
+type isCommandUpdate_Result interface {
+	isCommandUpdate_Result()
+}
+
+type CommandUpdate_Discover struct {
+	Discover *DiscoverResult `protobuf:"bytes,10,opt,name=discover,proto3,oneof"`
+}
+
+type CommandUpdate_Echo struct {
+	Echo *EchoResult `protobuf:"bytes,11,opt,name=echo,proto3,oneof"`
+}
+
+func (*CommandUpdate_Discover) isCommandUpdate_Result() {}
+
+func (*CommandUpdate_Echo) isCommandUpdate_Result() {}
+
+// DiscoverResult carries the inventory document (internal/inventory schema).
+type DiscoverResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InventoryJson []byte                 `protobuf:"bytes,1,opt,name=inventory_json,json=inventoryJson,proto3" json:"inventory_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscoverResult) Reset() {
+	*x = DiscoverResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscoverResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscoverResult) ProtoMessage() {}
+
+func (x *DiscoverResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscoverResult.ProtoReflect.Descriptor instead.
+func (*DiscoverResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DiscoverResult) GetInventoryJson() []byte {
+	if x != nil {
+		return x.InventoryJson
+	}
+	return nil
+}
+
+// EchoResult is the result of an EchoCommand.
+type EchoResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EchoResult) Reset() {
+	*x = EchoResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EchoResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EchoResult) ProtoMessage() {}
+
+func (x *EchoResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EchoResult.ProtoReflect.Descriptor instead.
+func (*EchoResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *EchoResult) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// CommandAck acknowledges a persisted terminal result.
+type CommandAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CommandId     string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandAck) Reset() {
+	*x = CommandAck{}
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandAck) ProtoMessage() {}
+
+func (x *CommandAck) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandAck.ProtoReflect.Descriptor instead.
+func (*CommandAck) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CommandAck) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+// InventoryReport is an unsolicited periodic discovery result.
+type InventoryReport struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InventoryJson []byte                 `protobuf:"bytes,1,opt,name=inventory_json,json=inventoryJson,proto3" json:"inventory_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InventoryReport) Reset() {
+	*x = InventoryReport{}
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InventoryReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InventoryReport) ProtoMessage() {}
+
+func (x *InventoryReport) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InventoryReport.ProtoReflect.Descriptor instead.
+func (*InventoryReport) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *InventoryReport) GetInventoryJson() []byte {
+	if x != nil {
+		return x.InventoryJson
+	}
+	return nil
+}
+
+// HealthReport describes the agent's view of its host.
+type HealthReport struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	DockerReachable bool                   `protobuf:"varint,1,opt,name=docker_reachable,json=dockerReachable,proto3" json:"docker_reachable,omitempty"`
+	DockerVersion   string                 `protobuf:"bytes,2,opt,name=docker_version,json=dockerVersion,proto3" json:"docker_version,omitempty"`
+	DockerError     string                 `protobuf:"bytes,3,opt,name=docker_error,json=dockerError,proto3" json:"docker_error,omitempty"`
+	UptimeSeconds   int64                  `protobuf:"varint,4,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *HealthReport) Reset() {
+	*x = HealthReport{}
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealthReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthReport) ProtoMessage() {}
+
+func (x *HealthReport) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealthReport.ProtoReflect.Descriptor instead.
+func (*HealthReport) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *HealthReport) GetDockerReachable() bool {
+	if x != nil {
+		return x.DockerReachable
+	}
+	return false
+}
+
+func (x *HealthReport) GetDockerVersion() string {
+	if x != nil {
+		return x.DockerVersion
+	}
+	return ""
+}
+
+func (x *HealthReport) GetDockerError() string {
+	if x != nil {
+		return x.DockerError
+	}
+	return ""
+}
+
+func (x *HealthReport) GetUptimeSeconds() int64 {
+	if x != nil {
+		return x.UptimeSeconds
+	}
+	return 0
+}
+
+// GetCARequest is empty.
+type GetCARequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCARequest) Reset() {
+	*x = GetCARequest{}
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCARequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCARequest) ProtoMessage() {}
+
+func (x *GetCARequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCARequest.ProtoReflect.Descriptor instead.
+func (*GetCARequest) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+}
+
+// GetCAResponse carries the CA certificate.
+type GetCAResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	CaCertificateDer []byte                 `protobuf:"bytes,1,opt,name=ca_certificate_der,json=caCertificateDer,proto3" json:"ca_certificate_der,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetCAResponse) Reset() {
+	*x = GetCAResponse{}
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCAResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCAResponse) ProtoMessage() {}
+
+func (x *GetCAResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCAResponse.ProtoReflect.Descriptor instead.
+func (*GetCAResponse) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetCAResponse) GetCaCertificateDer() []byte {
+	if x != nil {
+		return x.CaCertificateDer
+	}
+	return nil
+}
+
+// EnrollRequest enrolls a host.
+type EnrollRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	// PKCS#10 CSR (the private key never leaves the host).
+	CsrDer          []byte `protobuf:"bytes,2,opt,name=csr_der,json=csrDer,proto3" json:"csr_der,omitempty"`
+	Hostname        string `protobuf:"bytes,3,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	AgentVersion    string `protobuf:"bytes,4,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	ProtocolVersion string `protobuf:"bytes,5,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	OsRelease       string `protobuf:"bytes,6,opt,name=os_release,json=osRelease,proto3" json:"os_release,omitempty"`
+	Architecture    string `protobuf:"bytes,7,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EnrollRequest) Reset() {
+	*x = EnrollRequest{}
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollRequest) ProtoMessage() {}
+
+func (x *EnrollRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollRequest.ProtoReflect.Descriptor instead.
+func (*EnrollRequest) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *EnrollRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *EnrollRequest) GetCsrDer() []byte {
+	if x != nil {
+		return x.CsrDer
+	}
+	return nil
+}
+
+func (x *EnrollRequest) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *EnrollRequest) GetAgentVersion() string {
+	if x != nil {
+		return x.AgentVersion
+	}
+	return ""
+}
+
+func (x *EnrollRequest) GetProtocolVersion() string {
+	if x != nil {
+		return x.ProtocolVersion
+	}
+	return ""
+}
+
+func (x *EnrollRequest) GetOsRelease() string {
+	if x != nil {
+		return x.OsRelease
+	}
+	return ""
+}
+
+func (x *EnrollRequest) GetArchitecture() string {
+	if x != nil {
+		return x.Architecture
+	}
+	return ""
+}
+
+// EnrollResponse returns the new identity.
+type EnrollResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	AgentId          string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	CertificateDer   []byte                 `protobuf:"bytes,2,opt,name=certificate_der,json=certificateDer,proto3" json:"certificate_der,omitempty"`
+	CaCertificateDer []byte                 `protobuf:"bytes,3,opt,name=ca_certificate_der,json=caCertificateDer,proto3" json:"ca_certificate_der,omitempty"`
+	// pending (awaiting administrator approval)
+	Status        string `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrollResponse) Reset() {
+	*x = EnrollResponse{}
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollResponse) ProtoMessage() {}
+
+func (x *EnrollResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollResponse.ProtoReflect.Descriptor instead.
+func (*EnrollResponse) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *EnrollResponse) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *EnrollResponse) GetCertificateDer() []byte {
+	if x != nil {
+		return x.CertificateDer
+	}
+	return nil
+}
+
+func (x *EnrollResponse) GetCaCertificateDer() []byte {
+	if x != nil {
+		return x.CaCertificateDer
+	}
+	return nil
+}
+
+func (x *EnrollResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+// RenewRequest asks for a new certificate.
+type RenewRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CsrDer        []byte                 `protobuf:"bytes,1,opt,name=csr_der,json=csrDer,proto3" json:"csr_der,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewRequest) Reset() {
+	*x = RenewRequest{}
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewRequest) ProtoMessage() {}
+
+func (x *RenewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewRequest.ProtoReflect.Descriptor instead.
+func (*RenewRequest) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *RenewRequest) GetCsrDer() []byte {
+	if x != nil {
+		return x.CsrDer
+	}
+	return nil
+}
+
+// RenewResponse returns the renewed certificate.
+type RenewResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	CertificateDer []byte                 `protobuf:"bytes,1,opt,name=certificate_der,json=certificateDer,proto3" json:"certificate_der,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RenewResponse) Reset() {
+	*x = RenewResponse{}
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewResponse) ProtoMessage() {}
+
+func (x *RenewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewResponse.ProtoReflect.Descriptor instead.
+func (*RenewResponse) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *RenewResponse) GetCertificateDer() []byte {
+	if x != nil {
+		return x.CertificateDer
+	}
+	return nil
+}
+
 var File_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x14agent/v1/agent.proto\x12\bagent.v1\"v\n" +
+	"\x14agent/v1/agent.proto\x12\bagent.v1\"\xa5\x02\n" +
 	"\x0eConnectRequest\x12'\n" +
 	"\x05hello\x18\x01 \x01(\v2\x0f.agent.v1.HelloH\x00R\x05hello\x123\n" +
-	"\theartbeat\x18\x02 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeatB\x06\n" +
-	"\x04body\"}\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x12@\n" +
+	"\x0ecommand_update\x18\x03 \x01(\v2\x17.agent.v1.CommandUpdateH\x00R\rcommandUpdate\x129\n" +
+	"\tinventory\x18\x04 \x01(\v2\x19.agent.v1.InventoryReportH\x00R\tinventory\x120\n" +
+	"\x06health\x18\x05 \x01(\v2\x16.agent.v1.HealthReportH\x00R\x06healthB\x06\n" +
+	"\x04body\"\x91\x02\n" +
 	"\x0fConnectResponse\x12-\n" +
 	"\awelcome\x18\x01 \x01(\v2\x11.agent.v1.WelcomeH\x00R\awelcome\x123\n" +
-	"\theartbeat\x18\x02 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeatB\x06\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x12-\n" +
+	"\acommand\x18\x03 \x01(\v2\x11.agent.v1.CommandH\x00R\acommand\x12*\n" +
+	"\x06reject\x18\x04 \x01(\v2\x10.agent.v1.RejectH\x00R\x06reject\x127\n" +
+	"\vcommand_ack\x18\x05 \x01(\v2\x14.agent.v1.CommandAckH\x00R\n" +
+	"commandAckB\x06\n" +
 	"\x04body\"\xe8\x01\n" +
 	"\x05Hello\x12#\n" +
 	"\ragent_version\x18\x01 \x01(\tR\fagentVersion\x12)\n" +
@@ -427,12 +1595,96 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12'\n" +
 	"\x0fgateway_version\x18\x02 \x01(\tR\x0egatewayVersion\x12)\n" +
 	"\x10protocol_version\x18\x03 \x01(\tR\x0fprotocolVersion\x12<\n" +
-	"\x1aheartbeat_interval_seconds\x18\x04 \x01(\rR\x18heartbeatIntervalSeconds\"-\n" +
+	"\x1aheartbeat_interval_seconds\x18\x04 \x01(\rR\x18heartbeatIntervalSeconds\"O\n" +
 	"\tHeartbeat\x12 \n" +
 	"\fsent_unix_ms\x18\x01 \x01(\x03R\n" +
-	"sentUnixMs2R\n" +
+	"sentUnixMs\x12 \n" +
+	"\fecho_unix_ms\x18\x02 \x01(\x03R\n" +
+	"echoUnixMs\"f\n" +
+	"\x06Reject\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12.\n" +
+	"\x13retry_after_seconds\x18\x03 \x01(\rR\x11retryAfterSeconds\"\xe0\x01\n" +
+	"\aCommand\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\x01 \x01(\tR\tcommandId\x12(\n" +
+	"\x10deadline_unix_ms\x18\x02 \x01(\x03R\x0edeadlineUnixMs\x12\x1e\n" +
+	"\n" +
+	"checkpoint\x18\x03 \x01(\fR\n" +
+	"checkpoint\x127\n" +
+	"\bdiscover\x18\n" +
+	" \x01(\v2\x19.agent.v1.DiscoverCommandH\x00R\bdiscover\x12+\n" +
+	"\x04echo\x18\v \x01(\v2\x15.agent.v1.EchoCommandH\x00R\x04echoB\x06\n" +
+	"\x04kind\"O\n" +
+	"\x0fDiscoverCommand\x12<\n" +
+	"\x1ainclude_filesystem_changes\x18\x01 \x01(\bR\x18includeFilesystemChanges\"H\n" +
+	"\vEchoCommand\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\x12\x1f\n" +
+	"\vduration_ms\x18\x02 \x01(\rR\n" +
+	"durationMs\"\xba\x02\n" +
+	"\rCommandUpdate\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\x01 \x01(\tR\tcommandId\x12,\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x16.agent.v1.CommandStateR\x05state\x12\x1a\n" +
+	"\bprogress\x18\x03 \x01(\fR\bprogress\x12\x1e\n" +
+	"\n" +
+	"checkpoint\x18\x04 \x01(\fR\n" +
+	"checkpoint\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1c\n" +
+	"\tretryable\x18\x06 \x01(\bR\tretryable\x126\n" +
+	"\bdiscover\x18\n" +
+	" \x01(\v2\x18.agent.v1.DiscoverResultH\x00R\bdiscover\x12*\n" +
+	"\x04echo\x18\v \x01(\v2\x14.agent.v1.EchoResultH\x00R\x04echoB\b\n" +
+	"\x06result\"7\n" +
+	"\x0eDiscoverResult\x12%\n" +
+	"\x0einventory_json\x18\x01 \x01(\fR\rinventoryJson\"&\n" +
+	"\n" +
+	"EchoResult\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"+\n" +
+	"\n" +
+	"CommandAck\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\x01 \x01(\tR\tcommandId\"8\n" +
+	"\x0fInventoryReport\x12%\n" +
+	"\x0einventory_json\x18\x01 \x01(\fR\rinventoryJson\"\xaa\x01\n" +
+	"\fHealthReport\x12)\n" +
+	"\x10docker_reachable\x18\x01 \x01(\bR\x0fdockerReachable\x12%\n" +
+	"\x0edocker_version\x18\x02 \x01(\tR\rdockerVersion\x12!\n" +
+	"\fdocker_error\x18\x03 \x01(\tR\vdockerError\x12%\n" +
+	"\x0euptime_seconds\x18\x04 \x01(\x03R\ruptimeSeconds\"\x0e\n" +
+	"\fGetCARequest\"=\n" +
+	"\rGetCAResponse\x12,\n" +
+	"\x12ca_certificate_der\x18\x01 \x01(\fR\x10caCertificateDer\"\xed\x01\n" +
+	"\rEnrollRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
+	"\acsr_der\x18\x02 \x01(\fR\x06csrDer\x12\x1a\n" +
+	"\bhostname\x18\x03 \x01(\tR\bhostname\x12#\n" +
+	"\ragent_version\x18\x04 \x01(\tR\fagentVersion\x12)\n" +
+	"\x10protocol_version\x18\x05 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
+	"\n" +
+	"os_release\x18\x06 \x01(\tR\tosRelease\x12\"\n" +
+	"\farchitecture\x18\a \x01(\tR\farchitecture\"\x9a\x01\n" +
+	"\x0eEnrollResponse\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12'\n" +
+	"\x0fcertificate_der\x18\x02 \x01(\fR\x0ecertificateDer\x12,\n" +
+	"\x12ca_certificate_der\x18\x03 \x01(\fR\x10caCertificateDer\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\"'\n" +
+	"\fRenewRequest\x12\x17\n" +
+	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\"8\n" +
+	"\rRenewResponse\x12'\n" +
+	"\x0fcertificate_der\x18\x01 \x01(\fR\x0ecertificateDer*\x9b\x01\n" +
+	"\fCommandState\x12\x1d\n" +
+	"\x19COMMAND_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16COMMAND_STATE_ACCEPTED\x10\x01\x12\x19\n" +
+	"\x15COMMAND_STATE_RUNNING\x10\x02\x12\x1b\n" +
+	"\x17COMMAND_STATE_SUCCEEDED\x10\x03\x12\x18\n" +
+	"\x14COMMAND_STATE_FAILED\x10\x042R\n" +
 	"\fAgentService\x12B\n" +
-	"\aConnect\x12\x18.agent.v1.ConnectRequest\x1a\x19.agent.v1.ConnectResponse(\x010\x01BAZ?github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1;agentv1b\x06proto3"
+	"\aConnect\x12\x18.agent.v1.ConnectRequest\x1a\x19.agent.v1.ConnectResponse(\x010\x012\xc4\x01\n" +
+	"\x11EnrollmentService\x128\n" +
+	"\x05GetCA\x12\x16.agent.v1.GetCARequest\x1a\x17.agent.v1.GetCAResponse\x12;\n" +
+	"\x06Enroll\x12\x17.agent.v1.EnrollRequest\x1a\x18.agent.v1.EnrollResponse\x128\n" +
+	"\x05Renew\x12\x16.agent.v1.RenewRequest\x1a\x17.agent.v1.RenewResponseBAZ?github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_agent_proto_rawDescOnce sync.Once
@@ -446,26 +1698,61 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 	return file_agent_v1_agent_proto_rawDescData
 }
 
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_agent_v1_agent_proto_goTypes = []any{
-	(*ConnectRequest)(nil),  // 0: agent.v1.ConnectRequest
-	(*ConnectResponse)(nil), // 1: agent.v1.ConnectResponse
-	(*Hello)(nil),           // 2: agent.v1.Hello
-	(*Welcome)(nil),         // 3: agent.v1.Welcome
-	(*Heartbeat)(nil),       // 4: agent.v1.Heartbeat
+	(CommandState)(0),       // 0: agent.v1.CommandState
+	(*ConnectRequest)(nil),  // 1: agent.v1.ConnectRequest
+	(*ConnectResponse)(nil), // 2: agent.v1.ConnectResponse
+	(*Hello)(nil),           // 3: agent.v1.Hello
+	(*Welcome)(nil),         // 4: agent.v1.Welcome
+	(*Heartbeat)(nil),       // 5: agent.v1.Heartbeat
+	(*Reject)(nil),          // 6: agent.v1.Reject
+	(*Command)(nil),         // 7: agent.v1.Command
+	(*DiscoverCommand)(nil), // 8: agent.v1.DiscoverCommand
+	(*EchoCommand)(nil),     // 9: agent.v1.EchoCommand
+	(*CommandUpdate)(nil),   // 10: agent.v1.CommandUpdate
+	(*DiscoverResult)(nil),  // 11: agent.v1.DiscoverResult
+	(*EchoResult)(nil),      // 12: agent.v1.EchoResult
+	(*CommandAck)(nil),      // 13: agent.v1.CommandAck
+	(*InventoryReport)(nil), // 14: agent.v1.InventoryReport
+	(*HealthReport)(nil),    // 15: agent.v1.HealthReport
+	(*GetCARequest)(nil),    // 16: agent.v1.GetCARequest
+	(*GetCAResponse)(nil),   // 17: agent.v1.GetCAResponse
+	(*EnrollRequest)(nil),   // 18: agent.v1.EnrollRequest
+	(*EnrollResponse)(nil),  // 19: agent.v1.EnrollResponse
+	(*RenewRequest)(nil),    // 20: agent.v1.RenewRequest
+	(*RenewResponse)(nil),   // 21: agent.v1.RenewResponse
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
-	2, // 0: agent.v1.ConnectRequest.hello:type_name -> agent.v1.Hello
-	4, // 1: agent.v1.ConnectRequest.heartbeat:type_name -> agent.v1.Heartbeat
-	3, // 2: agent.v1.ConnectResponse.welcome:type_name -> agent.v1.Welcome
-	4, // 3: agent.v1.ConnectResponse.heartbeat:type_name -> agent.v1.Heartbeat
-	0, // 4: agent.v1.AgentService.Connect:input_type -> agent.v1.ConnectRequest
-	1, // 5: agent.v1.AgentService.Connect:output_type -> agent.v1.ConnectResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	3,  // 0: agent.v1.ConnectRequest.hello:type_name -> agent.v1.Hello
+	5,  // 1: agent.v1.ConnectRequest.heartbeat:type_name -> agent.v1.Heartbeat
+	10, // 2: agent.v1.ConnectRequest.command_update:type_name -> agent.v1.CommandUpdate
+	14, // 3: agent.v1.ConnectRequest.inventory:type_name -> agent.v1.InventoryReport
+	15, // 4: agent.v1.ConnectRequest.health:type_name -> agent.v1.HealthReport
+	4,  // 5: agent.v1.ConnectResponse.welcome:type_name -> agent.v1.Welcome
+	5,  // 6: agent.v1.ConnectResponse.heartbeat:type_name -> agent.v1.Heartbeat
+	7,  // 7: agent.v1.ConnectResponse.command:type_name -> agent.v1.Command
+	6,  // 8: agent.v1.ConnectResponse.reject:type_name -> agent.v1.Reject
+	13, // 9: agent.v1.ConnectResponse.command_ack:type_name -> agent.v1.CommandAck
+	8,  // 10: agent.v1.Command.discover:type_name -> agent.v1.DiscoverCommand
+	9,  // 11: agent.v1.Command.echo:type_name -> agent.v1.EchoCommand
+	0,  // 12: agent.v1.CommandUpdate.state:type_name -> agent.v1.CommandState
+	11, // 13: agent.v1.CommandUpdate.discover:type_name -> agent.v1.DiscoverResult
+	12, // 14: agent.v1.CommandUpdate.echo:type_name -> agent.v1.EchoResult
+	1,  // 15: agent.v1.AgentService.Connect:input_type -> agent.v1.ConnectRequest
+	16, // 16: agent.v1.EnrollmentService.GetCA:input_type -> agent.v1.GetCARequest
+	18, // 17: agent.v1.EnrollmentService.Enroll:input_type -> agent.v1.EnrollRequest
+	20, // 18: agent.v1.EnrollmentService.Renew:input_type -> agent.v1.RenewRequest
+	2,  // 19: agent.v1.AgentService.Connect:output_type -> agent.v1.ConnectResponse
+	17, // 20: agent.v1.EnrollmentService.GetCA:output_type -> agent.v1.GetCAResponse
+	19, // 21: agent.v1.EnrollmentService.Enroll:output_type -> agent.v1.EnrollResponse
+	21, // 22: agent.v1.EnrollmentService.Renew:output_type -> agent.v1.RenewResponse
+	19, // [19:23] is the sub-list for method output_type
+	15, // [15:19] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -476,23 +1763,38 @@ func file_agent_v1_agent_proto_init() {
 	file_agent_v1_agent_proto_msgTypes[0].OneofWrappers = []any{
 		(*ConnectRequest_Hello)(nil),
 		(*ConnectRequest_Heartbeat)(nil),
+		(*ConnectRequest_CommandUpdate)(nil),
+		(*ConnectRequest_Inventory)(nil),
+		(*ConnectRequest_Health)(nil),
 	}
 	file_agent_v1_agent_proto_msgTypes[1].OneofWrappers = []any{
 		(*ConnectResponse_Welcome)(nil),
 		(*ConnectResponse_Heartbeat)(nil),
+		(*ConnectResponse_Command)(nil),
+		(*ConnectResponse_Reject)(nil),
+		(*ConnectResponse_CommandAck)(nil),
+	}
+	file_agent_v1_agent_proto_msgTypes[6].OneofWrappers = []any{
+		(*Command_Discover)(nil),
+		(*Command_Echo)(nil),
+	}
+	file_agent_v1_agent_proto_msgTypes[9].OneofWrappers = []any{
+		(*CommandUpdate_Discover)(nil),
+		(*CommandUpdate_Echo)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   5,
+			NumEnums:      1,
+			NumMessages:   21,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_agent_v1_agent_proto_goTypes,
 		DependencyIndexes: file_agent_v1_agent_proto_depIdxs,
+		EnumInfos:         file_agent_v1_agent_proto_enumTypes,
 		MessageInfos:      file_agent_v1_agent_proto_msgTypes,
 	}.Build()
 	File_agent_v1_agent_proto = out.File

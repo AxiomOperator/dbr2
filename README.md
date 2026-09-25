@@ -2,7 +2,7 @@
 
 DBR² protects **Docker applications**, not just volumes. It discovers Compose stacks, captures their definition, persistent data and databases as atomic, verifiable recovery points, and restores them onto the same or another Docker host.
 
-> **Status: Phase 1 (Foundations) complete.** The control plane, authentication (master admin plus Entra ID), RBAC, audit, the web console, the Temporal worker, the storage guard and CI are in place. Backup and restore arrive in Phases 2–5 (see [`docs/roadmap.md`](docs/roadmap.md)).
+> **Status: Phases 1–3 complete.** Foundations (control plane, authentication, RBAC, audit, console, CI), agents (enrollment with single-use tokens and CA pinning, approval, mTLS gateway, durable command journal, RPM packages for Rocky and Fedora) and discovery (Compose applications, volume classification, external dependencies, unprotected-data detection, reconstructed Compose, secret masking). Backup and restore arrive in Phases 4–5 (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Documentation
 

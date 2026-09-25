@@ -39,3 +39,17 @@ Events are stored in the append-only `audit_events` table, where UPDATE, DELETE 
 | `rbac.group_mapping.added` | Entra ID group → role mapping added. |
 | `rbac.group_mapping.removed` | Entra ID group → role mapping removed. |
 | `authz.denied` | Authenticated request refused for a missing permission. |
+| `agent.enrolled` | Host enrolled with a registration token (starts pending). |
+| `agent.enrollment.failed` | Enrollment refused (invalid, used, revoked or expired token). |
+| `agent.approved` | Pending agent approved (before/after status). |
+| `agent.suspended` | Agent suspended; its session is ended. |
+| `agent.resumed` | Suspended agent resumed. |
+| `agent.revoked` | Agent permanently revoked; all certificates revoked. |
+| `agent.certificate_renewed` | Agent renewed its certificate (older ones revoked). |
+| `agent.registration_token.created` | Registration token created (secret shown once). |
+| `agent.registration_token.revoked` | Unused registration token revoked. |
+| `agent.discovery.requested` | On-demand discovery workflow started. |
+| `application.created` | Manual application created (grouped containers). |
+| `application.updated` | Application ownership metadata changed (before/after). |
+| `application.deleted` | Manual application deleted. |
+| `secrets.revealed` | Secret values revealed (requires secrets.read). |

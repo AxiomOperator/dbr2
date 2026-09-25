@@ -89,6 +89,20 @@ type Server struct {
 	MasterAdmin   string        `env:"DBR2_MASTER_ADMIN_USERNAME" envDefault:"dbr2-admin"`
 	InitialPWFile string        `env:"DBR2_MASTER_ADMIN_INITIAL_PASSWORD_FILE" envDefault:"/var/lib/dbr2/master-admin-initial-password"`
 
+	// Agent Gateway (ADR-0001): mTLS gRPC listener agents connect to.
+	GatewayAddr string `env:"DBR2_GATEWAY_ADDR" envDefault:":8443"`
+	// GatewayHostnames are the names/IPs in the gateway's server certificate
+	// (what agents put in --server). The container hostname is always added.
+	GatewayHostnames []string `env:"DBR2_GATEWAY_HOSTNAMES" envSeparator:"," envDefault:"localhost"`
+	// GatewayPublicAddress is the host:port shown in agent join commands
+	// (default: DBR2_PUBLIC_URL's host with port 8443).
+	GatewayPublicAddress string `env:"DBR2_GATEWAY_PUBLIC_ADDRESS"`
+	// ControlAddr is the internal listener dbr2-worker dispatches through.
+	ControlAddr string `env:"DBR2_CONTROL_ADDR" envDefault:":9090"`
+	// InternalToken authenticates dbr2-worker on the control listener
+	// (DBR2_INTERNAL_TOKEN[_FILE]); the control listener is disabled without it.
+	InternalToken string
+
 	Entra     Entra
 	Temporal  Temporal
 	Log       Log
@@ -121,6 +135,9 @@ func LoadServer() (*Server, error) {
 		return nil, err
 	}
 	if c.Entra.ClientSecret, err = secret("DBR2_ENTRA_CLIENT_SECRET", false); err != nil {
+		return nil, err
+	}
+	if c.InternalToken, err = secret("DBR2_INTERNAL_TOKEN", false); err != nil {
 		return nil, err
 	}
 	key, err := secret("DBR2_SECRET_KEY", true)
@@ -169,6 +186,13 @@ func (c *Server) validate() error {
 		}
 		c.httpChecks = append(c.httpChecks, HTTPCheck{Name: strings.TrimSpace(name), URL: u})
 	}
+	if c.GatewayPublicAddress == "" {
+		u, _ := url.Parse(c.PublicURL)
+		c.GatewayPublicAddress = u.Hostname() + ":8443"
+	}
+	if c.InternalToken != "" && len(c.InternalToken) < 32 {
+		return errors.New("config: DBR2_INTERNAL_TOKEN must be at least 32 characters")
+	}
 	if !strings.HasPrefix(c.WebLoginPath, "/") {
 		return errors.New("config: DBR2_WEB_LOGIN_PATH must start with /")
 	}
@@ -198,12 +222,21 @@ type Worker struct {
 	Log        Log
 	Telemetry  Telemetry
 	HealthAddr string `env:"DBR2_HEALTH_ADDR" envDefault:":8082"`
+	// GatewayControlAddr is dbr2-server's internal control listener.
+	GatewayControlAddr string `env:"DBR2_GATEWAY_CONTROL_ADDR" envDefault:"127.0.0.1:9090"`
+	// InternalToken authenticates the worker to the gateway (DBR2_INTERNAL_TOKEN[_FILE]).
+	InternalToken string
 }
 
 // LoadWorker reads the worker configuration.
 func LoadWorker() (*Worker, error) {
 	var c Worker
-	return &c, env.Parse(&c)
+	if err := env.Parse(&c); err != nil {
+		return nil, err
+	}
+	var err error
+	c.InternalToken, err = secret("DBR2_INTERNAL_TOKEN", false)
+	return &c, err
 }
 
 // RepoServer is the dbr2-reposerver configuration (ADR-0002).

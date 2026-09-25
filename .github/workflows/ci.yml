@@ -73,6 +73,23 @@ jobs:
       - name: NFS functional test
         run: tests/nfs/run.sh
 
+  rpm:
+    name: Agent RPM (Rocky, Fedora)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Builds dist/dbr2-agent-<VERSION>-<BUILD>.x86_64.rpm (nfpm) and installs,
+      # verifies, upgrades and removes it in Rocky Linux 9 and Fedora containers.
+      - name: Build and test the agent RPM
+        run: tests/packaging/rpm-test.sh
+
   web:
     name: Web (lint, typecheck, test, build)
     runs-on: ubuntu-latest

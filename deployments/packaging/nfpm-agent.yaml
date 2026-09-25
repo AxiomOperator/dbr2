@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# nfpm recipe for the dbr2-agent RPM (ADR-0006, ADR-0015). Build with
+# `make rpm BUILD=<n>` from the repository root (paths below are relative to
+# it); the Makefile exports DBR2_AGENT_VERSION (cmd/agent/VERSION) and
+# DBR2_BUILD. RPM: Version = X.Y.Z, Release = BUILD. The binary is static, so
+# one x86_64 RPM serves Rocky Linux and Fedora (no %{?dist} tag).
+name: dbr2-agent
+arch: amd64
+platform: linux
+version: ${DBR2_AGENT_VERSION}
+version_schema: none
+release: ${DBR2_BUILD}
+section: default
+priority: optional
+maintainer: DBR2 Team
+vendor: DBR2 Team
+homepage: https://github.com/AxiomOperator/dbr2
+license: Apache-2.0
+description: |-
+  DBR² (Docker Backup, Recovery & Restore) agent.
+  Native systemd service that runs on each protected Docker host: it
+  discovers containers, volumes and bind mounts, captures and restores their
+  data, and connects to the DBR² control plane over mutual TLS. Enroll the
+  host with `dbr2-agent enroll`, then `systemctl enable --now dbr2-agent`.
+
+contents:
+  - src: bin/dbr2-agent
+    dst: /usr/bin/dbr2-agent
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+
+  - src: deployments/packaging/systemd/dbr2-agent.service
+    dst: /usr/lib/systemd/system/dbr2-agent.service
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+
+  - src: LICENSE
+    dst: /usr/share/licenses/dbr2-agent/LICENSE
+    type: license
+    file_info:
+      mode: 0644
+  - src: NOTICE
+    dst: /usr/share/licenses/dbr2-agent/NOTICE
+    type: license
+    file_info:
+      mode: 0644
+  - src: deployments/packaging/README.md
+    dst: /usr/share/doc/dbr2-agent/README.md
+    type: doc
+    file_info:
+      mode: 0644
+
+  # Owned directories. No default config is shipped: `dbr2-agent enroll`
+  # writes /etc/dbr2/agent.yaml. RPM removes an owned directory on erase only
+  # when it is empty, so an enrolled host keeps its config and state.
+  - dst: /etc/dbr2
+    type: dir
+    file_info:
+      mode: 0700
+      owner: root
+      group: root
+  - dst: /var/lib/dbr2
+    type: dir
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  - dst: /var/lib/dbr2/agent
+    type: dir
+    file_info:
+      mode: 0700
+      owner: root
+      group: root
+
+scripts:
+  postinstall: deployments/packaging/scripts/postinstall.sh
+  preremove: deployments/packaging/scripts/preremove.sh
+  postremove: deployments/packaging/scripts/postremove.sh
+
+rpm:
+  summary: DBR² agent for Docker hosts (backup, recovery and restore)
+  group: System Environment/Daemons
+  compression: zstd

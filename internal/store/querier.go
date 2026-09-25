@@ -15,18 +15,28 @@ type Querier interface {
 	AddUserRole(ctx context.Context, arg AddUserRoleParams) error
 	// Rejects replay: a TOTP time step can be used at most once.
 	AdvanceTOTPStep(ctx context.Context, arg AdvanceTOTPStepParams) (int64, error)
+	// Single use: the conditional update makes concurrent claims race-safe.
+	ClaimRegistrationToken(ctx context.Context, tokenHash []byte) (ClaimRegistrationTokenRow, error)
 	ConsumeOIDCAuthRequest(ctx context.Context, state string) (OidcAuthRequest, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (CreateAPITokenRow, error)
+	CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error)
+	CreateAuthority(ctx context.Context, arg CreateAuthorityParams) error
 	// SPDX-License-Identifier: Apache-2.0
 	CreateLocalCredential(ctx context.Context, arg CreateLocalCredentialParams) error
+	CreateManualApplication(ctx context.Context, arg CreateManualApplicationParams) (Application, error)
 	CreateMasterAdmin(ctx context.Context, arg CreateMasterAdminParams) (User, error)
 	CreateOIDCAuthRequest(ctx context.Context, arg CreateOIDCAuthRequestParams) error
 	CreateOIDCUser(ctx context.Context, arg CreateOIDCUserParams) (User, error)
+	CreateRegistrationToken(ctx context.Context, arg CreateRegistrationTokenParams) (CreateRegistrationTokenRow, error)
 	// SPDX-License-Identifier: Apache-2.0
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	DeleteAgentSession(ctx context.Context, arg DeleteAgentSessionParams) error
+	// Standalone container applications claimed by a manual application.
+	DeleteContainerApplications(ctx context.Context, arg DeleteContainerApplicationsParams) error
 	DeleteExpiredOIDCAuthRequests(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteGroupMapping(ctx context.Context, arg DeleteGroupMappingParams) (int64, error)
+	DeleteManualApplication(ctx context.Context, arg DeleteManualApplicationParams) (int64, error)
 	DeleteUserRole(ctx context.Context, arg DeleteUserRoleParams) error
 	DeleteUserRolesBySource(ctx context.Context, arg DeleteUserRolesBySourceParams) error
 	DisableTOTP(ctx context.Context, userID uuid.UUID) error
@@ -34,34 +44,65 @@ type Querier interface {
 	EnqueueNotification(ctx context.Context, arg EnqueueNotificationParams) error
 	GetActiveAPIToken(ctx context.Context, tokenHash []byte) (GetActiveAPITokenRow, error)
 	GetActiveSession(ctx context.Context, id []byte) (GetActiveSessionRow, error)
+	GetAgent(ctx context.Context, id uuid.UUID) (Agent, error)
+	GetAgentCertificate(ctx context.Context, serial string) (AgentCertificate, error)
+	GetApplication(ctx context.Context, arg GetApplicationParams) (GetApplicationRow, error)
+	// SPDX-License-Identifier: Apache-2.0
+	GetAuthority(ctx context.Context, name string) (PkiAuthority, error)
+	GetInventorySnapshot(ctx context.Context, agentID uuid.UUID) (InventorySnapshot, error)
 	GetLocalCredential(ctx context.Context, userID uuid.UUID) (LocalCredential, error)
 	GetLocalCredentialForUpdate(ctx context.Context, userID uuid.UUID) (LocalCredential, error)
 	// SPDX-License-Identifier: Apache-2.0
 	GetMasterAdmin(ctx context.Context, orgID uuid.UUID) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByOIDC(ctx context.Context, arg GetUserByOIDCParams) (User, error)
+	InsertAgentCertificate(ctx context.Context, arg InsertAgentCertificateParams) error
 	// SPDX-License-Identifier: Apache-2.0
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (InsertAuditEventRow, error)
+	ListAgentApplications(ctx context.Context, agentID uuid.UUID) ([]Application, error)
+	ListAgentCommands(ctx context.Context, arg ListAgentCommandsParams) ([]AgentCommand, error)
+	ListAgentSessions(ctx context.Context) ([]AgentSession, error)
+	ListAgents(ctx context.Context, orgID uuid.UUID) ([]Agent, error)
+	ListApplications(ctx context.Context, orgID uuid.UUID) ([]ListApplicationsRow, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
 	ListGroupMappings(ctx context.Context, orgID uuid.UUID) ([]OidcGroupMapping, error)
 	ListGroupMappingsForGroups(ctx context.Context, arg ListGroupMappingsForGroupsParams) ([]string, error)
+	ListRegistrationTokens(ctx context.Context, orgID uuid.UUID) ([]ListRegistrationTokensRow, error)
 	ListUserAPITokens(ctx context.Context, userID uuid.UUID) ([]ListUserAPITokensRow, error)
 	// SPDX-License-Identifier: Apache-2.0
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]ListUserRolesRow, error)
 	ListUsers(ctx context.Context, orgID uuid.UUID) ([]User, error)
+	MarkApplicationsMissing(ctx context.Context, arg MarkApplicationsMissingParams) error
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) error
 	ResetLoginFailures(ctx context.Context, userID uuid.UUID) error
 	RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) (int64, error)
+	RevokeAgentCertificates(ctx context.Context, agentID uuid.UUID) error
+	RevokeAgentCertificatesExcept(ctx context.Context, arg RevokeAgentCertificatesExceptParams) error
+	RevokeRegistrationToken(ctx context.Context, arg RevokeRegistrationTokenParams) (int64, error)
 	RevokeSession(ctx context.Context, id []byte) error
 	RevokeUserSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeUserSessionsExcept(ctx context.Context, arg RevokeUserSessionsExceptParams) error
+	SetAgentCertificate(ctx context.Context, arg SetAgentCertificateParams) error
+	SetAgentStatus(ctx context.Context, arg SetAgentStatusParams) (Agent, error)
 	SetPendingTOTP(ctx context.Context, arg SetPendingTOTPParams) error
+	SetRegistrationTokenAgent(ctx context.Context, arg SetRegistrationTokenAgentParams) error
 	SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) error
 	TouchAPIToken(ctx context.Context, id uuid.UUID) error
+	TouchAgentSession(ctx context.Context, arg TouchAgentSessionParams) error
 	TouchSession(ctx context.Context, id []byte) error
 	TouchUserLogin(ctx context.Context, id uuid.UUID) error
+	UpdateAgentHealth(ctx context.Context, arg UpdateAgentHealthParams) error
+	UpdateAgentHello(ctx context.Context, arg UpdateAgentHelloParams) error
+	UpdateAgentLatency(ctx context.Context, arg UpdateAgentLatencyParams) error
+	UpdateApplicationMetadata(ctx context.Context, arg UpdateApplicationMetadataParams) (Application, error)
+	UpdateManualApplication(ctx context.Context, arg UpdateManualApplicationParams) (Application, error)
 	UpdateOIDCUserProfile(ctx context.Context, arg UpdateOIDCUserProfileParams) error
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
+	UpsertAgentCommand(ctx context.Context, arg UpsertAgentCommandParams) error
+	UpsertAgentSession(ctx context.Context, arg UpsertAgentSessionParams) error
+	UpsertDiscoveredApplication(ctx context.Context, arg UpsertDiscoveredApplicationParams) error
+	// SPDX-License-Identifier: Apache-2.0
+	UpsertInventorySnapshot(ctx context.Context, arg UpsertInventorySnapshotParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -16,6 +16,10 @@ import (
 	"time"
 
 	"go.temporal.io/sdk/worker"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	controlv1 "github.com/AxiomOperator/dbr2/internal/agentpb/control/v1"
 
 	"github.com/AxiomOperator/dbr2/internal/config"
 	"github.com/AxiomOperator/dbr2/internal/healthcheck"
@@ -24,6 +28,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/version"
 	"github.com/AxiomOperator/dbr2/workflows"
 	"github.com/AxiomOperator/dbr2/workflows/diag"
+	"github.com/AxiomOperator/dbr2/workflows/hosts"
 )
 
 const binary = "dbr2-worker"
@@ -79,7 +84,19 @@ func run() error {
 		// Build ID = worker version (ADR-0015); used for worker versioning later.
 		Identity: binary + "@" + hostname() + "/" + version.Of(version.Worker),
 	})
-	workflows.Register(w, &diag.Activities{})
+	// Internal control channel to the Agent Gateway (deployment network only;
+	// authenticated with the internal token).
+	ctrlConn, err := grpc.NewClient(cfg.GatewayControlAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer ctrlConn.Close()
+	if cfg.InternalToken == "" {
+		log.Warn("DBR2_INTERNAL_TOKEN not set: agent commands will fail")
+	}
+	workflows.Register(w, &diag.Activities{}, &hosts.Activities{
+		Control: controlv1.NewGatewayControlServiceClient(ctrlConn), Token: cfg.InternalToken,
+	})
 
 	var healthy atomic.Bool
 	srv := &http.Server{Addr: cfg.HealthAddr, ReadHeaderTimeout: 5 * time.Second,

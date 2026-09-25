@@ -38,6 +38,7 @@ secrets:
   dbr2_database_url: { file: ./secrets/dbr2_database_url }
   dbr2_secret_key: { file: ./secrets/dbr2_secret_key }
   dbr2_entra_client_secret: { file: ./secrets/dbr2_entra_client_secret }
+  dbr2_internal_token: { file: ./secrets/dbr2_internal_token }
 
 services:
   # Edge: TLS termination and routing. /api/* → dbr2-server, everything else →
@@ -86,6 +87,12 @@ services:
       DBR2_TRUSTED_PROXY_CIDRS: ${DBR2_PROXY_IP:-172.31.230.10}/32
       DBR2_TEMPORAL_ADDRESS: temporal:7233
       DBR2_VALKEY_ADDR: valkey:6379
+      # Agent Gateway (mTLS gRPC; agents connect outbound to this port).
+      DBR2_GATEWAY_ADDR: ":8443"
+      DBR2_GATEWAY_HOSTNAMES: ${DBR2_HOSTNAME:-localhost},localhost
+      DBR2_GATEWAY_PUBLIC_ADDRESS: ${DBR2_HOSTNAME:-localhost}:${DBR2_GATEWAY_PORT:-8443}
+      DBR2_CONTROL_ADDR: ":9090"
+      DBR2_INTERNAL_TOKEN_FILE: /run/secrets/dbr2_internal_token
       # Platform services shown on the dashboard's Platform status card
       # (non-critical: a failure reports "degraded").
       DBR2_READY_HTTP_CHECKS: proxy=http://proxy:8090/healthz,worker=http://dbr2-worker:8082/healthz,reposerver=http://dbr2-reposerver:8081/healthz
@@ -96,7 +103,11 @@ services:
       DBR2_ENTRA_CLIENT_SECRET_FILE: ${DBR2_ENTRA_CLIENT_SECRET_FILE:-}
       DBR2_OTEL_ENABLED: ${DBR2_OTEL_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-    secrets: [dbr2_database_url, dbr2_secret_key, dbr2_entra_client_secret]
+    secrets: [dbr2_database_url, dbr2_secret_key, dbr2_entra_client_secret, dbr2_internal_token]
+    # The Agent Gateway is published directly (mTLS end to end; agents pin the
+    # DBR² CA). The HTTP API stays behind the proxy.
+    ports:
+      - "${DBR2_GATEWAY_PORT:-8443}:8443"
     volumes:
       - server-state:/var/lib/dbr2
     networks: [dbr2]
@@ -109,8 +120,11 @@ services:
     restart: unless-stopped
     environment:
       DBR2_TEMPORAL_ADDRESS: temporal:7233
+      DBR2_GATEWAY_CONTROL_ADDR: dbr2-server:9090
+      DBR2_INTERNAL_TOKEN_FILE: /run/secrets/dbr2_internal_token
       DBR2_OTEL_ENABLED: ${DBR2_OTEL_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    secrets: [dbr2_internal_token]
     networks: [dbr2]
     depends_on:
       temporal-namespace: { condition: service_completed_successfully }

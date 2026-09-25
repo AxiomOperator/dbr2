@@ -18,6 +18,15 @@ export const ProblemSchema = z.object({
   detail: z.string().optional(),
   code: z.string().optional(),
   instance: z.string().optional(),
+  /** Individual validation errors (400 `validation_failed`). */
+  errors: z
+    .array(
+      z.object({
+        message: z.string().optional(),
+        location: z.string().optional(),
+      }),
+    )
+    .nullish(),
 });
 export type Problem = z.infer<typeof ProblemSchema>;
 

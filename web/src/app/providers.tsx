@@ -4,6 +4,7 @@
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState, type ReactNode } from "react";
+import { ToastProvider } from "@/components/toast";
 import { isApiError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/endpoints";
 
@@ -47,7 +48,9 @@ export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

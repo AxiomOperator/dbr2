@@ -76,6 +76,23 @@ func StartApplicationOperation(ctx context.Context, c client.Client, taskQueue, 
 	return run, err
 }
 
+// HostWorkflowID returns the exclusive workflow ID of a host-level operation
+// (e.g. "host/<agent-id>/discover").
+func HostWorkflowID(agentID, operation string) string { return "host/" + agentID + "/" + operation }
+
+// StartHostOperation starts a host-level operation with the same exclusivity
+// guarantees as application operations (one run per host and operation).
+func StartHostOperation(ctx context.Context, c client.Client, taskQueue, agentID, operation string, wf any, args ...any) (client.WorkflowRun, error) {
+	opts := ApplicationStartOptions("", taskQueue)
+	opts.ID = HostWorkflowID(agentID, operation)
+	run, err := c.ExecuteWorkflow(ctx, opts, wf, args...)
+	var started *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &started) {
+		return nil, &ErrOperationInProgress{WorkflowID: opts.ID, RunningRunID: started.RunId}
+	}
+	return run, err
+}
+
 // IsApplicationWorkflowID reports whether id is in the application namespace.
 func IsApplicationWorkflowID(id string) bool { return strings.HasPrefix(id, ApplicationIDPrefix) }
 

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Discovery fixture for internal/runtime integration tests.
+services:
+  db:
+    image: docker.io/library/alpine:3.22
+    command: ["sleep", "3600"]
+    environment:
+      DB_USER: shop
+      DB_PASSWORD: fixture-secret-123
+    volumes:
+      - dbdata:/var/lib/db
+  web:
+    image: docker.io/library/alpine:3.22
+    command: ["sh", "-c", "mkdir -p /app/reports && echo q3 > /app/reports/q3.txt && echo cached > /tmp/c && sleep 3600"]
+    env_file: [.env]
+    volumes:
+      - ./uploads:/app/uploads
+      - cache:/var/cache/web
+    networks: [default, shared]
+    ports: ["127.0.0.1:18099:80"]
+volumes:
+  dbdata: {}
+  cache: {}
+networks:
+  shared:
+    external: true
+    name: dbr2test-shared

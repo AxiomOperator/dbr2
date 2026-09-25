@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Internal control plane protocol between dbr2-worker (Temporal activities)
+// and the Agent Gateway in dbr2-server (ADR-0001). Not exposed outside the
+// deployment network; authenticated with the internal token.
+syntax = "proto3";
+
+package control.v1;
+
+import "agent/v1/agent.proto";
+
+option go_package = "github.com/AxiomOperator/dbr2/internal/agentpb/control/v1;controlv1";
+
+// GatewayControlService dispatches commands to connected agents.
+service GatewayControlService {
+  // Dispatch sends a command to an agent and streams its updates until the
+  // terminal result. If the agent is offline, the gateway waits up to
+  // wait_for_agent_seconds for it to reconnect. Re-dispatching the same
+  // command_id is idempotent.
+  rpc Dispatch(DispatchRequest) returns (stream DispatchResponse);
+}
+
+// DispatchRequest identifies the agent and the command.
+message DispatchRequest {
+  string agent_id = 1;
+  agent.v1.Command command = 2;
+  uint32 wait_for_agent_seconds = 3;
+}
+
+// DispatchResponse carries one command update.
+message DispatchResponse {
+  agent.v1.CommandUpdate update = 1;
+}
