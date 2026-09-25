@@ -20,8 +20,10 @@ func TestDockerControl(t *testing.T) {
 	}
 	const name = "dbr2test-control"
 	_ = exec.Command("docker", "rm", "-f", name).Run()
+	// Output (stdout only): on a cold cache `docker run` prints pull
+	// progress on stderr, which must not end up in the container ID.
 	out, err := exec.Command("docker", "run", "-d", "--name", name, "-e", "SECRET=real-value",
-		"docker.io/library/alpine:3.22", "sleep", "3600").CombinedOutput()
+		"docker.io/library/alpine:3.22", "sleep", "3600").Output()
 	if err != nil {
 		t.Fatalf("docker run: %v\n%s", err, out)
 	}

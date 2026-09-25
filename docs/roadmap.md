@@ -301,6 +301,13 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-25 — Fix — CI integration failure after the Phase 4 push
+- **Notes:**
+  - **Symptom:** `TestDockerControl` failed on GitHub Actions with "page not found" from the Docker daemon. Every other job passed, including images.
+  - **Cause:** the test fixture captured `docker run -d` with `CombinedOutput()`. On the runner's cold image cache, the pull progress written to stderr ended up in the "container ID", so the inspect URL was invalid. Locally the image was cached, which hid the bug.
+  - **Fix:** use stdout only. Reproduced and verified locally after removing the image from the cache. The product code was not affected.
+- **Files:** `internal/runtime/control_integration_test.go`, `docs/roadmap.md`
+
 ### 2026-09-25 — Feature — Phase 4 (Repositories & backup) complete
 - **Notes:**
   - **Backup engine:** `internal/engine` interface plus `internal/engine/kopia`, pinned to Kopia v0.23.1 and the only package that imports Kopia. It covers the spike pitfalls: deep restore, `Uploader.Cancel()` bridged to cancellation, incomplete snapshots never saved, hyphenated tag keys, and incremental uploads based on the previous snapshot of the same source.
