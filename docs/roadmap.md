@@ -299,6 +299,23 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-25 — Decision / Maintenance — Dependabot PRs merged; automatic PRs stopped; push directly to `main`
+- **Notes:**
+  - **Owner instruction:** stop creating pull requests and push directly to `main`, and merge the open pull requests.
+  - **Merged onto `main`:**
+    - #3 `golang.org/x/oauth2` 0.37.0
+    - #4 `react` / `react-dom` 19.3.0
+    - #7 `jsdom` 30.1.1
+    - #8 `@types/node` 26.6.2
+  - Each Dependabot PR failed the changelog gate (and #3/#4 the stale `THIRD_PARTY_NOTICES` check). Added the changelog entries and regenerated the notices here.
+  - **Not merged, blocked upstream:**
+    - #5 ESLint 10: `eslint-config-next`'s bundled `eslint-plugin-react` uses the removed `context.getFilename`.
+    - #6 TypeScript 7: `typescript-eslint` does not support TS 7. It builds and tests fine, but linting fails.
+    - Both were closed with an explanation; retry when upstream support lands.
+  - **Removed `.github/dependabot.yml`,** so no more automatic version-update PRs. Dependabot security-fix PRs were already disabled in the repository settings.
+  - **Dependency updates are now manual:** CI still runs govulncheck, npm audit and gitleaks on every push.
+- **Files:** `go.mod`, `go.sum`, `web/package.json`, `web/package-lock.json`, `THIRD_PARTY_NOTICES`, `.github/dependabot.yml` (removed), `web/CHANGELOG.md`, `cmd/server/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-25 — Enhancement — Platform status card shows every platform service
 - **Notes:**
   - Owner request: the Caddy edge proxy is a system the platform relies on, so it must appear on the dashboard's "Platform status" card. Applied the same rule to dbr2-worker and dbr2-reposerver, which were missing too.

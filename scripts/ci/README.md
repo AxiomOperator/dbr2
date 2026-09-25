@@ -19,7 +19,8 @@ Authoritative policy: ADR-0015 (versioning, changelogs, CI gates) and ADR-0013
 | `release.yml` | manual (`workflow_dispatch`, main only, `dry_run` input) | Finalize changelogs, write `release-manifest.json`, signed-off release commit, tags, binaries + SBOMs + checksums (cosign-signed), GitHub Release, images |
 
 All third-party actions are pinned to full commit SHAs with a `# vX.Y.Z`
-comment; Dependabot (`.github/dependabot.yml`) proposes updates weekly. Every
+comment. Dependency and action updates are applied manually (Dependabot version
+updates were removed at the owner's request; see docs/roadmap.md). Every
 job has least-privilege `permissions` (default `contents: read`).
 
 ## CI gates (`ci.yml` jobs)

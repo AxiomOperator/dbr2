@@ -4,6 +4,13 @@ All notable changes to the `web` component. Format: [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+- Dependencies: `react` / `react-dom` 19.2.8 → 19.3.0, `jsdom` 29.1.1 → 30.1.1 (tests), `@types/node` 22.20.4 → 26.6.2 (merged from Dependabot PRs #4, #7, #8).
+
+### Notes
+- Not merged, blocked upstream: ESLint 10 (#5; the `eslint-plugin-react` bundled with `eslint-config-next` calls `context.getFilename`, which ESLint 10 removed) and TypeScript 7 (#6; `typescript-eslint` does not support TS 7 yet). Revisit when upstream support lands.
+- `@types/node` 26 is ahead of the Node 22 runtime; avoid Node APIs newer than 22.
+
 ### Added
 - Component scaffold (Phase 1).
 - Next.js 16.3 console (App Router, TypeScript strict, `output: "standalone"`) with React 19.2, Tailwind CSS 4.3, shadcn/ui (Radix, light and dark themes), TanStack Query 5, TanStack Table 9 and Zod 4.

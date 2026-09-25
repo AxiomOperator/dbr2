@@ -60,7 +60,7 @@ go.uber.org/multierr v1.11.0 — MIT
 go.yaml.in/yaml/v3 v3.0.5 — MIT
 golang.org/x/crypto v0.57.0 — BSD-3-Clause
 golang.org/x/net v0.58.0 — BSD-3-Clause
-golang.org/x/oauth2 v0.36.0 — BSD-3-Clause
+golang.org/x/oauth2 v0.37.0 — BSD-3-Clause
 golang.org/x/sync v0.23.0 — BSD-3-Clause
 golang.org/x/sys v0.48.0 — BSD-3-Clause
 golang.org/x/text v0.42.0 — BSD-3-Clause
@@ -216,14 +216,14 @@ pngjs 5.0.0 — MIT
 postcss 8.5.23 — MIT
 qrcode 1.5.4 — MIT
 radix-ui 1.6.7 — MIT
-react 19.2.8 — MIT
-react-dom 19.2.8 — MIT
+react 19.3.0 — MIT
+react-dom 19.3.0 — MIT
 react-remove-scroll 2.7.2 — MIT
 react-remove-scroll-bar 2.3.8 — MIT
 react-style-singleton 2.2.3 — MIT
 require-directory 2.1.1 — MIT
 require-main-filename 2.0.0 — ISC
-scheduler 0.27.0 — MIT
+scheduler 0.28.0 — MIT
 semver 7.8.5 — ISC (optional, platform-specific)
 set-blocking 2.0.0 — ISC
 sharp 0.35.4 — Apache-2.0 (optional, platform-specific)
@@ -3880,7 +3880,7 @@ limitations under the License.
 Applies to:
   - golang.org/x/crypto v0.57.0 (BSD-3-Clause)
   - golang.org/x/net v0.58.0 (BSD-3-Clause)
-  - golang.org/x/oauth2 v0.36.0 (BSD-3-Clause)
+  - golang.org/x/oauth2 v0.37.0 (BSD-3-Clause)
   - golang.org/x/sync v0.23.0 (BSD-3-Clause)
   - golang.org/x/sys v0.48.0 (BSD-3-Clause)
   - golang.org/x/text v0.42.0 (BSD-3-Clause)
@@ -4144,9 +4144,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 --------------------------------------------------------------------------------
 Applies to:
-  - react 19.2.8 (MIT)
-  - react-dom 19.2.8 (MIT)
-  - scheduler 0.27.0 (MIT)
+  - react 19.3.0 (MIT)
+  - react-dom 19.3.0 (MIT)
+  - scheduler 0.28.0 (MIT)
   - use-sync-external-store 1.7.0 (MIT)
 --------------------------------------------------------------------------------
 MIT License

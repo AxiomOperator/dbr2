@@ -4,6 +4,9 @@ All notable changes to the `server` component. Format: [Keep a Changelog](https:
 
 ## [Unreleased]
 
+### Changed
+- `golang.org/x/oauth2` 0.36.0 → 0.37.0 (Dependabot PR #3; used by Entra ID sign-in; applies to every Go binary).
+
 ### Added
 - `DBR2_READY_HTTP_CHECKS` (`name=url,…`): non-critical readiness checks for other platform services. The dashboard's Platform status card now lists the Caddy edge proxy, dbr2-worker and dbr2-reposerver next to PostgreSQL, Temporal and Valkey (owner request).
 - Component scaffold (Phase 1).
