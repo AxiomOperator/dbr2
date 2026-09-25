@@ -1,0 +1,11 @@
+# Build context for deployments/docker/Dockerfile.services (Go services).
+# Local state, secrets and build output never enter an image.
+.git
+.dev
+bin
+dist
+web/node_modules
+web/.next
+deployments/docker-compose/secrets
+deployments/docker-compose/.env
+**/*.age

@@ -142,7 +142,7 @@ images: ## Build container images (tag: <component VERSION>.<BUILD>)
 
 dev-up: ## Start the development stack (mocked NFS; see deployments/docker-compose)
 	@deployments/docker-compose/init-secrets.sh >/dev/null
-	@mkdir -p .dev/repo
+	@mkdir -p .dev/repo .dev/reposerver-state
 	docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml up -d --build
 
 dev-password: ## Print the master admin initial password of the running dev stack

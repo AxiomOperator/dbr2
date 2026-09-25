@@ -140,3 +140,359 @@ var GatewayControlService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "control/v1/control.proto",
 }
+
+const (
+	PlatformService_PrepareBackup_FullMethodName       = "/control.v1.PlatformService/PrepareBackup"
+	PlatformService_EnsureAgentAccess_FullMethodName   = "/control.v1.PlatformService/EnsureAgentAccess"
+	PlatformService_CompleteBackup_FullMethodName      = "/control.v1.PlatformService/CompleteBackup"
+	PlatformService_GetRepository_FullMethodName       = "/control.v1.PlatformService/GetRepository"
+	PlatformService_ListRepositories_FullMethodName    = "/control.v1.PlatformService/ListRepositories"
+	PlatformService_IndexRecoveryPoints_FullMethodName = "/control.v1.PlatformService/IndexRecoveryPoints"
+	PlatformService_RecordEvent_FullMethodName         = "/control.v1.PlatformService/RecordEvent"
+)
+
+// PlatformServiceClient is the client API for PlatformService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// PlatformService lets dbr2-worker read and update platform state owned by
+// dbr2-server (PostgreSQL, repository management, agent credentials).
+type PlatformServiceClient interface {
+	// PrepareBackup validates the application, host and Repository, records a
+	// pending recovery point and returns the capture plan.
+	PrepareBackup(ctx context.Context, in *PrepareBackupRequest, opts ...grpc.CallOption) (*PrepareBackupResponse, error)
+	// EnsureAgentAccess makes sure the agent has a Kopia user on the
+	// Repository and has been configured with it. Passwords never leave
+	// dbr2-server except to the reposerver and the agent.
+	EnsureAgentAccess(ctx context.Context, in *EnsureAgentAccessRequest, opts ...grpc.CallOption) (*EnsureAgentAccessResponse, error)
+	// CompleteBackup records the outcome of a backup (committed or failed).
+	CompleteBackup(ctx context.Context, in *CompleteBackupRequest, opts ...grpc.CallOption) (*CompleteBackupResponse, error)
+	// GetRepository returns a Repository's connection details.
+	GetRepository(ctx context.Context, in *GetRepositoryRequest, opts ...grpc.CallOption) (*GetRepositoryResponse, error)
+	// ListRepositories returns every Repository that is not retired.
+	ListRepositories(ctx context.Context, in *ListRepositoriesRequest, opts ...grpc.CallOption) (*ListRepositoriesResponse, error)
+	// IndexRecoveryPoints upserts recovery points found by reindexing.
+	IndexRecoveryPoints(ctx context.Context, in *IndexRecoveryPointsRequest, opts ...grpc.CallOption) (*IndexRecoveryPointsResponse, error)
+	// RecordEvent records an audit event and alert on behalf of the worker.
+	RecordEvent(ctx context.Context, in *RecordEventRequest, opts ...grpc.CallOption) (*RecordEventResponse, error)
+}
+
+type platformServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewPlatformServiceClient(cc grpc.ClientConnInterface) PlatformServiceClient {
+	return &platformServiceClient{cc}
+}
+
+func (c *platformServiceClient) PrepareBackup(ctx context.Context, in *PrepareBackupRequest, opts ...grpc.CallOption) (*PrepareBackupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrepareBackupResponse)
+	err := c.cc.Invoke(ctx, PlatformService_PrepareBackup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) EnsureAgentAccess(ctx context.Context, in *EnsureAgentAccessRequest, opts ...grpc.CallOption) (*EnsureAgentAccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnsureAgentAccessResponse)
+	err := c.cc.Invoke(ctx, PlatformService_EnsureAgentAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) CompleteBackup(ctx context.Context, in *CompleteBackupRequest, opts ...grpc.CallOption) (*CompleteBackupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteBackupResponse)
+	err := c.cc.Invoke(ctx, PlatformService_CompleteBackup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) GetRepository(ctx context.Context, in *GetRepositoryRequest, opts ...grpc.CallOption) (*GetRepositoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRepositoryResponse)
+	err := c.cc.Invoke(ctx, PlatformService_GetRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) ListRepositories(ctx context.Context, in *ListRepositoriesRequest, opts ...grpc.CallOption) (*ListRepositoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRepositoriesResponse)
+	err := c.cc.Invoke(ctx, PlatformService_ListRepositories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) IndexRecoveryPoints(ctx context.Context, in *IndexRecoveryPointsRequest, opts ...grpc.CallOption) (*IndexRecoveryPointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IndexRecoveryPointsResponse)
+	err := c.cc.Invoke(ctx, PlatformService_IndexRecoveryPoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) RecordEvent(ctx context.Context, in *RecordEventRequest, opts ...grpc.CallOption) (*RecordEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordEventResponse)
+	err := c.cc.Invoke(ctx, PlatformService_RecordEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PlatformServiceServer is the server API for PlatformService service.
+// All implementations must embed UnimplementedPlatformServiceServer
+// for forward compatibility.
+//
+// PlatformService lets dbr2-worker read and update platform state owned by
+// dbr2-server (PostgreSQL, repository management, agent credentials).
+type PlatformServiceServer interface {
+	// PrepareBackup validates the application, host and Repository, records a
+	// pending recovery point and returns the capture plan.
+	PrepareBackup(context.Context, *PrepareBackupRequest) (*PrepareBackupResponse, error)
+	// EnsureAgentAccess makes sure the agent has a Kopia user on the
+	// Repository and has been configured with it. Passwords never leave
+	// dbr2-server except to the reposerver and the agent.
+	EnsureAgentAccess(context.Context, *EnsureAgentAccessRequest) (*EnsureAgentAccessResponse, error)
+	// CompleteBackup records the outcome of a backup (committed or failed).
+	CompleteBackup(context.Context, *CompleteBackupRequest) (*CompleteBackupResponse, error)
+	// GetRepository returns a Repository's connection details.
+	GetRepository(context.Context, *GetRepositoryRequest) (*GetRepositoryResponse, error)
+	// ListRepositories returns every Repository that is not retired.
+	ListRepositories(context.Context, *ListRepositoriesRequest) (*ListRepositoriesResponse, error)
+	// IndexRecoveryPoints upserts recovery points found by reindexing.
+	IndexRecoveryPoints(context.Context, *IndexRecoveryPointsRequest) (*IndexRecoveryPointsResponse, error)
+	// RecordEvent records an audit event and alert on behalf of the worker.
+	RecordEvent(context.Context, *RecordEventRequest) (*RecordEventResponse, error)
+	mustEmbedUnimplementedPlatformServiceServer()
+}
+
+// UnimplementedPlatformServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedPlatformServiceServer struct{}
+
+func (UnimplementedPlatformServiceServer) PrepareBackup(context.Context, *PrepareBackupRequest) (*PrepareBackupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PrepareBackup not implemented")
+}
+func (UnimplementedPlatformServiceServer) EnsureAgentAccess(context.Context, *EnsureAgentAccessRequest) (*EnsureAgentAccessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnsureAgentAccess not implemented")
+}
+func (UnimplementedPlatformServiceServer) CompleteBackup(context.Context, *CompleteBackupRequest) (*CompleteBackupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteBackup not implemented")
+}
+func (UnimplementedPlatformServiceServer) GetRepository(context.Context, *GetRepositoryRequest) (*GetRepositoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRepository not implemented")
+}
+func (UnimplementedPlatformServiceServer) ListRepositories(context.Context, *ListRepositoriesRequest) (*ListRepositoriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRepositories not implemented")
+}
+func (UnimplementedPlatformServiceServer) IndexRecoveryPoints(context.Context, *IndexRecoveryPointsRequest) (*IndexRecoveryPointsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IndexRecoveryPoints not implemented")
+}
+func (UnimplementedPlatformServiceServer) RecordEvent(context.Context, *RecordEventRequest) (*RecordEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecordEvent not implemented")
+}
+func (UnimplementedPlatformServiceServer) mustEmbedUnimplementedPlatformServiceServer() {}
+func (UnimplementedPlatformServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafePlatformServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to PlatformServiceServer will
+// result in compilation errors.
+type UnsafePlatformServiceServer interface {
+	mustEmbedUnimplementedPlatformServiceServer()
+}
+
+func RegisterPlatformServiceServer(s grpc.ServiceRegistrar, srv PlatformServiceServer) {
+	// If the following call pancis, it indicates UnimplementedPlatformServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&PlatformService_ServiceDesc, srv)
+}
+
+func _PlatformService_PrepareBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).PrepareBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_PrepareBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).PrepareBackup(ctx, req.(*PrepareBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_EnsureAgentAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnsureAgentAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).EnsureAgentAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_EnsureAgentAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).EnsureAgentAccess(ctx, req.(*EnsureAgentAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_CompleteBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).CompleteBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_CompleteBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).CompleteBackup(ctx, req.(*CompleteBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_GetRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).GetRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_GetRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).GetRepository(ctx, req.(*GetRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_ListRepositories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRepositoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).ListRepositories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_ListRepositories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).ListRepositories(ctx, req.(*ListRepositoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_IndexRecoveryPoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IndexRecoveryPointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).IndexRecoveryPoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_IndexRecoveryPoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).IndexRecoveryPoints(ctx, req.(*IndexRecoveryPointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_RecordEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).RecordEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_RecordEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).RecordEvent(ctx, req.(*RecordEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// PlatformService_ServiceDesc is the grpc.ServiceDesc for PlatformService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var PlatformService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "control.v1.PlatformService",
+	HandlerType: (*PlatformServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "PrepareBackup",
+			Handler:    _PlatformService_PrepareBackup_Handler,
+		},
+		{
+			MethodName: "EnsureAgentAccess",
+			Handler:    _PlatformService_EnsureAgentAccess_Handler,
+		},
+		{
+			MethodName: "CompleteBackup",
+			Handler:    _PlatformService_CompleteBackup_Handler,
+		},
+		{
+			MethodName: "GetRepository",
+			Handler:    _PlatformService_GetRepository_Handler,
+		},
+		{
+			MethodName: "ListRepositories",
+			Handler:    _PlatformService_ListRepositories_Handler,
+		},
+		{
+			MethodName: "IndexRecoveryPoints",
+			Handler:    _PlatformService_IndexRecoveryPoints_Handler,
+		},
+		{
+			MethodName: "RecordEvent",
+			Handler:    _PlatformService_RecordEvent_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "control/v1/control.proto",
+}

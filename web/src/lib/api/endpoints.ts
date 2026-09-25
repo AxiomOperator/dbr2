@@ -41,6 +41,33 @@ import {
   type ReasonRequest,
   type UpdateApplicationRequest,
 } from "./fleet-schemas";
+import {
+  AddEscrowRecipientRequestSchema,
+  AlertListSchema,
+  BackupSettingsSchema,
+  ConfirmEscrowRequestSchema,
+  CreateRepositoryRequestSchema,
+  CreateRepositoryResponseSchema,
+  EscrowPackageSchema,
+  EscrowRecipientListSchema,
+  EscrowRecipientSchema,
+  HostSettingsSchema,
+  RecoveryPointListSchema,
+  RecoveryPointSchema,
+  RepositoryListSchema,
+  RepositorySchema,
+  StartBackupRequestSchema,
+  UpdateBackupSettingsRequestSchema,
+  UpdateHostSettingsRequestSchema,
+  WorkflowResponseSchema,
+  type AddEscrowRecipientRequest,
+  type ConfirmEscrowRequest,
+  type CreateRepositoryRequest,
+  type RecoveryPointState,
+  type StartBackupRequest,
+  type UpdateBackupSettingsRequest,
+  type UpdateHostSettingsRequest,
+} from "./protection-schemas";
 
 /** Host status transitions that take a `{reason}` body. */
 export type AgentAction = "approve" | "suspend" | "resume" | "revoke";
@@ -155,6 +182,104 @@ export const api = {
       query: { reveal: reveal ? "true" : undefined },
       signal,
     }),
+
+  // --- Repositories & escrow (Phase 4) -------------------------------------
+
+  escrowRecipients: async (signal?: AbortSignal) =>
+    (await apiRequest("/escrow/recipients", { schema: EscrowRecipientListSchema, signal })).items,
+
+  addEscrowRecipient: (req: AddEscrowRecipientRequest) =>
+    apiRequest("/escrow/recipients", {
+      method: "POST",
+      body: AddEscrowRecipientRequestSchema.parse(req),
+      schema: EscrowRecipientSchema,
+    }),
+
+  removeEscrowRecipient: (id: string) => apiRequest(`/escrow/recipients/${seg(id)}`, { method: "DELETE" }),
+
+  repositories: async (signal?: AbortSignal) =>
+    (await apiRequest("/repositories", { schema: RepositoryListSchema, signal })).items,
+
+  repository: (id: string, signal?: AbortSignal) =>
+    apiRequest(`/repositories/${seg(id)}`, { schema: RepositorySchema, signal }),
+
+  createRepository: (req: CreateRepositoryRequest) =>
+    apiRequest("/repositories", {
+      method: "POST",
+      body: CreateRepositoryRequestSchema.parse(req),
+      schema: CreateRepositoryResponseSchema,
+    }),
+
+  /** Audited: the package is encrypted to the escrow recipients. */
+  repositoryEscrowPackage: (id: string) =>
+    apiRequest(`/repositories/${seg(id)}/escrow-package`, { schema: EscrowPackageSchema }),
+
+  confirmRepositoryEscrow: (id: string, req: ConfirmEscrowRequest) =>
+    apiRequest(`/repositories/${seg(id)}/escrow/confirm`, {
+      method: "POST",
+      body: ConfirmEscrowRequestSchema.parse(req),
+      schema: RepositorySchema,
+    }),
+
+  reindexRepository: (id: string) =>
+    apiRequest(`/repositories/${seg(id)}/reindex`, { method: "POST", schema: WorkflowResponseSchema }),
+
+  // --- Backups (Phase 4) ---------------------------------------------------
+
+  /** 409 while another operation runs for the application. */
+  startBackup: (applicationId: string, req: StartBackupRequest = {}) =>
+    apiRequest(`/applications/${seg(applicationId)}/backups`, {
+      method: "POST",
+      body: StartBackupRequestSchema.parse(req),
+      schema: WorkflowResponseSchema,
+    }),
+
+  backupSettings: (applicationId: string, signal?: AbortSignal) =>
+    apiRequest(`/applications/${seg(applicationId)}/backup-settings`, { schema: BackupSettingsSchema, signal }),
+
+  updateBackupSettings: (applicationId: string, req: UpdateBackupSettingsRequest) =>
+    apiRequest(`/applications/${seg(applicationId)}/backup-settings`, {
+      method: "PUT",
+      body: UpdateBackupSettingsRequestSchema.parse(req),
+      schema: BackupSettingsSchema,
+    }),
+
+  recoveryPoints: async (
+    params: { applicationId?: string | null; state?: RecoveryPointState | null; limit?: number },
+    signal?: AbortSignal,
+  ) =>
+    (
+      await apiRequest("/recovery-points", {
+        schema: RecoveryPointListSchema,
+        query: { application_id: params.applicationId, state: params.state, limit: params.limit },
+        signal,
+      })
+    ).items,
+
+  recoveryPoint: (id: string, signal?: AbortSignal) =>
+    apiRequest(`/recovery-points/${seg(id)}`, { schema: RecoveryPointSchema, signal }),
+
+  alerts: async (params: { all?: boolean; limit?: number }, signal?: AbortSignal) =>
+    (
+      await apiRequest("/alerts", {
+        schema: AlertListSchema,
+        query: { all: params.all ? "true" : undefined, limit: params.limit },
+        signal,
+      })
+    ).items,
+
+  acknowledgeAlert: (id: number) => apiRequest(`/alerts/${id}/acknowledge`, { method: "POST" }),
+
+  hostSettings: (agentId: string, signal?: AbortSignal) =>
+    apiRequest(`/agents/${seg(agentId)}/settings`, { schema: HostSettingsSchema, signal }),
+
+  /** The agent reconnects to apply a new concurrency limit. */
+  updateHostSettings: (agentId: string, req: UpdateHostSettingsRequest) =>
+    apiRequest(`/agents/${seg(agentId)}/settings`, {
+      method: "PUT",
+      body: UpdateHostSettingsRequestSchema.parse(req),
+      schema: HostSettingsSchema,
+    }),
 };
 
 /** TanStack Query keys, centralised so invalidation stays consistent. */
@@ -176,4 +301,15 @@ export const queryKeys = {
    * broad invalidations never refetch it (every fetch is an audited reveal).
    */
   applicationComposeRevealed: (id: string) => ["revealed-compose", id] as const,
+  escrowRecipients: ["escrow-recipients"] as const,
+  repositories: ["repositories"] as const,
+  repository: (id: string) => ["repositories", id] as const,
+  backupSettings: (applicationId: string) => ["applications", applicationId, "backup-settings"] as const,
+  recoveryPointsAll: ["recovery-points"] as const,
+  recoveryPoints: (filters: { applicationId?: string | null; state?: string | null }) =>
+    ["recovery-points", "list", { applicationId: filters.applicationId ?? null, state: filters.state ?? null }] as const,
+  recoveryPoint: (id: string) => ["recovery-points", "detail", id] as const,
+  alertsAll: ["alerts"] as const,
+  alerts: (all: boolean) => ["alerts", { all }] as const,
+  hostSettings: (agentId: string) => ["agents", agentId, "settings"] as const,
 };

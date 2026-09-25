@@ -5,7 +5,6 @@ All notable changes to the `manifest-schema` component. Format: [Keep a Changelo
 ## [Unreleased]
 
 ### Added
+- **Recovery manifest schema v1** (ADR-0004): Go types, `Parse` (accepts additive fields, rejects newer majors), `Validate` (status matches component outcomes, fsmeta required with its parent, unique names, live ⇒ crash-consistent), `ValidateSources` (components written by the recovery point's agent), `StatusFor`, `NewRecoveryPointID` (`rp_<ULID>`); JSON Schema published as `internal/manifest/schema/v1.json` (draft 2020-12) and checked in tests.
 - Component scaffold (Phase 1).
 
-### Notes
-- Placeholder: the recovery manifest schema v1 is delivered in Phase 4 (ADR-0004).

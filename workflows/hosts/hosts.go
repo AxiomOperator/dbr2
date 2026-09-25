@@ -7,20 +7,14 @@ package hosts
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"io"
 	"time"
 
-	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
 	agentv1 "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1"
 	controlv1 "github.com/AxiomOperator/dbr2/internal/agentpb/control/v1"
+	"github.com/AxiomOperator/dbr2/workflows/agentcmd"
 )
 
 // DiscoverInput selects the host.
@@ -53,7 +47,7 @@ func DiscoverHost(ctx workflow.Context, in DiscoverInput) (DiscoverResult, error
 }
 
 // ErrAgentNotActive is the non-retryable error type for non-active agents.
-const ErrAgentNotActive = "AgentNotActive"
+const ErrAgentNotActive = agentcmd.ErrAgentNotActive
 
 // Activities dispatch commands through the gateway control channel.
 type Activities struct {
@@ -65,10 +59,7 @@ type Activities struct {
 
 // Discover asks the agent for its inventory; the gateway ingests it.
 func (a *Activities) Discover(ctx context.Context, agentID string) (DiscoverResult, error) {
-	info := activity.GetInfo(ctx)
-	// Stable across retries of this activity in this run, so a retried
-	// attempt gets the agent's journaled result instead of a second run.
-	commandID := info.WorkflowExecution.ID + "/" + info.WorkflowExecution.RunID + "/" + info.ActivityID
+	commandID := agentcmd.CommandID(ctx)
 	cmd := &agentv1.Command{CommandId: commandID, DeadlineUnixMs: time.Now().Add(15 * time.Minute).UnixMilli(),
 		Kind: &agentv1.Command_Discover{Discover: &agentv1.DiscoverCommand{IncludeFilesystemChanges: true}}}
 	final, err := a.dispatch(ctx, agentID, cmd)
@@ -79,53 +70,6 @@ func (a *Activities) Discover(ctx context.Context, agentID string) (DiscoverResu
 }
 
 func (a *Activities) dispatch(ctx context.Context, agentID string, cmd *agentv1.Command) (*agentv1.CommandUpdate, error) {
-	wait := a.WaitForAgent
-	if wait == 0 {
-		wait = 5 * time.Minute
-	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+a.Token)
-	stream, err := a.Control.Dispatch(ctx, &controlv1.DispatchRequest{AgentId: agentID, Command: cmd, WaitForAgentSeconds: uint32(wait / time.Second)})
-	if err != nil {
-		return nil, err
-	}
-	// Heartbeat on a ticker too: the stream may be quiet while the gateway
-	// waits for a reconnecting agent.
-	hbCtx, stop := context.WithCancel(ctx)
-	defer stop()
-	go func() {
-		t := time.NewTicker(10 * time.Second)
-		defer t.Stop()
-		for {
-			select {
-			case <-hbCtx.Done():
-				return
-			case <-t.C:
-				activity.RecordHeartbeat(ctx, "waiting")
-			}
-		}
-	}()
-	for {
-		resp, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			return nil, errors.New("gateway closed the dispatch stream without a result")
-		}
-		if err != nil {
-			if status.Code(err) == codes.FailedPrecondition {
-				return nil, temporal.NewNonRetryableApplicationError(err.Error(), ErrAgentNotActive, err)
-			}
-			return nil, err
-		}
-		u := resp.Update
-		activity.RecordHeartbeat(ctx, u.State.String())
-		switch u.State {
-		case agentv1.CommandState_COMMAND_STATE_SUCCEEDED:
-			return u, nil
-		case agentv1.CommandState_COMMAND_STATE_FAILED:
-			e := fmt.Errorf("agent command failed: %s", u.Error)
-			if !u.Retryable {
-				return nil, temporal.NewNonRetryableApplicationError(e.Error(), "AgentCommandFailed", e)
-			}
-			return nil, e
-		}
-	}
+	d := agentcmd.Dispatcher{Control: a.Control, Token: a.Token, WaitForAgent: a.WaitForAgent}
+	return d.Dispatch(ctx, agentID, cmd, nil)
 }

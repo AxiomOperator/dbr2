@@ -21,7 +21,8 @@ import (
 // ControlServer builds the internal gRPC server used by dbr2-worker
 // (Temporal activities) to dispatch commands (ADR-0001). It listens on the
 // deployment network only and requires the shared internal token.
-func (g *Gateway) ControlServer(token string) *grpc.Server {
+// extra registers further internal services (e.g. PlatformService).
+func (g *Gateway) ControlServer(token string, extra ...func(*grpc.Server)) *grpc.Server {
 	s := grpc.NewServer(grpc.StreamInterceptor(func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, h grpc.StreamHandler) error {
 		if err := checkToken(ss.Context(), token); err != nil {
 			return err
@@ -34,6 +35,9 @@ func (g *Gateway) ControlServer(token string) *grpc.Server {
 		return h(ctx, req)
 	}))
 	controlv1.RegisterGatewayControlServiceServer(s, &controlServer{g: g})
+	for _, r := range extra {
+		r(s)
+	}
 	return s
 }
 

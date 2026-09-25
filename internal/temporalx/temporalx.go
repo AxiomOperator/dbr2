@@ -93,6 +93,19 @@ func StartHostOperation(ctx context.Context, c client.Client, taskQueue, agentID
 	return run, err
 }
 
+// StartRepositoryOperation starts a Repository-level operation with workflow
+// ID repository/<id>/<operation> (one at a time per Repository and operation).
+func StartRepositoryOperation(ctx context.Context, c client.Client, taskQueue, repositoryID, operation string, wf any, args ...any) (client.WorkflowRun, error) {
+	opts := ApplicationStartOptions("", taskQueue)
+	opts.ID = RepositoryWorkflowID(repositoryID, operation)
+	run, err := c.ExecuteWorkflow(ctx, opts, wf, args...)
+	var started *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &started) {
+		return nil, &ErrOperationInProgress{WorkflowID: opts.ID, RunningRunID: started.RunId}
+	}
+	return run, err
+}
+
 // IsApplicationWorkflowID reports whether id is in the application namespace.
 func IsApplicationWorkflowID(id string) bool { return strings.HasPrefix(id, ApplicationIDPrefix) }
 

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Tiny in-memory mock of the DBR² API contract (Phase 1 auth/audit, plus the
-// Phase 2/3 Hosts and Applications endpoints in ./mock-fleet.mjs), for
+// Phase 2/3 Hosts and Applications endpoints in ./mock-fleet.mjs and the
+// Phase 4 Repositories & backup endpoints in ./mock-protection.mjs), for
 // developing the console without the Go backend. NOT a security reference
 // implementation.
 //
@@ -13,13 +14,15 @@
 // Accounts:
 //   master admin   admin / correct-horse-battery   (TOTP code in mock: 123456)
 //   OIDC (entra)   "Sign in with Microsoft" logs in as a read-only operator
-//                  (host.read + application.read: no manage actions, no
-//                  "Reveal secrets")
+//                  (host.read, application.read, repository.read,
+//                  backup.read, policy.read: no manage actions, no
+//                  "Back up now", no "Reveal secrets")
 // Five wrong passwords lock the master admin for 60 s (423 + Retry-After).
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { fleetRoutes } from "./mock-fleet.mjs";
+import { protectionRoutes } from "./mock-protection.mjs";
 
 const HOST = process.env.MOCK_API_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.MOCK_API_PORT ?? 8099);
@@ -48,8 +51,14 @@ const masterAdmin = () => ({
     "application.manage",
     "application.read",
     "audit.read",
+    "backup.execute",
+    "backup.read",
     "host.manage",
     "host.read",
+    "policy.manage",
+    "policy.read",
+    "repository.manage",
+    "repository.read",
     "restore.production",
     "secrets.read",
     "settings.manage",
@@ -65,7 +74,7 @@ const oidcUser = {
   email: "ada@example.com",
   kind: "oidc",
   roles: ["operator"],
-  permissions: ["application.read", "host.read"],
+  permissions: ["application.read", "backup.read", "host.read", "policy.read", "repository.read"],
   totp_enabled: false,
 };
 
@@ -333,9 +342,10 @@ const routes = {
     send(res, 200, { openapi: "3.1.0", info: { title: "DBR² API (mock)", version: "0.1.0.0" }, paths: {} }),
 };
 
-const paramRoutes = fleetRoutes({ send, problem, readJson, audit });
+const helpers = { send, problem, readJson, audit };
+const paramRoutes = [...fleetRoutes(helpers), ...protectionRoutes(helpers)];
 
-/** Exact routes first, then the parameterised fleet routes. */
+/** Exact routes first, then the parameterised fleet and protection routes. */
 function resolve(method, pathname) {
   const exact = routes[`${method} ${pathname}`];
   if (exact) return { handler: exact, match: null };

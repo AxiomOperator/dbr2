@@ -134,6 +134,1034 @@ func (x *DispatchResponse) GetUpdate() *v1.CommandUpdate {
 	return nil
 }
 
+// Repository describes how to reach a Repository.
+type Repository struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Kopia repository server URL (agents and worker).
+	ServerUrl  string `protobuf:"bytes,3,opt,name=server_url,json=serverUrl,proto3" json:"server_url,omitempty"`
+	CertSha256 string `protobuf:"bytes,4,opt,name=cert_sha256,json=certSha256,proto3" json:"cert_sha256,omitempty"`
+	// Reposerver management API base URL (internal network).
+	ManagementUrl string `protobuf:"bytes,5,opt,name=management_url,json=managementUrl,proto3" json:"management_url,omitempty"`
+	// ready | awaiting_escrow | …
+	Status string `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	// Kopia repository server URL for dbr2-worker on the deployment network
+	// (empty = server_url).
+	InternalServerUrl string `protobuf:"bytes,7,opt,name=internal_server_url,json=internalServerUrl,proto3" json:"internal_server_url,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *Repository) Reset() {
+	*x = Repository{}
+	mi := &file_control_v1_control_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Repository) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Repository) ProtoMessage() {}
+
+func (x *Repository) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Repository.ProtoReflect.Descriptor instead.
+func (*Repository) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Repository) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Repository) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Repository) GetServerUrl() string {
+	if x != nil {
+		return x.ServerUrl
+	}
+	return ""
+}
+
+func (x *Repository) GetCertSha256() string {
+	if x != nil {
+		return x.CertSha256
+	}
+	return ""
+}
+
+func (x *Repository) GetManagementUrl() string {
+	if x != nil {
+		return x.ManagementUrl
+	}
+	return ""
+}
+
+func (x *Repository) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *Repository) GetInternalServerUrl() string {
+	if x != nil {
+		return x.InternalServerUrl
+	}
+	return ""
+}
+
+type PrepareBackupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApplicationId string                 `protobuf:"bytes,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
+	WorkflowId    string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	RunId         string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// manual | scheduled
+	Trigger     string `protobuf:"bytes,4,opt,name=trigger,proto3" json:"trigger,omitempty"`
+	RequestedBy string `protobuf:"bytes,5,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
+	// Optional override: live | quiesced | offline.
+	ConsistencyMode string `protobuf:"bytes,6,opt,name=consistency_mode,json=consistencyMode,proto3" json:"consistency_mode,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *PrepareBackupRequest) Reset() {
+	*x = PrepareBackupRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareBackupRequest) ProtoMessage() {}
+
+func (x *PrepareBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareBackupRequest.ProtoReflect.Descriptor instead.
+func (*PrepareBackupRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PrepareBackupRequest) GetApplicationId() string {
+	if x != nil {
+		return x.ApplicationId
+	}
+	return ""
+}
+
+func (x *PrepareBackupRequest) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *PrepareBackupRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *PrepareBackupRequest) GetTrigger() string {
+	if x != nil {
+		return x.Trigger
+	}
+	return ""
+}
+
+func (x *PrepareBackupRequest) GetRequestedBy() string {
+	if x != nil {
+		return x.RequestedBy
+	}
+	return ""
+}
+
+func (x *PrepareBackupRequest) GetConsistencyMode() string {
+	if x != nil {
+		return x.ConsistencyMode
+	}
+	return ""
+}
+
+type PrepareBackupResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RecoveryPointId string                 `protobuf:"bytes,1,opt,name=recovery_point_id,json=recoveryPointId,proto3" json:"recovery_point_id,omitempty"`
+	AgentId         string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	Repository      *Repository            `protobuf:"bytes,3,opt,name=repository,proto3" json:"repository,omitempty"`
+	ApplicationName string                 `protobuf:"bytes,4,opt,name=application_name,json=applicationName,proto3" json:"application_name,omitempty"`
+	// live | quiesced | offline
+	ConsistencyMode   string              `protobuf:"bytes,5,opt,name=consistency_mode,json=consistencyMode,proto3" json:"consistency_mode,omitempty"`
+	MaxQuiesceSeconds uint32              `protobuf:"varint,6,opt,name=max_quiesce_seconds,json=maxQuiesceSeconds,proto3" json:"max_quiesce_seconds,omitempty"`
+	Components        []*v1.ComponentSpec `protobuf:"bytes,7,rep,name=components,proto3" json:"components,omitempty"`
+	ContainerIds      []string            `protobuf:"bytes,8,rep,name=container_ids,json=containerIds,proto3" json:"container_ids,omitempty"`
+	PreHooks          []*v1.Hook          `protobuf:"bytes,9,rep,name=pre_hooks,json=preHooks,proto3" json:"pre_hooks,omitempty"`
+	PostHooks         []*v1.Hook          `protobuf:"bytes,10,rep,name=post_hooks,json=postHooks,proto3" json:"post_hooks,omitempty"`
+	// Components with no previous committed recovery point that need a seed
+	// pass (ADR-0005).
+	SeedComponents []string `protobuf:"bytes,11,rep,name=seed_components,json=seedComponents,proto3" json:"seed_components,omitempty"`
+	// Application identity and source snapshot for the manifest (JSON).
+	ApplicationJson []byte `protobuf:"bytes,12,opt,name=application_json,json=applicationJson,proto3" json:"application_json,omitempty"`
+	HostId          string `protobuf:"bytes,13,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	Hostname        string `protobuf:"bytes,14,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Seconds to wait for the backup window to open (0 = open now).
+	WaitForWindowSeconds uint32 `protobuf:"varint,15,opt,name=wait_for_window_seconds,json=waitForWindowSeconds,proto3" json:"wait_for_window_seconds,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *PrepareBackupResponse) Reset() {
+	*x = PrepareBackupResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareBackupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareBackupResponse) ProtoMessage() {}
+
+func (x *PrepareBackupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareBackupResponse.ProtoReflect.Descriptor instead.
+func (*PrepareBackupResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *PrepareBackupResponse) GetRecoveryPointId() string {
+	if x != nil {
+		return x.RecoveryPointId
+	}
+	return ""
+}
+
+func (x *PrepareBackupResponse) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *PrepareBackupResponse) GetRepository() *Repository {
+	if x != nil {
+		return x.Repository
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetApplicationName() string {
+	if x != nil {
+		return x.ApplicationName
+	}
+	return ""
+}
+
+func (x *PrepareBackupResponse) GetConsistencyMode() string {
+	if x != nil {
+		return x.ConsistencyMode
+	}
+	return ""
+}
+
+func (x *PrepareBackupResponse) GetMaxQuiesceSeconds() uint32 {
+	if x != nil {
+		return x.MaxQuiesceSeconds
+	}
+	return 0
+}
+
+func (x *PrepareBackupResponse) GetComponents() []*v1.ComponentSpec {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetContainerIds() []string {
+	if x != nil {
+		return x.ContainerIds
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetPreHooks() []*v1.Hook {
+	if x != nil {
+		return x.PreHooks
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetPostHooks() []*v1.Hook {
+	if x != nil {
+		return x.PostHooks
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetSeedComponents() []string {
+	if x != nil {
+		return x.SeedComponents
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetApplicationJson() []byte {
+	if x != nil {
+		return x.ApplicationJson
+	}
+	return nil
+}
+
+func (x *PrepareBackupResponse) GetHostId() string {
+	if x != nil {
+		return x.HostId
+	}
+	return ""
+}
+
+func (x *PrepareBackupResponse) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *PrepareBackupResponse) GetWaitForWindowSeconds() uint32 {
+	if x != nil {
+		return x.WaitForWindowSeconds
+	}
+	return 0
+}
+
+type EnsureAgentAccessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	RepositoryId  string                 `protobuf:"bytes,2,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	CommandId     string                 `protobuf:"bytes,3,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnsureAgentAccessRequest) Reset() {
+	*x = EnsureAgentAccessRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnsureAgentAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnsureAgentAccessRequest) ProtoMessage() {}
+
+func (x *EnsureAgentAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnsureAgentAccessRequest.ProtoReflect.Descriptor instead.
+func (*EnsureAgentAccessRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *EnsureAgentAccessRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *EnsureAgentAccessRequest) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *EnsureAgentAccessRequest) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+type EnsureAgentAccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnsureAgentAccessResponse) Reset() {
+	*x = EnsureAgentAccessResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnsureAgentAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnsureAgentAccessResponse) ProtoMessage() {}
+
+func (x *EnsureAgentAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnsureAgentAccessResponse.ProtoReflect.Descriptor instead.
+func (*EnsureAgentAccessResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *EnsureAgentAccessResponse) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *EnsureAgentAccessResponse) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+type CompleteBackupRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RecoveryPointId string                 `protobuf:"bytes,1,opt,name=recovery_point_id,json=recoveryPointId,proto3" json:"recovery_point_id,omitempty"`
+	// committed | failed
+	Outcome string `protobuf:"bytes,2,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	// Manifest JSON (committed).
+	ManifestJson       []byte `protobuf:"bytes,3,opt,name=manifest_json,json=manifestJson,proto3" json:"manifest_json,omitempty"`
+	ManifestSnapshotId string `protobuf:"bytes,4,opt,name=manifest_snapshot_id,json=manifestSnapshotId,proto3" json:"manifest_snapshot_id,omitempty"`
+	Error              string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *CompleteBackupRequest) Reset() {
+	*x = CompleteBackupRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteBackupRequest) ProtoMessage() {}
+
+func (x *CompleteBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteBackupRequest.ProtoReflect.Descriptor instead.
+func (*CompleteBackupRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CompleteBackupRequest) GetRecoveryPointId() string {
+	if x != nil {
+		return x.RecoveryPointId
+	}
+	return ""
+}
+
+func (x *CompleteBackupRequest) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *CompleteBackupRequest) GetManifestJson() []byte {
+	if x != nil {
+		return x.ManifestJson
+	}
+	return nil
+}
+
+func (x *CompleteBackupRequest) GetManifestSnapshotId() string {
+	if x != nil {
+		return x.ManifestSnapshotId
+	}
+	return ""
+}
+
+func (x *CompleteBackupRequest) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type CompleteBackupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteBackupResponse) Reset() {
+	*x = CompleteBackupResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteBackupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteBackupResponse) ProtoMessage() {}
+
+func (x *CompleteBackupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteBackupResponse.ProtoReflect.Descriptor instead.
+func (*CompleteBackupResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{8}
+}
+
+type GetRepositoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RepositoryId  string                 `protobuf:"bytes,1,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRepositoryRequest) Reset() {
+	*x = GetRepositoryRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRepositoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRepositoryRequest) ProtoMessage() {}
+
+func (x *GetRepositoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRepositoryRequest.ProtoReflect.Descriptor instead.
+func (*GetRepositoryRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetRepositoryRequest) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+type GetRepositoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repository    *Repository            `protobuf:"bytes,1,opt,name=repository,proto3" json:"repository,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRepositoryResponse) Reset() {
+	*x = GetRepositoryResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRepositoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRepositoryResponse) ProtoMessage() {}
+
+func (x *GetRepositoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRepositoryResponse.ProtoReflect.Descriptor instead.
+func (*GetRepositoryResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetRepositoryResponse) GetRepository() *Repository {
+	if x != nil {
+		return x.Repository
+	}
+	return nil
+}
+
+type ListRepositoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoriesRequest) Reset() {
+	*x = ListRepositoriesRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoriesRequest) ProtoMessage() {}
+
+func (x *ListRepositoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoriesRequest.ProtoReflect.Descriptor instead.
+func (*ListRepositoriesRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{11}
+}
+
+type ListRepositoriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repositories  []*Repository          `protobuf:"bytes,1,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoriesResponse) Reset() {
+	*x = ListRepositoriesResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoriesResponse) ProtoMessage() {}
+
+func (x *ListRepositoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoriesResponse.ProtoReflect.Descriptor instead.
+func (*ListRepositoriesResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListRepositoriesResponse) GetRepositories() []*Repository {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
+}
+
+type IndexRecoveryPointsRequest struct {
+	state          protoimpl.MessageState  `protogen:"open.v1"`
+	RepositoryId   string                  `protobuf:"bytes,1,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	RecoveryPoints []*IndexedRecoveryPoint `protobuf:"bytes,2,rep,name=recovery_points,json=recoveryPoints,proto3" json:"recovery_points,omitempty"`
+	// Recovery point IDs present in the Repository; with complete=true, index
+	// rows of this Repository not listed are marked missing (ADR-0003).
+	Complete      bool `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IndexRecoveryPointsRequest) Reset() {
+	*x = IndexRecoveryPointsRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexRecoveryPointsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexRecoveryPointsRequest) ProtoMessage() {}
+
+func (x *IndexRecoveryPointsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexRecoveryPointsRequest.ProtoReflect.Descriptor instead.
+func (*IndexRecoveryPointsRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *IndexRecoveryPointsRequest) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *IndexRecoveryPointsRequest) GetRecoveryPoints() []*IndexedRecoveryPoint {
+	if x != nil {
+		return x.RecoveryPoints
+	}
+	return nil
+}
+
+func (x *IndexRecoveryPointsRequest) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
+}
+
+type IndexedRecoveryPoint struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ManifestJson       []byte                 `protobuf:"bytes,1,opt,name=manifest_json,json=manifestJson,proto3" json:"manifest_json,omitempty"`
+	ManifestSnapshotId string                 `protobuf:"bytes,2,opt,name=manifest_snapshot_id,json=manifestSnapshotId,proto3" json:"manifest_snapshot_id,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *IndexedRecoveryPoint) Reset() {
+	*x = IndexedRecoveryPoint{}
+	mi := &file_control_v1_control_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexedRecoveryPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexedRecoveryPoint) ProtoMessage() {}
+
+func (x *IndexedRecoveryPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexedRecoveryPoint.ProtoReflect.Descriptor instead.
+func (*IndexedRecoveryPoint) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *IndexedRecoveryPoint) GetManifestJson() []byte {
+	if x != nil {
+		return x.ManifestJson
+	}
+	return nil
+}
+
+func (x *IndexedRecoveryPoint) GetManifestSnapshotId() string {
+	if x != nil {
+		return x.ManifestSnapshotId
+	}
+	return ""
+}
+
+type IndexRecoveryPointsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Upserted      uint32                 `protobuf:"varint,1,opt,name=upserted,proto3" json:"upserted,omitempty"`
+	MarkedMissing uint32                 `protobuf:"varint,2,opt,name=marked_missing,json=markedMissing,proto3" json:"marked_missing,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IndexRecoveryPointsResponse) Reset() {
+	*x = IndexRecoveryPointsResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexRecoveryPointsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexRecoveryPointsResponse) ProtoMessage() {}
+
+func (x *IndexRecoveryPointsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexRecoveryPointsResponse.ProtoReflect.Descriptor instead.
+func (*IndexRecoveryPointsResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *IndexRecoveryPointsResponse) GetUpserted() uint32 {
+	if x != nil {
+		return x.Upserted
+	}
+	return 0
+}
+
+func (x *IndexRecoveryPointsResponse) GetMarkedMissing() uint32 {
+	if x != nil {
+		return x.MarkedMissing
+	}
+	return 0
+}
+
+type RecordEventRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Type       string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	TargetType string                 `protobuf:"bytes,2,opt,name=target_type,json=targetType,proto3" json:"target_type,omitempty"`
+	TargetId   string                 `protobuf:"bytes,3,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	// success | failure
+	Outcome string `protobuf:"bytes,4,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	// JSON details.
+	Details []byte `protobuf:"bytes,5,opt,name=details,proto3" json:"details,omitempty"`
+	// critical | warning | info ("" = audit only)
+	AlertSeverity string `protobuf:"bytes,6,opt,name=alert_severity,json=alertSeverity,proto3" json:"alert_severity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordEventRequest) Reset() {
+	*x = RecordEventRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordEventRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordEventRequest) ProtoMessage() {}
+
+func (x *RecordEventRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordEventRequest.ProtoReflect.Descriptor instead.
+func (*RecordEventRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RecordEventRequest) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *RecordEventRequest) GetTargetType() string {
+	if x != nil {
+		return x.TargetType
+	}
+	return ""
+}
+
+func (x *RecordEventRequest) GetTargetId() string {
+	if x != nil {
+		return x.TargetId
+	}
+	return ""
+}
+
+func (x *RecordEventRequest) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *RecordEventRequest) GetDetails() []byte {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+func (x *RecordEventRequest) GetAlertSeverity() string {
+	if x != nil {
+		return x.AlertSeverity
+	}
+	return ""
+}
+
+type RecordEventResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordEventResponse) Reset() {
+	*x = RecordEventResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordEventResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordEventResponse) ProtoMessage() {}
+
+func (x *RecordEventResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordEventResponse.ProtoReflect.Descriptor instead.
+func (*RecordEventResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{17}
+}
+
 var File_control_v1_control_proto protoreflect.FileDescriptor
 
 const file_control_v1_control_proto_rawDesc = "" +
@@ -145,9 +1173,101 @@ const file_control_v1_control_proto_rawDesc = "" +
 	"\acommand\x18\x02 \x01(\v2\x11.agent.v1.CommandR\acommand\x123\n" +
 	"\x16wait_for_agent_seconds\x18\x03 \x01(\rR\x13waitForAgentSeconds\"C\n" +
 	"\x10DispatchResponse\x12/\n" +
-	"\x06update\x18\x01 \x01(\v2\x17.agent.v1.CommandUpdateR\x06update2`\n" +
+	"\x06update\x18\x01 \x01(\v2\x17.agent.v1.CommandUpdateR\x06update\"\xdf\x01\n" +
+	"\n" +
+	"Repository\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"server_url\x18\x03 \x01(\tR\tserverUrl\x12\x1f\n" +
+	"\vcert_sha256\x18\x04 \x01(\tR\n" +
+	"certSha256\x12%\n" +
+	"\x0emanagement_url\x18\x05 \x01(\tR\rmanagementUrl\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\x12.\n" +
+	"\x13internal_server_url\x18\a \x01(\tR\x11internalServerUrl\"\xdd\x01\n" +
+	"\x14PrepareBackupRequest\x12%\n" +
+	"\x0eapplication_id\x18\x01 \x01(\tR\rapplicationId\x12\x1f\n" +
+	"\vworkflow_id\x18\x02 \x01(\tR\n" +
+	"workflowId\x12\x15\n" +
+	"\x06run_id\x18\x03 \x01(\tR\x05runId\x12\x18\n" +
+	"\atrigger\x18\x04 \x01(\tR\atrigger\x12!\n" +
+	"\frequested_by\x18\x05 \x01(\tR\vrequestedBy\x12)\n" +
+	"\x10consistency_mode\x18\x06 \x01(\tR\x0fconsistencyMode\"\x96\x05\n" +
+	"\x15PrepareBackupResponse\x12*\n" +
+	"\x11recovery_point_id\x18\x01 \x01(\tR\x0frecoveryPointId\x12\x19\n" +
+	"\bagent_id\x18\x02 \x01(\tR\aagentId\x126\n" +
+	"\n" +
+	"repository\x18\x03 \x01(\v2\x16.control.v1.RepositoryR\n" +
+	"repository\x12)\n" +
+	"\x10application_name\x18\x04 \x01(\tR\x0fapplicationName\x12)\n" +
+	"\x10consistency_mode\x18\x05 \x01(\tR\x0fconsistencyMode\x12.\n" +
+	"\x13max_quiesce_seconds\x18\x06 \x01(\rR\x11maxQuiesceSeconds\x127\n" +
+	"\n" +
+	"components\x18\a \x03(\v2\x17.agent.v1.ComponentSpecR\n" +
+	"components\x12#\n" +
+	"\rcontainer_ids\x18\b \x03(\tR\fcontainerIds\x12+\n" +
+	"\tpre_hooks\x18\t \x03(\v2\x0e.agent.v1.HookR\bpreHooks\x12-\n" +
+	"\n" +
+	"post_hooks\x18\n" +
+	" \x03(\v2\x0e.agent.v1.HookR\tpostHooks\x12'\n" +
+	"\x0fseed_components\x18\v \x03(\tR\x0eseedComponents\x12)\n" +
+	"\x10application_json\x18\f \x01(\fR\x0fapplicationJson\x12\x17\n" +
+	"\ahost_id\x18\r \x01(\tR\x06hostId\x12\x1a\n" +
+	"\bhostname\x18\x0e \x01(\tR\bhostname\x125\n" +
+	"\x17wait_for_window_seconds\x18\x0f \x01(\rR\x14waitForWindowSeconds\"y\n" +
+	"\x18EnsureAgentAccessRequest\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12#\n" +
+	"\rrepository_id\x18\x02 \x01(\tR\frepositoryId\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\x03 \x01(\tR\tcommandId\"S\n" +
+	"\x19EnsureAgentAccessResponse\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\"\xca\x01\n" +
+	"\x15CompleteBackupRequest\x12*\n" +
+	"\x11recovery_point_id\x18\x01 \x01(\tR\x0frecoveryPointId\x12\x18\n" +
+	"\aoutcome\x18\x02 \x01(\tR\aoutcome\x12#\n" +
+	"\rmanifest_json\x18\x03 \x01(\fR\fmanifestJson\x120\n" +
+	"\x14manifest_snapshot_id\x18\x04 \x01(\tR\x12manifestSnapshotId\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\x18\n" +
+	"\x16CompleteBackupResponse\";\n" +
+	"\x14GetRepositoryRequest\x12#\n" +
+	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\"O\n" +
+	"\x15GetRepositoryResponse\x126\n" +
+	"\n" +
+	"repository\x18\x01 \x01(\v2\x16.control.v1.RepositoryR\n" +
+	"repository\"\x19\n" +
+	"\x17ListRepositoriesRequest\"V\n" +
+	"\x18ListRepositoriesResponse\x12:\n" +
+	"\frepositories\x18\x01 \x03(\v2\x16.control.v1.RepositoryR\frepositories\"\xa8\x01\n" +
+	"\x1aIndexRecoveryPointsRequest\x12#\n" +
+	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12I\n" +
+	"\x0frecovery_points\x18\x02 \x03(\v2 .control.v1.IndexedRecoveryPointR\x0erecoveryPoints\x12\x1a\n" +
+	"\bcomplete\x18\x03 \x01(\bR\bcomplete\"m\n" +
+	"\x14IndexedRecoveryPoint\x12#\n" +
+	"\rmanifest_json\x18\x01 \x01(\fR\fmanifestJson\x120\n" +
+	"\x14manifest_snapshot_id\x18\x02 \x01(\tR\x12manifestSnapshotId\"`\n" +
+	"\x1bIndexRecoveryPointsResponse\x12\x1a\n" +
+	"\bupserted\x18\x01 \x01(\rR\bupserted\x12%\n" +
+	"\x0emarked_missing\x18\x02 \x01(\rR\rmarkedMissing\"\xc1\x01\n" +
+	"\x12RecordEventRequest\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1f\n" +
+	"\vtarget_type\x18\x02 \x01(\tR\n" +
+	"targetType\x12\x1b\n" +
+	"\ttarget_id\x18\x03 \x01(\tR\btargetId\x12\x18\n" +
+	"\aoutcome\x18\x04 \x01(\tR\aoutcome\x12\x18\n" +
+	"\adetails\x18\x05 \x01(\fR\adetails\x12%\n" +
+	"\x0ealert_severity\x18\x06 \x01(\tR\ralertSeverity\"\x15\n" +
+	"\x13RecordEventResponse2`\n" +
 	"\x15GatewayControlService\x12G\n" +
-	"\bDispatch\x12\x1b.control.v1.DispatchRequest\x1a\x1c.control.v1.DispatchResponse0\x01BEZCgithub.com/AxiomOperator/dbr2/internal/agentpb/control/v1;controlv1b\x06proto3"
+	"\bDispatch\x12\x1b.control.v1.DispatchRequest\x1a\x1c.control.v1.DispatchResponse0\x012\x8f\x05\n" +
+	"\x0fPlatformService\x12T\n" +
+	"\rPrepareBackup\x12 .control.v1.PrepareBackupRequest\x1a!.control.v1.PrepareBackupResponse\x12`\n" +
+	"\x11EnsureAgentAccess\x12$.control.v1.EnsureAgentAccessRequest\x1a%.control.v1.EnsureAgentAccessResponse\x12W\n" +
+	"\x0eCompleteBackup\x12!.control.v1.CompleteBackupRequest\x1a\".control.v1.CompleteBackupResponse\x12T\n" +
+	"\rGetRepository\x12 .control.v1.GetRepositoryRequest\x1a!.control.v1.GetRepositoryResponse\x12]\n" +
+	"\x10ListRepositories\x12#.control.v1.ListRepositoriesRequest\x1a$.control.v1.ListRepositoriesResponse\x12f\n" +
+	"\x13IndexRecoveryPoints\x12&.control.v1.IndexRecoveryPointsRequest\x1a'.control.v1.IndexRecoveryPointsResponse\x12N\n" +
+	"\vRecordEvent\x12\x1e.control.v1.RecordEventRequest\x1a\x1f.control.v1.RecordEventResponseBEZCgithub.com/AxiomOperator/dbr2/internal/agentpb/control/v1;controlv1b\x06proto3"
 
 var (
 	file_control_v1_control_proto_rawDescOnce sync.Once
@@ -161,23 +1281,62 @@ func file_control_v1_control_proto_rawDescGZIP() []byte {
 	return file_control_v1_control_proto_rawDescData
 }
 
-var file_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_control_v1_control_proto_goTypes = []any{
-	(*DispatchRequest)(nil),  // 0: control.v1.DispatchRequest
-	(*DispatchResponse)(nil), // 1: control.v1.DispatchResponse
-	(*v1.Command)(nil),       // 2: agent.v1.Command
-	(*v1.CommandUpdate)(nil), // 3: agent.v1.CommandUpdate
+	(*DispatchRequest)(nil),             // 0: control.v1.DispatchRequest
+	(*DispatchResponse)(nil),            // 1: control.v1.DispatchResponse
+	(*Repository)(nil),                  // 2: control.v1.Repository
+	(*PrepareBackupRequest)(nil),        // 3: control.v1.PrepareBackupRequest
+	(*PrepareBackupResponse)(nil),       // 4: control.v1.PrepareBackupResponse
+	(*EnsureAgentAccessRequest)(nil),    // 5: control.v1.EnsureAgentAccessRequest
+	(*EnsureAgentAccessResponse)(nil),   // 6: control.v1.EnsureAgentAccessResponse
+	(*CompleteBackupRequest)(nil),       // 7: control.v1.CompleteBackupRequest
+	(*CompleteBackupResponse)(nil),      // 8: control.v1.CompleteBackupResponse
+	(*GetRepositoryRequest)(nil),        // 9: control.v1.GetRepositoryRequest
+	(*GetRepositoryResponse)(nil),       // 10: control.v1.GetRepositoryResponse
+	(*ListRepositoriesRequest)(nil),     // 11: control.v1.ListRepositoriesRequest
+	(*ListRepositoriesResponse)(nil),    // 12: control.v1.ListRepositoriesResponse
+	(*IndexRecoveryPointsRequest)(nil),  // 13: control.v1.IndexRecoveryPointsRequest
+	(*IndexedRecoveryPoint)(nil),        // 14: control.v1.IndexedRecoveryPoint
+	(*IndexRecoveryPointsResponse)(nil), // 15: control.v1.IndexRecoveryPointsResponse
+	(*RecordEventRequest)(nil),          // 16: control.v1.RecordEventRequest
+	(*RecordEventResponse)(nil),         // 17: control.v1.RecordEventResponse
+	(*v1.Command)(nil),                  // 18: agent.v1.Command
+	(*v1.CommandUpdate)(nil),            // 19: agent.v1.CommandUpdate
+	(*v1.ComponentSpec)(nil),            // 20: agent.v1.ComponentSpec
+	(*v1.Hook)(nil),                     // 21: agent.v1.Hook
 }
 var file_control_v1_control_proto_depIdxs = []int32{
-	2, // 0: control.v1.DispatchRequest.command:type_name -> agent.v1.Command
-	3, // 1: control.v1.DispatchResponse.update:type_name -> agent.v1.CommandUpdate
-	0, // 2: control.v1.GatewayControlService.Dispatch:input_type -> control.v1.DispatchRequest
-	1, // 3: control.v1.GatewayControlService.Dispatch:output_type -> control.v1.DispatchResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	18, // 0: control.v1.DispatchRequest.command:type_name -> agent.v1.Command
+	19, // 1: control.v1.DispatchResponse.update:type_name -> agent.v1.CommandUpdate
+	2,  // 2: control.v1.PrepareBackupResponse.repository:type_name -> control.v1.Repository
+	20, // 3: control.v1.PrepareBackupResponse.components:type_name -> agent.v1.ComponentSpec
+	21, // 4: control.v1.PrepareBackupResponse.pre_hooks:type_name -> agent.v1.Hook
+	21, // 5: control.v1.PrepareBackupResponse.post_hooks:type_name -> agent.v1.Hook
+	2,  // 6: control.v1.GetRepositoryResponse.repository:type_name -> control.v1.Repository
+	2,  // 7: control.v1.ListRepositoriesResponse.repositories:type_name -> control.v1.Repository
+	14, // 8: control.v1.IndexRecoveryPointsRequest.recovery_points:type_name -> control.v1.IndexedRecoveryPoint
+	0,  // 9: control.v1.GatewayControlService.Dispatch:input_type -> control.v1.DispatchRequest
+	3,  // 10: control.v1.PlatformService.PrepareBackup:input_type -> control.v1.PrepareBackupRequest
+	5,  // 11: control.v1.PlatformService.EnsureAgentAccess:input_type -> control.v1.EnsureAgentAccessRequest
+	7,  // 12: control.v1.PlatformService.CompleteBackup:input_type -> control.v1.CompleteBackupRequest
+	9,  // 13: control.v1.PlatformService.GetRepository:input_type -> control.v1.GetRepositoryRequest
+	11, // 14: control.v1.PlatformService.ListRepositories:input_type -> control.v1.ListRepositoriesRequest
+	13, // 15: control.v1.PlatformService.IndexRecoveryPoints:input_type -> control.v1.IndexRecoveryPointsRequest
+	16, // 16: control.v1.PlatformService.RecordEvent:input_type -> control.v1.RecordEventRequest
+	1,  // 17: control.v1.GatewayControlService.Dispatch:output_type -> control.v1.DispatchResponse
+	4,  // 18: control.v1.PlatformService.PrepareBackup:output_type -> control.v1.PrepareBackupResponse
+	6,  // 19: control.v1.PlatformService.EnsureAgentAccess:output_type -> control.v1.EnsureAgentAccessResponse
+	8,  // 20: control.v1.PlatformService.CompleteBackup:output_type -> control.v1.CompleteBackupResponse
+	10, // 21: control.v1.PlatformService.GetRepository:output_type -> control.v1.GetRepositoryResponse
+	12, // 22: control.v1.PlatformService.ListRepositories:output_type -> control.v1.ListRepositoriesResponse
+	15, // 23: control.v1.PlatformService.IndexRecoveryPoints:output_type -> control.v1.IndexRecoveryPointsResponse
+	17, // 24: control.v1.PlatformService.RecordEvent:output_type -> control.v1.RecordEventResponse
+	17, // [17:25] is the sub-list for method output_type
+	9,  // [9:17] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_control_v1_control_proto_init() }
@@ -191,9 +1350,9 @@ func file_control_v1_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_control_v1_control_proto_rawDesc), len(file_control_v1_control_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   18,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_control_v1_control_proto_goTypes,
 		DependencyIndexes: file_control_v1_control_proto_depIdxs,

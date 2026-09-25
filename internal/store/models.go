@@ -71,6 +71,14 @@ type AgentRegistrationToken struct {
 	RevokedAt   *time.Time
 }
 
+type AgentRepositoryAccess struct {
+	AgentID      uuid.UUID
+	RepositoryID uuid.UUID
+	Username     string
+	Hostname     string
+	ConfiguredAt time.Time
+}
+
 type AgentSession struct {
 	AgentID         uuid.UUID
 	SessionID       string
@@ -111,6 +119,19 @@ type Application struct {
 	UpdatedAt        time.Time
 }
 
+type ApplicationBackupSetting struct {
+	ApplicationID      uuid.UUID
+	RepositoryID       *uuid.UUID
+	ConsistencyMode    *string
+	MaxQuiesceSeconds  int32
+	PreHooks           json.RawMessage
+	PostHooks          json.RawMessage
+	OptionalComponents []string
+	ExcludedComponents []string
+	UpdatedBy          *uuid.UUID
+	UpdatedAt          time.Time
+}
+
 type AuditEvent struct {
 	Seq          int64
 	EventID      uuid.UUID
@@ -130,6 +151,26 @@ type AuditEvent struct {
 	AfterState   json.RawMessage
 	RequestID    *string
 	TraceID      *string
+}
+
+type EscrowRecipient struct {
+	ID        uuid.UUID
+	OrgID     uuid.UUID
+	Name      string
+	PublicKey string
+	CreatedBy *uuid.UUID
+	CreatedAt time.Time
+	RemovedAt *time.Time
+}
+
+type HostSetting struct {
+	AgentID              uuid.UUID
+	MaxConcurrentJobs    int32
+	BackupWindowStart    *int32
+	BackupWindowEnd      *int32
+	BackupWindowTimezone string
+	UpdatedBy            *uuid.UUID
+	UpdatedAt            time.Time
 }
 
 type InventorySnapshot struct {
@@ -155,13 +196,18 @@ type LocalCredential struct {
 }
 
 type NotificationOutbox struct {
-	ID          int64
-	OrgID       uuid.UUID
-	EventType   string
-	Severity    string
-	Payload     json.RawMessage
-	CreatedAt   time.Time
-	DeliveredAt *time.Time
+	ID             int64
+	OrgID          uuid.UUID
+	EventType      string
+	Severity       string
+	Payload        json.RawMessage
+	CreatedAt      time.Time
+	DeliveredAt    *time.Time
+	TargetType     *string
+	TargetID       *string
+	Message        string
+	AcknowledgedAt *time.Time
+	AcknowledgedBy *uuid.UUID
 }
 
 type OidcAuthRequest struct {
@@ -196,6 +242,60 @@ type PkiAuthority struct {
 	KeyEnc      []byte
 	Fingerprint string
 	CreatedAt   time.Time
+}
+
+type RecoveryPoint struct {
+	ID                  string
+	OrgID               uuid.UUID
+	RepositoryID        uuid.UUID
+	ApplicationID       uuid.UUID
+	ApplicationName     string
+	AgentID             uuid.UUID
+	Hostname            string
+	State               string
+	Status              *string
+	Verification        string
+	ConsistencyMode     string
+	ConsistencyPoint    *time.Time
+	CrashConsistentOnly bool
+	Trigger             string
+	RequestedBy         *uuid.UUID
+	WorkflowID          string
+	RunID               string
+	SizeBytes           int64
+	ComponentCount      int32
+	Manifest            json.RawMessage
+	ManifestSnapshotID  *string
+	Error               *string
+	CreatedAt           time.Time
+	CommittedAt         *time.Time
+	UpdatedAt           time.Time
+}
+
+type Repository struct {
+	ID                 uuid.UUID
+	OrgID              uuid.UUID
+	Name               string
+	Description        string
+	Backend            string
+	ManagementUrl      string
+	ServerUrl          string
+	InternalServerUrl  string
+	CertSha256         string
+	KopiaRepositoryID  *string
+	Splitter           *string
+	Status             string
+	IsDefault          bool
+	EscrowPackage      []byte
+	EscrowRecipientIds []uuid.UUID
+	EscrowConfirmHash  []byte
+	EscrowGeneratedAt  *time.Time
+	EscrowConfirmedAt  *time.Time
+	EscrowConfirmedBy  *uuid.UUID
+	LastReindexAt      *time.Time
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type Session struct {

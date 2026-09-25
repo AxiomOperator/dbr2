@@ -224,8 +224,16 @@ type Worker struct {
 	HealthAddr string `env:"DBR2_HEALTH_ADDR" envDefault:":8082"`
 	// GatewayControlAddr is dbr2-server's internal control listener.
 	GatewayControlAddr string `env:"DBR2_GATEWAY_CONTROL_ADDR" envDefault:"127.0.0.1:9090"`
-	// InternalToken authenticates the worker to the gateway (DBR2_INTERNAL_TOKEN[_FILE]).
+	// InternalToken authenticates the worker to the gateway and to the
+	// reposerver management APIs (DBR2_INTERNAL_TOKEN[_FILE]).
 	InternalToken string
+	// StateDir holds the maint@dbr2 Kopia client config and cache
+	// (disposable; the maint password is only ever in memory).
+	StateDir string `env:"DBR2_WORKER_STATE_DIR" envDefault:"/var/lib/dbr2/worker"`
+	// OrphanGrace keeps uncommitted components before garbage collection.
+	OrphanGrace time.Duration `env:"DBR2_ORPHAN_GRACE" envDefault:"168h"`
+	// OrphanGCCron schedules orphan garbage collection (Temporal schedule).
+	OrphanGCCron string `env:"DBR2_ORPHAN_GC_CRON" envDefault:"30 3 * * *"`
 }
 
 // LoadWorker reads the worker configuration.
@@ -256,14 +264,38 @@ type RepoServer struct {
 	HealthAddr       string        `env:"DBR2_HEALTH_ADDR" envDefault:":8081"`
 	WatchdogInterval time.Duration `env:"DBR2_REPOSERVER_WATCHDOG_INTERVAL" envDefault:"15s"`
 	WatchdogTimeout  time.Duration `env:"DBR2_REPOSERVER_WATCHDOG_TIMEOUT" envDefault:"10s"`
-	Log              Log
-	Telemetry        Telemetry
+	// StateDir holds the repository password, the Kopia config and cache,
+	// the TLS key pair and the server control password (0700).
+	StateDir string `env:"DBR2_REPOSERVER_STATE_DIR" envDefault:"/var/lib/dbr2/reposerver"`
+	// KopiaAddr is the Kopia repository server's HTTPS listen address.
+	KopiaAddr string `env:"DBR2_REPOSERVER_KOPIA_ADDR" envDefault:"0.0.0.0:51515"`
+	// TLSNames are extra DNS names / IPs for the self-signed Kopia server
+	// certificate (localhost and the container hostname are always added).
+	// Clients pin the certificate's SHA-256 fingerprint.
+	TLSNames []string `env:"DBR2_REPOSERVER_TLS_NAMES" envSeparator:","`
+	// MgmtAddr is the internal management API listener (never published).
+	MgmtAddr string `env:"DBR2_REPOSERVER_MGMT_ADDR" envDefault:":8091"`
+	// InternalToken authenticates dbr2-server/dbr2-worker on the management
+	// API (DBR2_INTERNAL_TOKEN[_FILE]); the API is disabled without it.
+	InternalToken string
+	Log           Log
+	Telemetry     Telemetry
 }
 
 // LoadRepoServer reads the reposerver configuration.
 func LoadRepoServer() (*RepoServer, error) {
 	var c RepoServer
-	return &c, env.Parse(&c)
+	if err := env.Parse(&c); err != nil {
+		return nil, err
+	}
+	var err error
+	if c.InternalToken, err = secret("DBR2_INTERNAL_TOKEN", false); err != nil {
+		return nil, err
+	}
+	if c.InternalToken != "" && len(c.InternalToken) < 32 {
+		return nil, errors.New("config: DBR2_INTERNAL_TOKEN must be at least 32 characters")
+	}
+	return &c, nil
 }
 
 // secret reads NAME, or the file named by NAME_FILE.

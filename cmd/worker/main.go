@@ -27,6 +27,8 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/temporalx"
 	"github.com/AxiomOperator/dbr2/internal/version"
 	"github.com/AxiomOperator/dbr2/workflows"
+	"github.com/AxiomOperator/dbr2/workflows/agentcmd"
+	"github.com/AxiomOperator/dbr2/workflows/backup"
 	"github.com/AxiomOperator/dbr2/workflows/diag"
 	"github.com/AxiomOperator/dbr2/workflows/hosts"
 )
@@ -94,9 +96,14 @@ func run() error {
 	if cfg.InternalToken == "" {
 		log.Warn("DBR2_INTERNAL_TOKEN not set: agent commands will fail")
 	}
-	workflows.Register(w, &diag.Activities{}, &hosts.Activities{
-		Control: controlv1.NewGatewayControlServiceClient(ctrlConn), Token: cfg.InternalToken,
-	})
+	gwControl := controlv1.NewGatewayControlServiceClient(ctrlConn)
+	platform := controlv1.NewPlatformServiceClient(ctrlConn)
+	maint := backup.NewMaintSessions(platform, cfg.InternalToken, cfg.StateDir)
+	defer maint.Close()
+	workflows.Register(w, &diag.Activities{}, &hosts.Activities{Control: gwControl, Token: cfg.InternalToken},
+		&backup.Activities{Agent: &agentcmd.Dispatcher{Control: gwControl, Token: cfg.InternalToken}, Platform: platform,
+			Token: cfg.InternalToken, Maint: maint})
+	go ensureSchedules(ctx, c, cfg, log)
 
 	var healthy atomic.Bool
 	srv := &http.Server{Addr: cfg.HealthAddr, ReadHeaderTimeout: 5 * time.Second,

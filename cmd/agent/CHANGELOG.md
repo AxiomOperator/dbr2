@@ -5,6 +5,11 @@ All notable changes to the `agent` component. Format: [Keep a Changelog](https:/
 ## [Unreleased]
 
 ### Added
+- Backup commands (Phase 4): `ConfigureRepository` (connection persisted 0600 under `<state>/repositories/<id>/`, verified by connecting; one cached Kopia session per repository, reconnected after reconfiguration), `Quiesce`/`Resume` (pause or stop only running containers, exact pre-state restore, idempotent by lease id, conflicting leases refused), `RunHooks` (docker exec, per-hook timeout default 300 s, last 8 KiB of output) and `SnapshotComponents` (config staging incl. unredacted container inspect documents, volumes, bind mounts incl. single files, per-component fsmeta records, `dbr2-*` tags, pinned, seed passes tagged `dbr2-kind=seed`, progress every 5 s; database/image components are skipped until Phase 8).
+- Quiesce dead-man switch (ADR-0005 layer 2): leases journaled in `<state>/leases.json`; the agent resumes the application itself when a lease expires (`quiesce.auto_resumed`, critical), warns at 80 % of the lease (`quiesce.lease_warning`), reports failed resumes (`quiesce.resume_failed`) and resumes expired leases immediately after a restart. Events raised while disconnected are sent when the next session starts.
+- `internal/fsmeta`: zstd-compressed JSON Lines record of extended attributes (incl. SELinux contexts and POSIX ACLs), hardlink groups and directory mtimes, with a reader for restores.
+- Data-moving commands are limited to the gateway's `max_concurrent_jobs` (default 2); queued commands report `{"queued":true}` progress.
+- `runtime.ContainerControl` (inspect state/raw, pause, unpause, stop, start, exec), implemented by `DockerRuntime`.
 - `Agent.FirstInventoryDelay` (default 10 s) controls when the first periodic inventory push happens.
 - `dbr2-agent enroll` (CA fingerprint pinning, local key + CSR, config written 0600), `run` (outbound mTLS session with backoff honouring the gateway's `retry_after`, heartbeat echo, health reports, periodic inventory push, certificate renewal at 2/3 lifetime with a fresh key), `status` (offline), exit code 3 when not enrolled.
 - Durable command journal (`journal.jsonl`, fsync per state change): a `command_id` executes at most once; results survive disconnects and restarts and are replayed until acknowledged.

@@ -879,3 +879,10 @@ export function fleetRoutes({ send, problem, readJson, audit }) {
     ],
   ];
 }
+
+/** Read access to the in-memory fleet for the other mock modules (mock-protection.mjs). */
+export const fleetData = {
+  agents,
+  apps,
+  appName: (a) => a.display_name || a.name,
+};

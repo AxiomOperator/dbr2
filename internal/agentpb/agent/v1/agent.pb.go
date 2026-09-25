@@ -30,6 +30,120 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// QuiesceMode selects how an application is quiesced.
+type QuiesceMode int32
+
+const (
+	QuiesceMode_QUIESCE_MODE_UNSPECIFIED QuiesceMode = 0
+	// Pause containers (cgroup freezer): no writes, no restart.
+	QuiesceMode_QUIESCE_MODE_PAUSE QuiesceMode = 1
+	// Stop containers (Offline consistency mode).
+	QuiesceMode_QUIESCE_MODE_STOP QuiesceMode = 2
+)
+
+// Enum value maps for QuiesceMode.
+var (
+	QuiesceMode_name = map[int32]string{
+		0: "QUIESCE_MODE_UNSPECIFIED",
+		1: "QUIESCE_MODE_PAUSE",
+		2: "QUIESCE_MODE_STOP",
+	}
+	QuiesceMode_value = map[string]int32{
+		"QUIESCE_MODE_UNSPECIFIED": 0,
+		"QUIESCE_MODE_PAUSE":       1,
+		"QUIESCE_MODE_STOP":        2,
+	}
+)
+
+func (x QuiesceMode) Enum() *QuiesceMode {
+	p := new(QuiesceMode)
+	*p = x
+	return p
+}
+
+func (x QuiesceMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (QuiesceMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_agent_v1_agent_proto_enumTypes[0].Descriptor()
+}
+
+func (QuiesceMode) Type() protoreflect.EnumType {
+	return &file_agent_v1_agent_proto_enumTypes[0]
+}
+
+func (x QuiesceMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use QuiesceMode.Descriptor instead.
+func (QuiesceMode) EnumDescriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{0}
+}
+
+// ComponentKind mirrors the recovery manifest component kinds (ADR-0004).
+type ComponentKind int32
+
+const (
+	ComponentKind_COMPONENT_KIND_UNSPECIFIED ComponentKind = 0
+	ComponentKind_COMPONENT_KIND_CONFIG      ComponentKind = 1
+	ComponentKind_COMPONENT_KIND_VOLUME      ComponentKind = 2
+	ComponentKind_COMPONENT_KIND_BIND_MOUNT  ComponentKind = 3
+	ComponentKind_COMPONENT_KIND_DATABASE    ComponentKind = 4
+	ComponentKind_COMPONENT_KIND_IMAGE       ComponentKind = 5
+	ComponentKind_COMPONENT_KIND_FSMETA      ComponentKind = 6
+)
+
+// Enum value maps for ComponentKind.
+var (
+	ComponentKind_name = map[int32]string{
+		0: "COMPONENT_KIND_UNSPECIFIED",
+		1: "COMPONENT_KIND_CONFIG",
+		2: "COMPONENT_KIND_VOLUME",
+		3: "COMPONENT_KIND_BIND_MOUNT",
+		4: "COMPONENT_KIND_DATABASE",
+		5: "COMPONENT_KIND_IMAGE",
+		6: "COMPONENT_KIND_FSMETA",
+	}
+	ComponentKind_value = map[string]int32{
+		"COMPONENT_KIND_UNSPECIFIED": 0,
+		"COMPONENT_KIND_CONFIG":      1,
+		"COMPONENT_KIND_VOLUME":      2,
+		"COMPONENT_KIND_BIND_MOUNT":  3,
+		"COMPONENT_KIND_DATABASE":    4,
+		"COMPONENT_KIND_IMAGE":       5,
+		"COMPONENT_KIND_FSMETA":      6,
+	}
+)
+
+func (x ComponentKind) Enum() *ComponentKind {
+	p := new(ComponentKind)
+	*p = x
+	return p
+}
+
+func (x ComponentKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ComponentKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_agent_v1_agent_proto_enumTypes[1].Descriptor()
+}
+
+func (ComponentKind) Type() protoreflect.EnumType {
+	return &file_agent_v1_agent_proto_enumTypes[1]
+}
+
+func (x ComponentKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ComponentKind.Descriptor instead.
+func (ComponentKind) EnumDescriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{1}
+}
+
 // CommandState is the lifecycle state of a command on the agent.
 type CommandState int32
 
@@ -70,11 +184,11 @@ func (x CommandState) String() string {
 }
 
 func (CommandState) Descriptor() protoreflect.EnumDescriptor {
-	return file_agent_v1_agent_proto_enumTypes[0].Descriptor()
+	return file_agent_v1_agent_proto_enumTypes[2].Descriptor()
 }
 
 func (CommandState) Type() protoreflect.EnumType {
-	return &file_agent_v1_agent_proto_enumTypes[0]
+	return &file_agent_v1_agent_proto_enumTypes[2]
 }
 
 func (x CommandState) Number() protoreflect.EnumNumber {
@@ -83,7 +197,7 @@ func (x CommandState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CommandState.Descriptor instead.
 func (CommandState) EnumDescriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{0}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{2}
 }
 
 // ConnectRequest is a message sent by the agent on the session stream.
@@ -96,6 +210,7 @@ type ConnectRequest struct {
 	//	*ConnectRequest_CommandUpdate
 	//	*ConnectRequest_Inventory
 	//	*ConnectRequest_Health
+	//	*ConnectRequest_Event
 	Body          isConnectRequest_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -183,6 +298,15 @@ func (x *ConnectRequest) GetHealth() *HealthReport {
 	return nil
 }
 
+func (x *ConnectRequest) GetEvent() *AgentEvent {
+	if x != nil {
+		if x, ok := x.Body.(*ConnectRequest_Event); ok {
+			return x.Event
+		}
+	}
+	return nil
+}
+
 type isConnectRequest_Body interface {
 	isConnectRequest_Body()
 }
@@ -210,6 +334,11 @@ type ConnectRequest_Health struct {
 	Health *HealthReport `protobuf:"bytes,5,opt,name=health,proto3,oneof"`
 }
 
+type ConnectRequest_Event struct {
+	// Unsolicited event (quiesce auto-resume, lease warnings; ADR-0005).
+	Event *AgentEvent `protobuf:"bytes,6,opt,name=event,proto3,oneof"`
+}
+
 func (*ConnectRequest_Hello) isConnectRequest_Body() {}
 
 func (*ConnectRequest_Heartbeat) isConnectRequest_Body() {}
@@ -219,6 +348,8 @@ func (*ConnectRequest_CommandUpdate) isConnectRequest_Body() {}
 func (*ConnectRequest_Inventory) isConnectRequest_Body() {}
 
 func (*ConnectRequest_Health) isConnectRequest_Body() {}
+
+func (*ConnectRequest_Event) isConnectRequest_Body() {}
 
 // ConnectResponse is a message sent by the gateway on the session stream.
 type ConnectResponse struct {
@@ -453,8 +584,11 @@ type Welcome struct {
 	ProtocolVersion string                 `protobuf:"bytes,3,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
 	// Seconds between heartbeats the gateway expects.
 	HeartbeatIntervalSeconds uint32 `protobuf:"varint,4,opt,name=heartbeat_interval_seconds,json=heartbeatIntervalSeconds,proto3" json:"heartbeat_interval_seconds,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Maximum number of data-moving commands (snapshots, restores) the agent
+	// runs at once; further commands queue on the agent (0 = agent default).
+	MaxConcurrentJobs uint32 `protobuf:"varint,5,opt,name=max_concurrent_jobs,json=maxConcurrentJobs,proto3" json:"max_concurrent_jobs,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Welcome) Reset() {
@@ -511,6 +645,13 @@ func (x *Welcome) GetProtocolVersion() string {
 func (x *Welcome) GetHeartbeatIntervalSeconds() uint32 {
 	if x != nil {
 		return x.HeartbeatIntervalSeconds
+	}
+	return 0
+}
+
+func (x *Welcome) GetMaxConcurrentJobs() uint32 {
+	if x != nil {
+		return x.MaxConcurrentJobs
 	}
 	return 0
 }
@@ -647,6 +788,11 @@ type Command struct {
 	//
 	//	*Command_Discover
 	//	*Command_Echo
+	//	*Command_ConfigureRepository
+	//	*Command_Quiesce
+	//	*Command_Resume
+	//	*Command_RunHooks
+	//	*Command_SnapshotComponents
 	Kind          isCommand_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -728,6 +874,51 @@ func (x *Command) GetEcho() *EchoCommand {
 	return nil
 }
 
+func (x *Command) GetConfigureRepository() *ConfigureRepositoryCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_ConfigureRepository); ok {
+			return x.ConfigureRepository
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetQuiesce() *QuiesceCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_Quiesce); ok {
+			return x.Quiesce
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetResume() *ResumeCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_Resume); ok {
+			return x.Resume
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetRunHooks() *RunHooksCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_RunHooks); ok {
+			return x.RunHooks
+		}
+	}
+	return nil
+}
+
+func (x *Command) GetSnapshotComponents() *SnapshotComponentsCommand {
+	if x != nil {
+		if x, ok := x.Kind.(*Command_SnapshotComponents); ok {
+			return x.SnapshotComponents
+		}
+	}
+	return nil
+}
+
 type isCommand_Kind interface {
 	isCommand_Kind()
 }
@@ -740,9 +931,1134 @@ type Command_Echo struct {
 	Echo *EchoCommand `protobuf:"bytes,11,opt,name=echo,proto3,oneof"`
 }
 
+type Command_ConfigureRepository struct {
+	ConfigureRepository *ConfigureRepositoryCommand `protobuf:"bytes,12,opt,name=configure_repository,json=configureRepository,proto3,oneof"`
+}
+
+type Command_Quiesce struct {
+	Quiesce *QuiesceCommand `protobuf:"bytes,13,opt,name=quiesce,proto3,oneof"`
+}
+
+type Command_Resume struct {
+	Resume *ResumeCommand `protobuf:"bytes,14,opt,name=resume,proto3,oneof"`
+}
+
+type Command_RunHooks struct {
+	RunHooks *RunHooksCommand `protobuf:"bytes,15,opt,name=run_hooks,json=runHooks,proto3,oneof"`
+}
+
+type Command_SnapshotComponents struct {
+	SnapshotComponents *SnapshotComponentsCommand `protobuf:"bytes,16,opt,name=snapshot_components,json=snapshotComponents,proto3,oneof"`
+}
+
 func (*Command_Discover) isCommand_Kind() {}
 
 func (*Command_Echo) isCommand_Kind() {}
+
+func (*Command_ConfigureRepository) isCommand_Kind() {}
+
+func (*Command_Quiesce) isCommand_Kind() {}
+
+func (*Command_Resume) isCommand_Kind() {}
+
+func (*Command_RunHooks) isCommand_Kind() {}
+
+func (*Command_SnapshotComponents) isCommand_Kind() {}
+
+// ConfigureRepositoryCommand gives the agent its Kopia identity for one
+// Repository (ADR-0002). The agent connects to the repository server as
+// user@host (host = agent ID) and pins the server certificate by its SHA-256
+// fingerprint. The password is stored only in the agent's state directory.
+type ConfigureRepositoryCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RepositoryId  string                 `protobuf:"bytes,1,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	ServerUrl     string                 `protobuf:"bytes,2,opt,name=server_url,json=serverUrl,proto3" json:"server_url,omitempty"`
+	CertSha256    string                 `protobuf:"bytes,3,opt,name=cert_sha256,json=certSha256,proto3" json:"cert_sha256,omitempty"`
+	Username      string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	Hostname      string                 `protobuf:"bytes,5,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Password      string                 `protobuf:"bytes,6,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigureRepositoryCommand) Reset() {
+	*x = ConfigureRepositoryCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigureRepositoryCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigureRepositoryCommand) ProtoMessage() {}
+
+func (x *ConfigureRepositoryCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigureRepositoryCommand.ProtoReflect.Descriptor instead.
+func (*ConfigureRepositoryCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ConfigureRepositoryCommand) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *ConfigureRepositoryCommand) GetServerUrl() string {
+	if x != nil {
+		return x.ServerUrl
+	}
+	return ""
+}
+
+func (x *ConfigureRepositoryCommand) GetCertSha256() string {
+	if x != nil {
+		return x.CertSha256
+	}
+	return ""
+}
+
+func (x *ConfigureRepositoryCommand) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *ConfigureRepositoryCommand) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *ConfigureRepositoryCommand) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+// ContainerState is the pre-quiesce state of one container (ADR-0005).
+type ContainerState struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// running | paused | exited | created | …
+	State         string `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContainerState) Reset() {
+	*x = ContainerState{}
+	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerState) ProtoMessage() {}
+
+func (x *ContainerState) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerState.ProtoReflect.Descriptor instead.
+func (*ContainerState) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ContainerState) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ContainerState) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ContainerState) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+// QuiesceCommand quiesces an application's containers and arms the agent's
+// dead-man switch: unless Resume arrives first, the agent resumes the
+// application on its own when the lease expires (ADR-0005 layer 2).
+type QuiesceCommand struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Lease key, normally the recovery point ID.
+	LeaseId       string      `protobuf:"bytes,1,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	ApplicationId string      `protobuf:"bytes,2,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
+	ContainerIds  []string    `protobuf:"bytes,3,rep,name=container_ids,json=containerIds,proto3" json:"container_ids,omitempty"`
+	Mode          QuiesceMode `protobuf:"varint,4,opt,name=mode,proto3,enum=agent.v1.QuiesceMode" json:"mode,omitempty"`
+	LeaseSeconds  uint32      `protobuf:"varint,5,opt,name=lease_seconds,json=leaseSeconds,proto3" json:"lease_seconds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuiesceCommand) Reset() {
+	*x = QuiesceCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuiesceCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuiesceCommand) ProtoMessage() {}
+
+func (x *QuiesceCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuiesceCommand.ProtoReflect.Descriptor instead.
+func (*QuiesceCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *QuiesceCommand) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *QuiesceCommand) GetApplicationId() string {
+	if x != nil {
+		return x.ApplicationId
+	}
+	return ""
+}
+
+func (x *QuiesceCommand) GetContainerIds() []string {
+	if x != nil {
+		return x.ContainerIds
+	}
+	return nil
+}
+
+func (x *QuiesceCommand) GetMode() QuiesceMode {
+	if x != nil {
+		return x.Mode
+	}
+	return QuiesceMode_QUIESCE_MODE_UNSPECIFIED
+}
+
+func (x *QuiesceCommand) GetLeaseSeconds() uint32 {
+	if x != nil {
+		return x.LeaseSeconds
+	}
+	return 0
+}
+
+// QuiesceResult records the pre-state the agent will restore.
+type QuiesceResult struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	PreState           []*ContainerState      `protobuf:"bytes,1,rep,name=pre_state,json=preState,proto3" json:"pre_state,omitempty"`
+	QuiescedAtUnixMs   int64                  `protobuf:"varint,2,opt,name=quiesced_at_unix_ms,json=quiescedAtUnixMs,proto3" json:"quiesced_at_unix_ms,omitempty"`
+	LeaseExpiresUnixMs int64                  `protobuf:"varint,3,opt,name=lease_expires_unix_ms,json=leaseExpiresUnixMs,proto3" json:"lease_expires_unix_ms,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *QuiesceResult) Reset() {
+	*x = QuiesceResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuiesceResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuiesceResult) ProtoMessage() {}
+
+func (x *QuiesceResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuiesceResult.ProtoReflect.Descriptor instead.
+func (*QuiesceResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *QuiesceResult) GetPreState() []*ContainerState {
+	if x != nil {
+		return x.PreState
+	}
+	return nil
+}
+
+func (x *QuiesceResult) GetQuiescedAtUnixMs() int64 {
+	if x != nil {
+		return x.QuiescedAtUnixMs
+	}
+	return 0
+}
+
+func (x *QuiesceResult) GetLeaseExpiresUnixMs() int64 {
+	if x != nil {
+		return x.LeaseExpiresUnixMs
+	}
+	return 0
+}
+
+// ResumeCommand restores the pre-state recorded by Quiesce. Idempotent: an
+// unknown or already released lease succeeds with already_resumed set.
+type ResumeCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LeaseId       string                 `protobuf:"bytes,1,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResumeCommand) Reset() {
+	*x = ResumeCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResumeCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResumeCommand) ProtoMessage() {}
+
+func (x *ResumeCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResumeCommand.ProtoReflect.Descriptor instead.
+func (*ResumeCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ResumeCommand) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+// ResumeResult reports what Resume did.
+type ResumeResult struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AlreadyResumed bool                   `protobuf:"varint,1,opt,name=already_resumed,json=alreadyResumed,proto3" json:"already_resumed,omitempty"`
+	// The dead-man switch had already resumed the application.
+	AutoResumed         bool     `protobuf:"varint,2,opt,name=auto_resumed,json=autoResumed,proto3" json:"auto_resumed,omitempty"`
+	ResumedContainerIds []string `protobuf:"bytes,3,rep,name=resumed_container_ids,json=resumedContainerIds,proto3" json:"resumed_container_ids,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *ResumeResult) Reset() {
+	*x = ResumeResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResumeResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResumeResult) ProtoMessage() {}
+
+func (x *ResumeResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResumeResult.ProtoReflect.Descriptor instead.
+func (*ResumeResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ResumeResult) GetAlreadyResumed() bool {
+	if x != nil {
+		return x.AlreadyResumed
+	}
+	return false
+}
+
+func (x *ResumeResult) GetAutoResumed() bool {
+	if x != nil {
+		return x.AutoResumed
+	}
+	return false
+}
+
+func (x *ResumeResult) GetResumedContainerIds() []string {
+	if x != nil {
+		return x.ResumedContainerIds
+	}
+	return nil
+}
+
+// Hook runs one command inside a container (docker exec, no shell unless
+// the command invokes one).
+type Hook struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ContainerId    string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	Command        []string               `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"`
+	TimeoutSeconds uint32                 `protobuf:"varint,3,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// A failing optional hook is reported but does not fail the command.
+	Optional      bool `protobuf:"varint,4,opt,name=optional,proto3" json:"optional,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Hook) Reset() {
+	*x = Hook{}
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Hook) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Hook) ProtoMessage() {}
+
+func (x *Hook) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Hook.ProtoReflect.Descriptor instead.
+func (*Hook) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *Hook) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *Hook) GetCommand() []string {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+func (x *Hook) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *Hook) GetOptional() bool {
+	if x != nil {
+		return x.Optional
+	}
+	return false
+}
+
+// RunHooksCommand runs pre- or post-backup hooks in order.
+type RunHooksCommand struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// pre | post
+	Phase         string  `protobuf:"bytes,1,opt,name=phase,proto3" json:"phase,omitempty"`
+	Hooks         []*Hook `protobuf:"bytes,2,rep,name=hooks,proto3" json:"hooks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunHooksCommand) Reset() {
+	*x = RunHooksCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunHooksCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunHooksCommand) ProtoMessage() {}
+
+func (x *RunHooksCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunHooksCommand.ProtoReflect.Descriptor instead.
+func (*RunHooksCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RunHooksCommand) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
+func (x *RunHooksCommand) GetHooks() []*Hook {
+	if x != nil {
+		return x.Hooks
+	}
+	return nil
+}
+
+// HookResult is the outcome of one hook.
+type HookResult struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ContainerId string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	ExitCode    int32                  `protobuf:"varint,2,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// Truncated combined output (secrets are the hook author's responsibility).
+	Output        string `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Error         string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	DurationMs    int64  `protobuf:"varint,5,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HookResult) Reset() {
+	*x = HookResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HookResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HookResult) ProtoMessage() {}
+
+func (x *HookResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HookResult.ProtoReflect.Descriptor instead.
+func (*HookResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *HookResult) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *HookResult) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *HookResult) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
+func (x *HookResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *HookResult) GetDurationMs() int64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+// RunHooksResult lists every hook outcome.
+type RunHooksResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Results       []*HookResult          `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunHooksResult) Reset() {
+	*x = RunHooksResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunHooksResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunHooksResult) ProtoMessage() {}
+
+func (x *RunHooksResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunHooksResult.ProtoReflect.Descriptor instead.
+func (*RunHooksResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RunHooksResult) GetResults() []*HookResult {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+// ComponentSpec describes one component to capture.
+type ComponentSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unique within the recovery point, e.g. "volume:shop_db-data".
+	Name string        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Kind ComponentKind `protobuf:"varint,2,opt,name=kind,proto3,enum=agent.v1.ComponentKind" json:"kind,omitempty"`
+	// Host path to read (volume mountpoint or bind-mount source). For config
+	// components: the Compose project working directory (may be empty).
+	Path string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	// Volume name (volume components).
+	VolumeName string `protobuf:"bytes,4,opt,name=volume_name,json=volumeName,proto3" json:"volume_name,omitempty"`
+	Required   bool   `protobuf:"varint,5,opt,name=required,proto3" json:"required,omitempty"`
+	// Config components: the files to stage (absolute host paths).
+	Files []string `protobuf:"bytes,6,rep,name=files,proto3" json:"files,omitempty"`
+	// Config components: the application's inventory JSON to stage as
+	// discovery.json.
+	MetadataJson []byte `protobuf:"bytes,7,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	// Filesystem components: also capture an fsmeta component (ADR-0006).
+	CaptureFsmeta bool `protobuf:"varint,8,opt,name=capture_fsmeta,json=captureFsmeta,proto3" json:"capture_fsmeta,omitempty"`
+	// Config components: containers whose full runtime inspect document the
+	// agent stages as containers/<id>.json (it holds the real environment,
+	// which never passes through the control plane in clear text).
+	ContainerIds  []string `protobuf:"bytes,9,rep,name=container_ids,json=containerIds,proto3" json:"container_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComponentSpec) Reset() {
+	*x = ComponentSpec{}
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComponentSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComponentSpec) ProtoMessage() {}
+
+func (x *ComponentSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComponentSpec.ProtoReflect.Descriptor instead.
+func (*ComponentSpec) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ComponentSpec) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComponentSpec) GetKind() ComponentKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ComponentKind_COMPONENT_KIND_UNSPECIFIED
+}
+
+func (x *ComponentSpec) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ComponentSpec) GetVolumeName() string {
+	if x != nil {
+		return x.VolumeName
+	}
+	return ""
+}
+
+func (x *ComponentSpec) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+func (x *ComponentSpec) GetFiles() []string {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+func (x *ComponentSpec) GetMetadataJson() []byte {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return nil
+}
+
+func (x *ComponentSpec) GetCaptureFsmeta() bool {
+	if x != nil {
+		return x.CaptureFsmeta
+	}
+	return false
+}
+
+func (x *ComponentSpec) GetContainerIds() []string {
+	if x != nil {
+		return x.ContainerIds
+	}
+	return nil
+}
+
+// SnapshotComponentsCommand snapshots components of one recovery point into
+// the configured Repository. Snapshots are tagged with the dbr2-* keys and
+// pinned; the manifest is written later by the worker (ADR-0004).
+type SnapshotComponentsCommand struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RepositoryId    string                 `protobuf:"bytes,1,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	RecoveryPointId string                 `protobuf:"bytes,2,opt,name=recovery_point_id,json=recoveryPointId,proto3" json:"recovery_point_id,omitempty"`
+	ApplicationId   string                 `protobuf:"bytes,3,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
+	Components      []*ComponentSpec       `protobuf:"bytes,4,rep,name=components,proto3" json:"components,omitempty"`
+	// Seed pass: a live pass tagged dbr2-kind=seed that is never committed; it
+	// loads content so the consistent pass only uploads the delta (ADR-0005).
+	Seed          bool `protobuf:"varint,5,opt,name=seed,proto3" json:"seed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SnapshotComponentsCommand) Reset() {
+	*x = SnapshotComponentsCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SnapshotComponentsCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SnapshotComponentsCommand) ProtoMessage() {}
+
+func (x *SnapshotComponentsCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SnapshotComponentsCommand.ProtoReflect.Descriptor instead.
+func (*SnapshotComponentsCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SnapshotComponentsCommand) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *SnapshotComponentsCommand) GetRecoveryPointId() string {
+	if x != nil {
+		return x.RecoveryPointId
+	}
+	return ""
+}
+
+func (x *SnapshotComponentsCommand) GetApplicationId() string {
+	if x != nil {
+		return x.ApplicationId
+	}
+	return ""
+}
+
+func (x *SnapshotComponentsCommand) GetComponents() []*ComponentSpec {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
+
+func (x *SnapshotComponentsCommand) GetSeed() bool {
+	if x != nil {
+		return x.Seed
+	}
+	return false
+}
+
+// ComponentResult is the outcome of one component.
+type ComponentResult struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Name     string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Kind     ComponentKind          `protobuf:"varint,2,opt,name=kind,proto3,enum=agent.v1.ComponentKind" json:"kind,omitempty"`
+	Required bool                   `protobuf:"varint,3,opt,name=required,proto3" json:"required,omitempty"`
+	// succeeded | failed | skipped
+	Status       string `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	Error        string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	SnapshotId   string `protobuf:"bytes,6,opt,name=snapshot_id,json=snapshotId,proto3" json:"snapshot_id,omitempty"`
+	RootObjectId string `protobuf:"bytes,7,opt,name=root_object_id,json=rootObjectId,proto3" json:"root_object_id,omitempty"`
+	// Snapshot source (user@host:path) as recorded by the Repository.
+	Source         string `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
+	SizeBytes      int64  `protobuf:"varint,9,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Files          int64  `protobuf:"varint,10,opt,name=files,proto3" json:"files,omitempty"`
+	StartedUnixMs  int64  `protobuf:"varint,11,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
+	FinishedUnixMs int64  `protobuf:"varint,12,opt,name=finished_unix_ms,json=finishedUnixMs,proto3" json:"finished_unix_ms,omitempty"`
+	Path           string `protobuf:"bytes,13,opt,name=path,proto3" json:"path,omitempty"`
+	VolumeName     string `protobuf:"bytes,14,opt,name=volume_name,json=volumeName,proto3" json:"volume_name,omitempty"`
+	// Root directory ownership and SELinux context (ADR-0006).
+	OwnerUid       uint32 `protobuf:"varint,15,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid       uint32 `protobuf:"varint,16,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
+	Mode           string `protobuf:"bytes,17,opt,name=mode,proto3" json:"mode,omitempty"`
+	SelinuxContext string `protobuf:"bytes,18,opt,name=selinux_context,json=selinuxContext,proto3" json:"selinux_context,omitempty"`
+	// The component this fsmeta record belongs to (fsmeta components).
+	Parent string `protobuf:"bytes,19,opt,name=parent,proto3" json:"parent,omitempty"`
+	// live | snapshot (filesystem snapshot used; ADR-0005)
+	CaptureMethod string `protobuf:"bytes,20,opt,name=capture_method,json=captureMethod,proto3" json:"capture_method,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComponentResult) Reset() {
+	*x = ComponentResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComponentResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComponentResult) ProtoMessage() {}
+
+func (x *ComponentResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComponentResult.ProtoReflect.Descriptor instead.
+func (*ComponentResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ComponentResult) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetKind() ComponentKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ComponentKind_COMPONENT_KIND_UNSPECIFIED
+}
+
+func (x *ComponentResult) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+func (x *ComponentResult) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetSnapshotId() string {
+	if x != nil {
+		return x.SnapshotId
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetRootObjectId() string {
+	if x != nil {
+		return x.RootObjectId
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *ComponentResult) GetFiles() int64 {
+	if x != nil {
+		return x.Files
+	}
+	return 0
+}
+
+func (x *ComponentResult) GetStartedUnixMs() int64 {
+	if x != nil {
+		return x.StartedUnixMs
+	}
+	return 0
+}
+
+func (x *ComponentResult) GetFinishedUnixMs() int64 {
+	if x != nil {
+		return x.FinishedUnixMs
+	}
+	return 0
+}
+
+func (x *ComponentResult) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetVolumeName() string {
+	if x != nil {
+		return x.VolumeName
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetOwnerUid() uint32 {
+	if x != nil {
+		return x.OwnerUid
+	}
+	return 0
+}
+
+func (x *ComponentResult) GetOwnerGid() uint32 {
+	if x != nil {
+		return x.OwnerGid
+	}
+	return 0
+}
+
+func (x *ComponentResult) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetSelinuxContext() string {
+	if x != nil {
+		return x.SelinuxContext
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetParent() string {
+	if x != nil {
+		return x.Parent
+	}
+	return ""
+}
+
+func (x *ComponentResult) GetCaptureMethod() string {
+	if x != nil {
+		return x.CaptureMethod
+	}
+	return ""
+}
+
+// SnapshotComponentsResult lists every component outcome.
+type SnapshotComponentsResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Components    []*ComponentResult     `protobuf:"bytes,1,rep,name=components,proto3" json:"components,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SnapshotComponentsResult) Reset() {
+	*x = SnapshotComponentsResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SnapshotComponentsResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SnapshotComponentsResult) ProtoMessage() {}
+
+func (x *SnapshotComponentsResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SnapshotComponentsResult.ProtoReflect.Descriptor instead.
+func (*SnapshotComponentsResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SnapshotComponentsResult) GetComponents() []*ComponentResult {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
 
 // DiscoverCommand collects the host inventory (Phase 3).
 type DiscoverCommand struct {
@@ -755,7 +2071,7 @@ type DiscoverCommand struct {
 
 func (x *DiscoverCommand) Reset() {
 	*x = DiscoverCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[7]
+	mi := &file_agent_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -767,7 +2083,7 @@ func (x *DiscoverCommand) String() string {
 func (*DiscoverCommand) ProtoMessage() {}
 
 func (x *DiscoverCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[7]
+	mi := &file_agent_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -780,7 +2096,7 @@ func (x *DiscoverCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverCommand.ProtoReflect.Descriptor instead.
 func (*DiscoverCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{7}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DiscoverCommand) GetIncludeFilesystemChanges() bool {
@@ -802,7 +2118,7 @@ type EchoCommand struct {
 
 func (x *EchoCommand) Reset() {
 	*x = EchoCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	mi := &file_agent_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -814,7 +2130,7 @@ func (x *EchoCommand) String() string {
 func (*EchoCommand) ProtoMessage() {}
 
 func (x *EchoCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	mi := &file_agent_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -827,7 +2143,7 @@ func (x *EchoCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EchoCommand.ProtoReflect.Descriptor instead.
 func (*EchoCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *EchoCommand) GetMessage() string {
@@ -859,6 +2175,10 @@ type CommandUpdate struct {
 	//
 	//	*CommandUpdate_Discover
 	//	*CommandUpdate_Echo
+	//	*CommandUpdate_Quiesce
+	//	*CommandUpdate_Resume
+	//	*CommandUpdate_RunHooks
+	//	*CommandUpdate_SnapshotComponents
 	Result        isCommandUpdate_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -866,7 +2186,7 @@ type CommandUpdate struct {
 
 func (x *CommandUpdate) Reset() {
 	*x = CommandUpdate{}
-	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	mi := &file_agent_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +2198,7 @@ func (x *CommandUpdate) String() string {
 func (*CommandUpdate) ProtoMessage() {}
 
 func (x *CommandUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	mi := &file_agent_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +2211,7 @@ func (x *CommandUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandUpdate.ProtoReflect.Descriptor instead.
 func (*CommandUpdate) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CommandUpdate) GetCommandId() string {
@@ -961,6 +2281,42 @@ func (x *CommandUpdate) GetEcho() *EchoResult {
 	return nil
 }
 
+func (x *CommandUpdate) GetQuiesce() *QuiesceResult {
+	if x != nil {
+		if x, ok := x.Result.(*CommandUpdate_Quiesce); ok {
+			return x.Quiesce
+		}
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetResume() *ResumeResult {
+	if x != nil {
+		if x, ok := x.Result.(*CommandUpdate_Resume); ok {
+			return x.Resume
+		}
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetRunHooks() *RunHooksResult {
+	if x != nil {
+		if x, ok := x.Result.(*CommandUpdate_RunHooks); ok {
+			return x.RunHooks
+		}
+	}
+	return nil
+}
+
+func (x *CommandUpdate) GetSnapshotComponents() *SnapshotComponentsResult {
+	if x != nil {
+		if x, ok := x.Result.(*CommandUpdate_SnapshotComponents); ok {
+			return x.SnapshotComponents
+		}
+	}
+	return nil
+}
+
 type isCommandUpdate_Result interface {
 	isCommandUpdate_Result()
 }
@@ -973,9 +2329,33 @@ type CommandUpdate_Echo struct {
 	Echo *EchoResult `protobuf:"bytes,11,opt,name=echo,proto3,oneof"`
 }
 
+type CommandUpdate_Quiesce struct {
+	Quiesce *QuiesceResult `protobuf:"bytes,12,opt,name=quiesce,proto3,oneof"`
+}
+
+type CommandUpdate_Resume struct {
+	Resume *ResumeResult `protobuf:"bytes,13,opt,name=resume,proto3,oneof"`
+}
+
+type CommandUpdate_RunHooks struct {
+	RunHooks *RunHooksResult `protobuf:"bytes,14,opt,name=run_hooks,json=runHooks,proto3,oneof"`
+}
+
+type CommandUpdate_SnapshotComponents struct {
+	SnapshotComponents *SnapshotComponentsResult `protobuf:"bytes,15,opt,name=snapshot_components,json=snapshotComponents,proto3,oneof"`
+}
+
 func (*CommandUpdate_Discover) isCommandUpdate_Result() {}
 
 func (*CommandUpdate_Echo) isCommandUpdate_Result() {}
+
+func (*CommandUpdate_Quiesce) isCommandUpdate_Result() {}
+
+func (*CommandUpdate_Resume) isCommandUpdate_Result() {}
+
+func (*CommandUpdate_RunHooks) isCommandUpdate_Result() {}
+
+func (*CommandUpdate_SnapshotComponents) isCommandUpdate_Result() {}
 
 // DiscoverResult carries the inventory document (internal/inventory schema).
 type DiscoverResult struct {
@@ -987,7 +2367,7 @@ type DiscoverResult struct {
 
 func (x *DiscoverResult) Reset() {
 	*x = DiscoverResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	mi := &file_agent_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -999,7 +2379,7 @@ func (x *DiscoverResult) String() string {
 func (*DiscoverResult) ProtoMessage() {}
 
 func (x *DiscoverResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	mi := &file_agent_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1012,7 +2392,7 @@ func (x *DiscoverResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverResult.ProtoReflect.Descriptor instead.
 func (*DiscoverResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{10}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DiscoverResult) GetInventoryJson() []byte {
@@ -1032,7 +2412,7 @@ type EchoResult struct {
 
 func (x *EchoResult) Reset() {
 	*x = EchoResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	mi := &file_agent_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1044,7 +2424,7 @@ func (x *EchoResult) String() string {
 func (*EchoResult) ProtoMessage() {}
 
 func (x *EchoResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	mi := &file_agent_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1057,7 +2437,7 @@ func (x *EchoResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EchoResult.ProtoReflect.Descriptor instead.
 func (*EchoResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{11}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *EchoResult) GetMessage() string {
@@ -1077,7 +2457,7 @@ type CommandAck struct {
 
 func (x *CommandAck) Reset() {
 	*x = CommandAck{}
-	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	mi := &file_agent_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1089,7 +2469,7 @@ func (x *CommandAck) String() string {
 func (*CommandAck) ProtoMessage() {}
 
 func (x *CommandAck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	mi := &file_agent_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1102,7 +2482,7 @@ func (x *CommandAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandAck.ProtoReflect.Descriptor instead.
 func (*CommandAck) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CommandAck) GetCommandId() string {
@@ -1122,7 +2502,7 @@ type InventoryReport struct {
 
 func (x *InventoryReport) Reset() {
 	*x = InventoryReport{}
-	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	mi := &file_agent_v1_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1134,7 +2514,7 @@ func (x *InventoryReport) String() string {
 func (*InventoryReport) ProtoMessage() {}
 
 func (x *InventoryReport) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	mi := &file_agent_v1_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1147,7 +2527,7 @@ func (x *InventoryReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryReport.ProtoReflect.Descriptor instead.
 func (*InventoryReport) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *InventoryReport) GetInventoryJson() []byte {
@@ -1155,6 +2535,93 @@ func (x *InventoryReport) GetInventoryJson() []byte {
 		return x.InventoryJson
 	}
 	return nil
+}
+
+// AgentEvent is an unsolicited event the gateway records (audit + alerts).
+type AgentEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// quiesce.auto_resumed | quiesce.resume_failed | quiesce.lease_warning
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// critical | warning | info
+	Severity       string `protobuf:"bytes,2,opt,name=severity,proto3" json:"severity,omitempty"`
+	ApplicationId  string `protobuf:"bytes,3,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
+	LeaseId        string `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	Message        string `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	OccurredUnixMs int64  `protobuf:"varint,6,opt,name=occurred_unix_ms,json=occurredUnixMs,proto3" json:"occurred_unix_ms,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AgentEvent) Reset() {
+	*x = AgentEvent{}
+	mi := &file_agent_v1_agent_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentEvent) ProtoMessage() {}
+
+func (x *AgentEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentEvent.ProtoReflect.Descriptor instead.
+func (*AgentEvent) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *AgentEvent) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetApplicationId() string {
+	if x != nil {
+		return x.ApplicationId
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetOccurredUnixMs() int64 {
+	if x != nil {
+		return x.OccurredUnixMs
+	}
+	return 0
 }
 
 // HealthReport describes the agent's view of its host.
@@ -1170,7 +2637,7 @@ type HealthReport struct {
 
 func (x *HealthReport) Reset() {
 	*x = HealthReport{}
-	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_agent_v1_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1182,7 +2649,7 @@ func (x *HealthReport) String() string {
 func (*HealthReport) ProtoMessage() {}
 
 func (x *HealthReport) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_agent_v1_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1195,7 +2662,7 @@ func (x *HealthReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthReport.ProtoReflect.Descriptor instead.
 func (*HealthReport) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *HealthReport) GetDockerReachable() bool {
@@ -1235,7 +2702,7 @@ type GetCARequest struct {
 
 func (x *GetCARequest) Reset() {
 	*x = GetCARequest{}
-	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_agent_v1_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1247,7 +2714,7 @@ func (x *GetCARequest) String() string {
 func (*GetCARequest) ProtoMessage() {}
 
 func (x *GetCARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_agent_v1_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1260,7 +2727,7 @@ func (x *GetCARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCARequest.ProtoReflect.Descriptor instead.
 func (*GetCARequest) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{30}
 }
 
 // GetCAResponse carries the CA certificate.
@@ -1273,7 +2740,7 @@ type GetCAResponse struct {
 
 func (x *GetCAResponse) Reset() {
 	*x = GetCAResponse{}
-	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_agent_v1_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1285,7 +2752,7 @@ func (x *GetCAResponse) String() string {
 func (*GetCAResponse) ProtoMessage() {}
 
 func (x *GetCAResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_agent_v1_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1298,7 +2765,7 @@ func (x *GetCAResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCAResponse.ProtoReflect.Descriptor instead.
 func (*GetCAResponse) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetCAResponse) GetCaCertificateDer() []byte {
@@ -1325,7 +2792,7 @@ type EnrollRequest struct {
 
 func (x *EnrollRequest) Reset() {
 	*x = EnrollRequest{}
-	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	mi := &file_agent_v1_agent_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1337,7 +2804,7 @@ func (x *EnrollRequest) String() string {
 func (*EnrollRequest) ProtoMessage() {}
 
 func (x *EnrollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	mi := &file_agent_v1_agent_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1350,7 +2817,7 @@ func (x *EnrollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrollRequest.ProtoReflect.Descriptor instead.
 func (*EnrollRequest) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{17}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *EnrollRequest) GetToken() string {
@@ -1416,7 +2883,7 @@ type EnrollResponse struct {
 
 func (x *EnrollResponse) Reset() {
 	*x = EnrollResponse{}
-	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	mi := &file_agent_v1_agent_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1428,7 +2895,7 @@ func (x *EnrollResponse) String() string {
 func (*EnrollResponse) ProtoMessage() {}
 
 func (x *EnrollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	mi := &file_agent_v1_agent_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1441,7 +2908,7 @@ func (x *EnrollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrollResponse.ProtoReflect.Descriptor instead.
 func (*EnrollResponse) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{18}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *EnrollResponse) GetAgentId() string {
@@ -1482,7 +2949,7 @@ type RenewRequest struct {
 
 func (x *RenewRequest) Reset() {
 	*x = RenewRequest{}
-	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	mi := &file_agent_v1_agent_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1494,7 +2961,7 @@ func (x *RenewRequest) String() string {
 func (*RenewRequest) ProtoMessage() {}
 
 func (x *RenewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	mi := &file_agent_v1_agent_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1507,7 +2974,7 @@ func (x *RenewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewRequest.ProtoReflect.Descriptor instead.
 func (*RenewRequest) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{19}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RenewRequest) GetCsrDer() []byte {
@@ -1527,7 +2994,7 @@ type RenewResponse struct {
 
 func (x *RenewResponse) Reset() {
 	*x = RenewResponse{}
-	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	mi := &file_agent_v1_agent_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1539,7 +3006,7 @@ func (x *RenewResponse) String() string {
 func (*RenewResponse) ProtoMessage() {}
 
 func (x *RenewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	mi := &file_agent_v1_agent_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1552,7 +3019,7 @@ func (x *RenewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewResponse.ProtoReflect.Descriptor instead.
 func (*RenewResponse) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{20}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RenewResponse) GetCertificateDer() []byte {
@@ -1566,13 +3033,14 @@ var File_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x14agent/v1/agent.proto\x12\bagent.v1\"\xa5\x02\n" +
+	"\x14agent/v1/agent.proto\x12\bagent.v1\"\xd3\x02\n" +
 	"\x0eConnectRequest\x12'\n" +
 	"\x05hello\x18\x01 \x01(\v2\x0f.agent.v1.HelloH\x00R\x05hello\x123\n" +
 	"\theartbeat\x18\x02 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x12@\n" +
 	"\x0ecommand_update\x18\x03 \x01(\v2\x17.agent.v1.CommandUpdateH\x00R\rcommandUpdate\x129\n" +
 	"\tinventory\x18\x04 \x01(\v2\x19.agent.v1.InventoryReportH\x00R\tinventory\x120\n" +
-	"\x06health\x18\x05 \x01(\v2\x16.agent.v1.HealthReportH\x00R\x06healthB\x06\n" +
+	"\x06health\x18\x05 \x01(\v2\x16.agent.v1.HealthReportH\x00R\x06health\x12,\n" +
+	"\x05event\x18\x06 \x01(\v2\x14.agent.v1.AgentEventH\x00R\x05eventB\x06\n" +
 	"\x04body\"\x91\x02\n" +
 	"\x0fConnectResponse\x12-\n" +
 	"\awelcome\x18\x01 \x01(\v2\x11.agent.v1.WelcomeH\x00R\awelcome\x123\n" +
@@ -1589,13 +3057,14 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"os_release\x18\x04 \x01(\tR\tosRelease\x12\"\n" +
 	"\farchitecture\x18\x05 \x01(\tR\farchitecture\x120\n" +
-	"\x14inflight_command_ids\x18\x06 \x03(\tR\x12inflightCommandIds\"\xba\x01\n" +
+	"\x14inflight_command_ids\x18\x06 \x03(\tR\x12inflightCommandIds\"\xea\x01\n" +
 	"\aWelcome\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12'\n" +
 	"\x0fgateway_version\x18\x02 \x01(\tR\x0egatewayVersion\x12)\n" +
 	"\x10protocol_version\x18\x03 \x01(\tR\x0fprotocolVersion\x12<\n" +
-	"\x1aheartbeat_interval_seconds\x18\x04 \x01(\rR\x18heartbeatIntervalSeconds\"O\n" +
+	"\x1aheartbeat_interval_seconds\x18\x04 \x01(\rR\x18heartbeatIntervalSeconds\x12.\n" +
+	"\x13max_concurrent_jobs\x18\x05 \x01(\rR\x11maxConcurrentJobs\"O\n" +
 	"\tHeartbeat\x12 \n" +
 	"\fsent_unix_ms\x18\x01 \x01(\x03R\n" +
 	"sentUnixMs\x12 \n" +
@@ -1604,7 +3073,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x06Reject\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12.\n" +
-	"\x13retry_after_seconds\x18\x03 \x01(\rR\x11retryAfterSeconds\"\xe0\x01\n" +
+	"\x13retry_after_seconds\x18\x03 \x01(\rR\x11retryAfterSeconds\"\xb6\x04\n" +
 	"\aCommand\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12(\n" +
@@ -1614,14 +3083,114 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"checkpoint\x127\n" +
 	"\bdiscover\x18\n" +
 	" \x01(\v2\x19.agent.v1.DiscoverCommandH\x00R\bdiscover\x12+\n" +
-	"\x04echo\x18\v \x01(\v2\x15.agent.v1.EchoCommandH\x00R\x04echoB\x06\n" +
-	"\x04kind\"O\n" +
+	"\x04echo\x18\v \x01(\v2\x15.agent.v1.EchoCommandH\x00R\x04echo\x12Y\n" +
+	"\x14configure_repository\x18\f \x01(\v2$.agent.v1.ConfigureRepositoryCommandH\x00R\x13configureRepository\x124\n" +
+	"\aquiesce\x18\r \x01(\v2\x18.agent.v1.QuiesceCommandH\x00R\aquiesce\x121\n" +
+	"\x06resume\x18\x0e \x01(\v2\x17.agent.v1.ResumeCommandH\x00R\x06resume\x128\n" +
+	"\trun_hooks\x18\x0f \x01(\v2\x19.agent.v1.RunHooksCommandH\x00R\brunHooks\x12V\n" +
+	"\x13snapshot_components\x18\x10 \x01(\v2#.agent.v1.SnapshotComponentsCommandH\x00R\x12snapshotComponentsB\x06\n" +
+	"\x04kind\"\xd5\x01\n" +
+	"\x1aConfigureRepositoryCommand\x12#\n" +
+	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12\x1d\n" +
+	"\n" +
+	"server_url\x18\x02 \x01(\tR\tserverUrl\x12\x1f\n" +
+	"\vcert_sha256\x18\x03 \x01(\tR\n" +
+	"certSha256\x12\x1a\n" +
+	"\busername\x18\x04 \x01(\tR\busername\x12\x1a\n" +
+	"\bhostname\x18\x05 \x01(\tR\bhostname\x12\x1a\n" +
+	"\bpassword\x18\x06 \x01(\tR\bpassword\"J\n" +
+	"\x0eContainerState\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\"\xc7\x01\n" +
+	"\x0eQuiesceCommand\x12\x19\n" +
+	"\blease_id\x18\x01 \x01(\tR\aleaseId\x12%\n" +
+	"\x0eapplication_id\x18\x02 \x01(\tR\rapplicationId\x12#\n" +
+	"\rcontainer_ids\x18\x03 \x03(\tR\fcontainerIds\x12)\n" +
+	"\x04mode\x18\x04 \x01(\x0e2\x15.agent.v1.QuiesceModeR\x04mode\x12#\n" +
+	"\rlease_seconds\x18\x05 \x01(\rR\fleaseSeconds\"\xa8\x01\n" +
+	"\rQuiesceResult\x125\n" +
+	"\tpre_state\x18\x01 \x03(\v2\x18.agent.v1.ContainerStateR\bpreState\x12-\n" +
+	"\x13quiesced_at_unix_ms\x18\x02 \x01(\x03R\x10quiescedAtUnixMs\x121\n" +
+	"\x15lease_expires_unix_ms\x18\x03 \x01(\x03R\x12leaseExpiresUnixMs\"*\n" +
+	"\rResumeCommand\x12\x19\n" +
+	"\blease_id\x18\x01 \x01(\tR\aleaseId\"\x8e\x01\n" +
+	"\fResumeResult\x12'\n" +
+	"\x0falready_resumed\x18\x01 \x01(\bR\x0ealreadyResumed\x12!\n" +
+	"\fauto_resumed\x18\x02 \x01(\bR\vautoResumed\x122\n" +
+	"\x15resumed_container_ids\x18\x03 \x03(\tR\x13resumedContainerIds\"\x88\x01\n" +
+	"\x04Hook\x12!\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x18\n" +
+	"\acommand\x18\x02 \x03(\tR\acommand\x12'\n" +
+	"\x0ftimeout_seconds\x18\x03 \x01(\rR\x0etimeoutSeconds\x12\x1a\n" +
+	"\boptional\x18\x04 \x01(\bR\boptional\"M\n" +
+	"\x0fRunHooksCommand\x12\x14\n" +
+	"\x05phase\x18\x01 \x01(\tR\x05phase\x12$\n" +
+	"\x05hooks\x18\x02 \x03(\v2\x0e.agent.v1.HookR\x05hooks\"\x9b\x01\n" +
+	"\n" +
+	"HookResult\x12!\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x1b\n" +
+	"\texit_code\x18\x02 \x01(\x05R\bexitCode\x12\x16\n" +
+	"\x06output\x18\x03 \x01(\tR\x06output\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\x12\x1f\n" +
+	"\vduration_ms\x18\x05 \x01(\x03R\n" +
+	"durationMs\"@\n" +
+	"\x0eRunHooksResult\x12.\n" +
+	"\aresults\x18\x01 \x03(\v2\x14.agent.v1.HookResultR\aresults\"\xa8\x02\n" +
+	"\rComponentSpec\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x17.agent.v1.ComponentKindR\x04kind\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1f\n" +
+	"\vvolume_name\x18\x04 \x01(\tR\n" +
+	"volumeName\x12\x1a\n" +
+	"\brequired\x18\x05 \x01(\bR\brequired\x12\x14\n" +
+	"\x05files\x18\x06 \x03(\tR\x05files\x12#\n" +
+	"\rmetadata_json\x18\a \x01(\fR\fmetadataJson\x12%\n" +
+	"\x0ecapture_fsmeta\x18\b \x01(\bR\rcaptureFsmeta\x12#\n" +
+	"\rcontainer_ids\x18\t \x03(\tR\fcontainerIds\"\xe0\x01\n" +
+	"\x19SnapshotComponentsCommand\x12#\n" +
+	"\rrepository_id\x18\x01 \x01(\tR\frepositoryId\x12*\n" +
+	"\x11recovery_point_id\x18\x02 \x01(\tR\x0frecoveryPointId\x12%\n" +
+	"\x0eapplication_id\x18\x03 \x01(\tR\rapplicationId\x127\n" +
+	"\n" +
+	"components\x18\x04 \x03(\v2\x17.agent.v1.ComponentSpecR\n" +
+	"components\x12\x12\n" +
+	"\x04seed\x18\x05 \x01(\bR\x04seed\"\xed\x04\n" +
+	"\x0fComponentResult\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x17.agent.v1.ComponentKindR\x04kind\x12\x1a\n" +
+	"\brequired\x18\x03 \x01(\bR\brequired\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1f\n" +
+	"\vsnapshot_id\x18\x06 \x01(\tR\n" +
+	"snapshotId\x12$\n" +
+	"\x0eroot_object_id\x18\a \x01(\tR\frootObjectId\x12\x16\n" +
+	"\x06source\x18\b \x01(\tR\x06source\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\t \x01(\x03R\tsizeBytes\x12\x14\n" +
+	"\x05files\x18\n" +
+	" \x01(\x03R\x05files\x12&\n" +
+	"\x0fstarted_unix_ms\x18\v \x01(\x03R\rstartedUnixMs\x12(\n" +
+	"\x10finished_unix_ms\x18\f \x01(\x03R\x0efinishedUnixMs\x12\x12\n" +
+	"\x04path\x18\r \x01(\tR\x04path\x12\x1f\n" +
+	"\vvolume_name\x18\x0e \x01(\tR\n" +
+	"volumeName\x12\x1b\n" +
+	"\towner_uid\x18\x0f \x01(\rR\bownerUid\x12\x1b\n" +
+	"\towner_gid\x18\x10 \x01(\rR\bownerGid\x12\x12\n" +
+	"\x04mode\x18\x11 \x01(\tR\x04mode\x12'\n" +
+	"\x0fselinux_context\x18\x12 \x01(\tR\x0eselinuxContext\x12\x16\n" +
+	"\x06parent\x18\x13 \x01(\tR\x06parent\x12%\n" +
+	"\x0ecapture_method\x18\x14 \x01(\tR\rcaptureMethod\"U\n" +
+	"\x18SnapshotComponentsResult\x129\n" +
+	"\n" +
+	"components\x18\x01 \x03(\v2\x19.agent.v1.ComponentResultR\n" +
+	"components\"O\n" +
 	"\x0fDiscoverCommand\x12<\n" +
 	"\x1ainclude_filesystem_changes\x18\x01 \x01(\bR\x18includeFilesystemChanges\"H\n" +
 	"\vEchoCommand\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x1f\n" +
 	"\vduration_ms\x18\x02 \x01(\rR\n" +
-	"durationMs\"\xba\x02\n" +
+	"durationMs\"\xb1\x04\n" +
 	"\rCommandUpdate\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12,\n" +
@@ -1634,7 +3203,11 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\tretryable\x18\x06 \x01(\bR\tretryable\x126\n" +
 	"\bdiscover\x18\n" +
 	" \x01(\v2\x18.agent.v1.DiscoverResultH\x00R\bdiscover\x12*\n" +
-	"\x04echo\x18\v \x01(\v2\x14.agent.v1.EchoResultH\x00R\x04echoB\b\n" +
+	"\x04echo\x18\v \x01(\v2\x14.agent.v1.EchoResultH\x00R\x04echo\x123\n" +
+	"\aquiesce\x18\f \x01(\v2\x17.agent.v1.QuiesceResultH\x00R\aquiesce\x120\n" +
+	"\x06resume\x18\r \x01(\v2\x16.agent.v1.ResumeResultH\x00R\x06resume\x127\n" +
+	"\trun_hooks\x18\x0e \x01(\v2\x18.agent.v1.RunHooksResultH\x00R\brunHooks\x12U\n" +
+	"\x13snapshot_components\x18\x0f \x01(\v2\".agent.v1.SnapshotComponentsResultH\x00R\x12snapshotComponentsB\b\n" +
 	"\x06result\"7\n" +
 	"\x0eDiscoverResult\x12%\n" +
 	"\x0einventory_json\x18\x01 \x01(\fR\rinventoryJson\"&\n" +
@@ -1646,7 +3219,15 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\"8\n" +
 	"\x0fInventoryReport\x12%\n" +
-	"\x0einventory_json\x18\x01 \x01(\fR\rinventoryJson\"\xaa\x01\n" +
+	"\x0einventory_json\x18\x01 \x01(\fR\rinventoryJson\"\xc2\x01\n" +
+	"\n" +
+	"AgentEvent\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1a\n" +
+	"\bseverity\x18\x02 \x01(\tR\bseverity\x12%\n" +
+	"\x0eapplication_id\x18\x03 \x01(\tR\rapplicationId\x12\x19\n" +
+	"\blease_id\x18\x04 \x01(\tR\aleaseId\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\x12(\n" +
+	"\x10occurred_unix_ms\x18\x06 \x01(\x03R\x0eoccurredUnixMs\"\xaa\x01\n" +
 	"\fHealthReport\x12)\n" +
 	"\x10docker_reachable\x18\x01 \x01(\bR\x0fdockerReachable\x12%\n" +
 	"\x0edocker_version\x18\x02 \x01(\tR\rdockerVersion\x12!\n" +
@@ -1672,7 +3253,19 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\fRenewRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\"8\n" +
 	"\rRenewResponse\x12'\n" +
-	"\x0fcertificate_der\x18\x01 \x01(\fR\x0ecertificateDer*\x9b\x01\n" +
+	"\x0fcertificate_der\x18\x01 \x01(\fR\x0ecertificateDer*Z\n" +
+	"\vQuiesceMode\x12\x1c\n" +
+	"\x18QUIESCE_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12QUIESCE_MODE_PAUSE\x10\x01\x12\x15\n" +
+	"\x11QUIESCE_MODE_STOP\x10\x02*\xd6\x01\n" +
+	"\rComponentKind\x12\x1e\n" +
+	"\x1aCOMPONENT_KIND_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15COMPONENT_KIND_CONFIG\x10\x01\x12\x19\n" +
+	"\x15COMPONENT_KIND_VOLUME\x10\x02\x12\x1d\n" +
+	"\x19COMPONENT_KIND_BIND_MOUNT\x10\x03\x12\x1b\n" +
+	"\x17COMPONENT_KIND_DATABASE\x10\x04\x12\x18\n" +
+	"\x14COMPONENT_KIND_IMAGE\x10\x05\x12\x19\n" +
+	"\x15COMPONENT_KIND_FSMETA\x10\x06*\x9b\x01\n" +
 	"\fCommandState\x12\x1d\n" +
 	"\x19COMMAND_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16COMMAND_STATE_ACCEPTED\x10\x01\x12\x19\n" +
@@ -1698,61 +3291,96 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 	return file_agent_v1_agent_proto_rawDescData
 }
 
-var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_agent_v1_agent_proto_goTypes = []any{
-	(CommandState)(0),       // 0: agent.v1.CommandState
-	(*ConnectRequest)(nil),  // 1: agent.v1.ConnectRequest
-	(*ConnectResponse)(nil), // 2: agent.v1.ConnectResponse
-	(*Hello)(nil),           // 3: agent.v1.Hello
-	(*Welcome)(nil),         // 4: agent.v1.Welcome
-	(*Heartbeat)(nil),       // 5: agent.v1.Heartbeat
-	(*Reject)(nil),          // 6: agent.v1.Reject
-	(*Command)(nil),         // 7: agent.v1.Command
-	(*DiscoverCommand)(nil), // 8: agent.v1.DiscoverCommand
-	(*EchoCommand)(nil),     // 9: agent.v1.EchoCommand
-	(*CommandUpdate)(nil),   // 10: agent.v1.CommandUpdate
-	(*DiscoverResult)(nil),  // 11: agent.v1.DiscoverResult
-	(*EchoResult)(nil),      // 12: agent.v1.EchoResult
-	(*CommandAck)(nil),      // 13: agent.v1.CommandAck
-	(*InventoryReport)(nil), // 14: agent.v1.InventoryReport
-	(*HealthReport)(nil),    // 15: agent.v1.HealthReport
-	(*GetCARequest)(nil),    // 16: agent.v1.GetCARequest
-	(*GetCAResponse)(nil),   // 17: agent.v1.GetCAResponse
-	(*EnrollRequest)(nil),   // 18: agent.v1.EnrollRequest
-	(*EnrollResponse)(nil),  // 19: agent.v1.EnrollResponse
-	(*RenewRequest)(nil),    // 20: agent.v1.RenewRequest
-	(*RenewResponse)(nil),   // 21: agent.v1.RenewResponse
+	(QuiesceMode)(0),                   // 0: agent.v1.QuiesceMode
+	(ComponentKind)(0),                 // 1: agent.v1.ComponentKind
+	(CommandState)(0),                  // 2: agent.v1.CommandState
+	(*ConnectRequest)(nil),             // 3: agent.v1.ConnectRequest
+	(*ConnectResponse)(nil),            // 4: agent.v1.ConnectResponse
+	(*Hello)(nil),                      // 5: agent.v1.Hello
+	(*Welcome)(nil),                    // 6: agent.v1.Welcome
+	(*Heartbeat)(nil),                  // 7: agent.v1.Heartbeat
+	(*Reject)(nil),                     // 8: agent.v1.Reject
+	(*Command)(nil),                    // 9: agent.v1.Command
+	(*ConfigureRepositoryCommand)(nil), // 10: agent.v1.ConfigureRepositoryCommand
+	(*ContainerState)(nil),             // 11: agent.v1.ContainerState
+	(*QuiesceCommand)(nil),             // 12: agent.v1.QuiesceCommand
+	(*QuiesceResult)(nil),              // 13: agent.v1.QuiesceResult
+	(*ResumeCommand)(nil),              // 14: agent.v1.ResumeCommand
+	(*ResumeResult)(nil),               // 15: agent.v1.ResumeResult
+	(*Hook)(nil),                       // 16: agent.v1.Hook
+	(*RunHooksCommand)(nil),            // 17: agent.v1.RunHooksCommand
+	(*HookResult)(nil),                 // 18: agent.v1.HookResult
+	(*RunHooksResult)(nil),             // 19: agent.v1.RunHooksResult
+	(*ComponentSpec)(nil),              // 20: agent.v1.ComponentSpec
+	(*SnapshotComponentsCommand)(nil),  // 21: agent.v1.SnapshotComponentsCommand
+	(*ComponentResult)(nil),            // 22: agent.v1.ComponentResult
+	(*SnapshotComponentsResult)(nil),   // 23: agent.v1.SnapshotComponentsResult
+	(*DiscoverCommand)(nil),            // 24: agent.v1.DiscoverCommand
+	(*EchoCommand)(nil),                // 25: agent.v1.EchoCommand
+	(*CommandUpdate)(nil),              // 26: agent.v1.CommandUpdate
+	(*DiscoverResult)(nil),             // 27: agent.v1.DiscoverResult
+	(*EchoResult)(nil),                 // 28: agent.v1.EchoResult
+	(*CommandAck)(nil),                 // 29: agent.v1.CommandAck
+	(*InventoryReport)(nil),            // 30: agent.v1.InventoryReport
+	(*AgentEvent)(nil),                 // 31: agent.v1.AgentEvent
+	(*HealthReport)(nil),               // 32: agent.v1.HealthReport
+	(*GetCARequest)(nil),               // 33: agent.v1.GetCARequest
+	(*GetCAResponse)(nil),              // 34: agent.v1.GetCAResponse
+	(*EnrollRequest)(nil),              // 35: agent.v1.EnrollRequest
+	(*EnrollResponse)(nil),             // 36: agent.v1.EnrollResponse
+	(*RenewRequest)(nil),               // 37: agent.v1.RenewRequest
+	(*RenewResponse)(nil),              // 38: agent.v1.RenewResponse
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
-	3,  // 0: agent.v1.ConnectRequest.hello:type_name -> agent.v1.Hello
-	5,  // 1: agent.v1.ConnectRequest.heartbeat:type_name -> agent.v1.Heartbeat
-	10, // 2: agent.v1.ConnectRequest.command_update:type_name -> agent.v1.CommandUpdate
-	14, // 3: agent.v1.ConnectRequest.inventory:type_name -> agent.v1.InventoryReport
-	15, // 4: agent.v1.ConnectRequest.health:type_name -> agent.v1.HealthReport
-	4,  // 5: agent.v1.ConnectResponse.welcome:type_name -> agent.v1.Welcome
-	5,  // 6: agent.v1.ConnectResponse.heartbeat:type_name -> agent.v1.Heartbeat
-	7,  // 7: agent.v1.ConnectResponse.command:type_name -> agent.v1.Command
-	6,  // 8: agent.v1.ConnectResponse.reject:type_name -> agent.v1.Reject
-	13, // 9: agent.v1.ConnectResponse.command_ack:type_name -> agent.v1.CommandAck
-	8,  // 10: agent.v1.Command.discover:type_name -> agent.v1.DiscoverCommand
-	9,  // 11: agent.v1.Command.echo:type_name -> agent.v1.EchoCommand
-	0,  // 12: agent.v1.CommandUpdate.state:type_name -> agent.v1.CommandState
-	11, // 13: agent.v1.CommandUpdate.discover:type_name -> agent.v1.DiscoverResult
-	12, // 14: agent.v1.CommandUpdate.echo:type_name -> agent.v1.EchoResult
-	1,  // 15: agent.v1.AgentService.Connect:input_type -> agent.v1.ConnectRequest
-	16, // 16: agent.v1.EnrollmentService.GetCA:input_type -> agent.v1.GetCARequest
-	18, // 17: agent.v1.EnrollmentService.Enroll:input_type -> agent.v1.EnrollRequest
-	20, // 18: agent.v1.EnrollmentService.Renew:input_type -> agent.v1.RenewRequest
-	2,  // 19: agent.v1.AgentService.Connect:output_type -> agent.v1.ConnectResponse
-	17, // 20: agent.v1.EnrollmentService.GetCA:output_type -> agent.v1.GetCAResponse
-	19, // 21: agent.v1.EnrollmentService.Enroll:output_type -> agent.v1.EnrollResponse
-	21, // 22: agent.v1.EnrollmentService.Renew:output_type -> agent.v1.RenewResponse
-	19, // [19:23] is the sub-list for method output_type
-	15, // [15:19] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	5,  // 0: agent.v1.ConnectRequest.hello:type_name -> agent.v1.Hello
+	7,  // 1: agent.v1.ConnectRequest.heartbeat:type_name -> agent.v1.Heartbeat
+	26, // 2: agent.v1.ConnectRequest.command_update:type_name -> agent.v1.CommandUpdate
+	30, // 3: agent.v1.ConnectRequest.inventory:type_name -> agent.v1.InventoryReport
+	32, // 4: agent.v1.ConnectRequest.health:type_name -> agent.v1.HealthReport
+	31, // 5: agent.v1.ConnectRequest.event:type_name -> agent.v1.AgentEvent
+	6,  // 6: agent.v1.ConnectResponse.welcome:type_name -> agent.v1.Welcome
+	7,  // 7: agent.v1.ConnectResponse.heartbeat:type_name -> agent.v1.Heartbeat
+	9,  // 8: agent.v1.ConnectResponse.command:type_name -> agent.v1.Command
+	8,  // 9: agent.v1.ConnectResponse.reject:type_name -> agent.v1.Reject
+	29, // 10: agent.v1.ConnectResponse.command_ack:type_name -> agent.v1.CommandAck
+	24, // 11: agent.v1.Command.discover:type_name -> agent.v1.DiscoverCommand
+	25, // 12: agent.v1.Command.echo:type_name -> agent.v1.EchoCommand
+	10, // 13: agent.v1.Command.configure_repository:type_name -> agent.v1.ConfigureRepositoryCommand
+	12, // 14: agent.v1.Command.quiesce:type_name -> agent.v1.QuiesceCommand
+	14, // 15: agent.v1.Command.resume:type_name -> agent.v1.ResumeCommand
+	17, // 16: agent.v1.Command.run_hooks:type_name -> agent.v1.RunHooksCommand
+	21, // 17: agent.v1.Command.snapshot_components:type_name -> agent.v1.SnapshotComponentsCommand
+	0,  // 18: agent.v1.QuiesceCommand.mode:type_name -> agent.v1.QuiesceMode
+	11, // 19: agent.v1.QuiesceResult.pre_state:type_name -> agent.v1.ContainerState
+	16, // 20: agent.v1.RunHooksCommand.hooks:type_name -> agent.v1.Hook
+	18, // 21: agent.v1.RunHooksResult.results:type_name -> agent.v1.HookResult
+	1,  // 22: agent.v1.ComponentSpec.kind:type_name -> agent.v1.ComponentKind
+	20, // 23: agent.v1.SnapshotComponentsCommand.components:type_name -> agent.v1.ComponentSpec
+	1,  // 24: agent.v1.ComponentResult.kind:type_name -> agent.v1.ComponentKind
+	22, // 25: agent.v1.SnapshotComponentsResult.components:type_name -> agent.v1.ComponentResult
+	2,  // 26: agent.v1.CommandUpdate.state:type_name -> agent.v1.CommandState
+	27, // 27: agent.v1.CommandUpdate.discover:type_name -> agent.v1.DiscoverResult
+	28, // 28: agent.v1.CommandUpdate.echo:type_name -> agent.v1.EchoResult
+	13, // 29: agent.v1.CommandUpdate.quiesce:type_name -> agent.v1.QuiesceResult
+	15, // 30: agent.v1.CommandUpdate.resume:type_name -> agent.v1.ResumeResult
+	19, // 31: agent.v1.CommandUpdate.run_hooks:type_name -> agent.v1.RunHooksResult
+	23, // 32: agent.v1.CommandUpdate.snapshot_components:type_name -> agent.v1.SnapshotComponentsResult
+	3,  // 33: agent.v1.AgentService.Connect:input_type -> agent.v1.ConnectRequest
+	33, // 34: agent.v1.EnrollmentService.GetCA:input_type -> agent.v1.GetCARequest
+	35, // 35: agent.v1.EnrollmentService.Enroll:input_type -> agent.v1.EnrollRequest
+	37, // 36: agent.v1.EnrollmentService.Renew:input_type -> agent.v1.RenewRequest
+	4,  // 37: agent.v1.AgentService.Connect:output_type -> agent.v1.ConnectResponse
+	34, // 38: agent.v1.EnrollmentService.GetCA:output_type -> agent.v1.GetCAResponse
+	36, // 39: agent.v1.EnrollmentService.Enroll:output_type -> agent.v1.EnrollResponse
+	38, // 40: agent.v1.EnrollmentService.Renew:output_type -> agent.v1.RenewResponse
+	37, // [37:41] is the sub-list for method output_type
+	33, // [33:37] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -1766,6 +3394,7 @@ func file_agent_v1_agent_proto_init() {
 		(*ConnectRequest_CommandUpdate)(nil),
 		(*ConnectRequest_Inventory)(nil),
 		(*ConnectRequest_Health)(nil),
+		(*ConnectRequest_Event)(nil),
 	}
 	file_agent_v1_agent_proto_msgTypes[1].OneofWrappers = []any{
 		(*ConnectResponse_Welcome)(nil),
@@ -1777,18 +3406,27 @@ func file_agent_v1_agent_proto_init() {
 	file_agent_v1_agent_proto_msgTypes[6].OneofWrappers = []any{
 		(*Command_Discover)(nil),
 		(*Command_Echo)(nil),
+		(*Command_ConfigureRepository)(nil),
+		(*Command_Quiesce)(nil),
+		(*Command_Resume)(nil),
+		(*Command_RunHooks)(nil),
+		(*Command_SnapshotComponents)(nil),
 	}
-	file_agent_v1_agent_proto_msgTypes[9].OneofWrappers = []any{
+	file_agent_v1_agent_proto_msgTypes[23].OneofWrappers = []any{
 		(*CommandUpdate_Discover)(nil),
 		(*CommandUpdate_Echo)(nil),
+		(*CommandUpdate_Quiesce)(nil),
+		(*CommandUpdate_Resume)(nil),
+		(*CommandUpdate_RunHooks)(nil),
+		(*CommandUpdate_SnapshotComponents)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   21,
+			NumEnums:      3,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

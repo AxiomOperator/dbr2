@@ -29,7 +29,7 @@ Recovery Plan 1──* Stage 1──* (Application | Consistency Group)
 | Entity | Definition | Notes |
 |---|---|---|
 | **Host** | A machine running a container runtime and a DBR² Agent | Identified by the agent's certificate identity |
-| **Agent** | The `dbr2-agent` instance on a Host | Lifecycle: **pending** (enrolled with a registration token, sessions refused) → **active** (approved) ⇄ **suspended**; **revoked** is permanent (ADR-0016). Identity is a CA-issued client certificate (`dbr2://agent/<id>`). It will also hold a Kopia user identity (ADR-0002, Phase 4). |
+| **Agent** | The `dbr2-agent` instance on a Host | Lifecycle: **pending** (enrolled with a registration token, sessions refused) → **active** (approved) ⇄ **suspended**; **revoked** is permanent (ADR-0016). Identity is a CA-issued client certificate (`dbr2://agent/<id>`). On each Repository it also has a Kopia user identity, `agent@<agent id>`, created when first needed; its password is held only by the agent and the reposerver (ADR-0002). |
 | **Runtime** | A container engine on a Host, behind the `ContainerRuntime` abstraction | Initially `DockerRuntime` (rootful). Rootless engines and `PodmanRuntime` come later. |
 | **Application** | The logical unit of protection and recovery: a set of services and their resources that are backed up and restored together | Kinds: **compose** (one Compose project), **container** (a standalone container) and **manual** (standalone containers grouped by an administrator). Its Compose definition is **Original** or **Reconstructed**. Ownership metadata: owner, environment (production, staging, development, test, other), criticality (critical, high, medium, low). Marked *missing* when it disappears from the host's latest inventory. |
 | **Compose Project** | The *definition source* of an Application: the Compose files, env files and project name found through `com.docker.compose.*` labels | 0..1 per Application. Its provenance is **Original** or **Reconstructed** (generated from runtime metadata). It is not itself a unit of protection. |
@@ -52,9 +52,11 @@ Recovery Plan 1──* Stage 1──* (Application | Consistency Group)
 
 | Entity | Definition | Notes |
 |---|---|---|
-| **Recovery Point (RP)** | An immutable, point-in-time, restorable capture of one Application | It exists if and only if its manifest is committed in the Repository. Status: Complete or Partial. Verification: Unverified, Verified or Verification Failed. |
-| **Component** | One captured part of an RP: config, volume, bind mount, database dump or image | Each is one tagged Kopia snapshot, marked required or optional |
+| **Recovery Point (RP)** | An immutable, point-in-time, restorable capture of one Application | It exists if and only if its manifest is committed in the Repository. Status: Complete or Partial. Verification: Unverified, Verified or Verification Failed. Index state in PostgreSQL: pending → committed or failed; **missing** when reindexing finds no manifest (ADR-0003). ID `rp_<ULID>`. |
+| **Component** | One captured part of an RP: config, volume, bind mount, database dump, image or fsmeta | Each is one tagged, pinned Kopia snapshot, marked required or optional. Each volume and bind mount has an `fsmeta` companion (ADR-0006). |
 | **Recovery Manifest** | A versioned JSON document describing an RP and its components | Stored in the Repository (authoritative) and indexed in PostgreSQL |
+| **Escrow Recipient** | An age public key that every Repository password is sealed to | v1.0 requires two, held by two people offline (ADR-0008) |
+| **Alert** | A notification raised by the platform (backup failed, Partial recovery point, auto-resume, not resumed) | Stored in the notification outbox until acknowledged |
 | **Backup Job** | One execution of the backup workflow for an Application | A Temporal workflow with ID `application/{id}` (ADR-0011). It produces 0 or 1 RP. |
 
 ### Recovery

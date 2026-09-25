@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	agentv1 "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1"
+	"github.com/AxiomOperator/dbr2/internal/engine"
 	"github.com/AxiomOperator/dbr2/internal/pki"
 	"github.com/AxiomOperator/dbr2/internal/runtime"
 	"github.com/AxiomOperator/dbr2/internal/version"
@@ -53,6 +54,14 @@ type Agent struct {
 	// push after start; zero = 10 s. Tests set it high to keep periodic
 	// discovery out of command-execution counts.
 	FirstInventoryDelay time.Duration
+	// OpenRepository connects to a repository server; nil = kopia.ConnectServer.
+	// Tests substitute a filesystem repository.
+	OpenRepository func(ctx context.Context, c engine.ServerConnection) (engine.Repository, error)
+
+	repos   *repoCache
+	leases  *leaseManager
+	jobs    *limiter
+	pending []*agentv1.AgentEvent // events raised while disconnected (guarded by mu)
 }
 
 type outbound struct {
@@ -74,16 +83,32 @@ func (o *outbound) send(m *agentv1.ConnectRequest) bool {
 // New loads identity and state. rt may be nil (commands needing the runtime
 // then fail with a retryable error).
 func New(cfg *Config, rt runtime.ContainerRuntime, log *slog.Logger) (*Agent, error) {
-	a := &Agent{cfg: cfg, rt: rt, log: log, started: time.Now(), running: map[string]bool{}}
+	a := &Agent{cfg: cfg, rt: rt, log: log}
 	if err := a.loadIdentity(); err != nil {
 		return nil, err
 	}
-	j, err := OpenJournal(cfg.path(jrnlFile))
+	if err := a.init(); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// init opens the local state (journal, quiesce leases).
+func (a *Agent) init() error {
+	a.started, a.running = time.Now(), map[string]bool{}
+	j, err := OpenJournal(a.cfg.path(jrnlFile))
 	if err != nil {
-		return nil, fmt.Errorf("open journal: %w", err)
+		return fmt.Errorf("open journal: %w", err)
 	}
 	a.journal = j
-	return a, nil
+	a.repos = &repoCache{entries: map[string]*repoEntry{}}
+	a.jobs = newLimiter(defaultMaxJobs)
+	lm, err := openLeases(a.cfg.path(leasesFile), a.control, a.event, a.log)
+	if err != nil {
+		return fmt.Errorf("open quiesce leases: %w", err)
+	}
+	a.leases = lm
+	return nil
 }
 
 func (a *Agent) loadIdentity() error {
@@ -148,6 +173,10 @@ func (a *Agent) tlsConfig() (*tls.Config, error) {
 // exponential backoff (honouring retry_after from rejects).
 func (a *Agent) Run(ctx context.Context) error {
 	defer a.journal.Close()
+	defer a.repos.closeAll()
+	_ = os.RemoveAll(a.cfg.path(tmpDir)) // staging left by a crash
+	// Dead-man switch first: expired leases resume before anything else.
+	a.leases.start(ctx)
 	go a.periodic(ctx)
 	backoff := time.Second
 	for {
@@ -234,6 +263,11 @@ func (a *Agent) session(ctx context.Context) (time.Duration, error) {
 	}
 	a.log.Info("connected to gateway", "server", a.cfg.Server, "session", first.GetWelcome().SessionId,
 		"gateway_version", first.GetWelcome().GatewayVersion)
+	if n := first.GetWelcome().MaxConcurrentJobs; n > 0 {
+		a.jobs.setLimit(int(n))
+	} else {
+		a.jobs.setLimit(defaultMaxJobs)
+	}
 
 	out := &outbound{ch: make(chan *agentv1.ConnectRequest, 64), done: make(chan struct{})}
 	a.mu.Lock()
@@ -267,6 +301,7 @@ func (a *Agent) session(ctx context.Context) (time.Duration, error) {
 	for _, u := range a.journal.Unacked() {
 		out.send(&agentv1.ConnectRequest{Body: &agentv1.ConnectRequest_CommandUpdate{CommandUpdate: u}})
 	}
+	a.flushEvents(out)
 	go a.sendHealth(sctx)
 
 	for {
@@ -321,6 +356,16 @@ func kindOf(c *agentv1.Command) string {
 		return "discover"
 	case *agentv1.Command_Echo:
 		return "echo"
+	case *agentv1.Command_ConfigureRepository:
+		return "configure_repository"
+	case *agentv1.Command_Quiesce:
+		return "quiesce"
+	case *agentv1.Command_Resume:
+		return "resume"
+	case *agentv1.Command_RunHooks:
+		return "run_hooks"
+	case *agentv1.Command_SnapshotComponents:
+		return "snapshot_components"
 	}
 	return "unknown"
 }
@@ -394,6 +439,47 @@ func (a *Agent) execute(ctx context.Context, c *agentv1.Command) *agentv1.Comman
 		}
 		u := update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
 		u.Result = &agentv1.CommandUpdate_Discover{Discover: &agentv1.DiscoverResult{InventoryJson: data}}
+		return u
+	case *agentv1.Command_ConfigureRepository:
+		if err := a.configureRepository(ctx, k.ConfigureRepository); err != nil {
+			return fail(err, !isPermanent(err))
+		}
+		return update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
+	case *agentv1.Command_Quiesce:
+		res, err := a.leases.quiesce(ctx, k.Quiesce)
+		if err != nil {
+			return fail(err, !isPermanent(err))
+		}
+		u := update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
+		u.Result = &agentv1.CommandUpdate_Quiesce{Quiesce: res}
+		return u
+	case *agentv1.Command_Resume:
+		res, err := a.leases.resume(ctx, k.Resume.LeaseId)
+		if err != nil {
+			return fail(err, !isPermanent(err))
+		}
+		u := update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
+		u.Result = &agentv1.CommandUpdate_Resume{Resume: res}
+		return u
+	case *agentv1.Command_RunHooks:
+		res, err := a.runHooks(ctx, k.RunHooks)
+		var u *agentv1.CommandUpdate
+		if err != nil {
+			u = fail(err, !isPermanent(err))
+		} else {
+			u = update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
+		}
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_RunHooks{RunHooks: res}
+		}
+		return u
+	case *agentv1.Command_SnapshotComponents:
+		res, err := a.snapshotComponents(ctx, c.CommandId, k.SnapshotComponents)
+		if err != nil {
+			return fail(err, !isPermanent(err))
+		}
+		u := update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
+		u.Result = &agentv1.CommandUpdate_SnapshotComponents{SnapshotComponents: res}
 		return u
 	}
 	return fail(fmt.Errorf("unsupported command %T (upgrade the agent)", c.Kind), false)

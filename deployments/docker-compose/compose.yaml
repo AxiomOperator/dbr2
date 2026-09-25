@@ -30,6 +30,7 @@ volumes:
   caddy-data: {}
   caddy-config: {}
   server-state: {}
+  reposerver-state: {}
 
 secrets:
   postgres_password: { file: ./secrets/postgres_password }
@@ -132,19 +133,38 @@ services:
   # One reposerver per Repository (ADR-0002). v1.0: the NAS is mounted on the
   # Docker host at DBR2_REPO_HOST_PATH (nfs4, hard) and bind-mounted here; the
   # storage guard refuses to run unless it is an active nfs4 mount with the
-  # matching sentinel. Initialize once: docker compose run --rm dbr2-reposerver init
+  # matching sentinel.
+  # The embedded Kopia repository server (HTTPS, self-signed certificate that
+  # clients pin by SHA-256 fingerprint; per-agent Kopia users + ACLs) is
+  # published for agents on other hosts. The management API (:8091, internal
+  # token) is reachable only on the dbr2 network. The Kopia repository itself
+  # is created through the escrow flow (POST /v1/initialize via dbr2-server).
   dbr2-reposerver:
     image: ${DBR2_REGISTRY:-ghcr.io/axiomoperator}/dbr2-reposerver:${DBR2_REPOSERVER_VERSION:-0.1.0}
     restart: unless-stopped
+    # The Kopia child gets 20 s after SIGTERM before it is killed.
+    stop_grace_period: 30s
     environment:
       DBR2_REPOSITORY_ID: ${DBR2_REPOSITORY_ID:-primary}
       DBR2_REPOSERVER_PATH: /mnt/dbr2-repo
       DBR2_REPOSERVER_EXPECT_FSTYPE: nfs4
+      # Repository password, Kopia config/cache, TLS key pair (0700).
+      DBR2_REPOSERVER_STATE_DIR: /var/lib/dbr2/reposerver
+      DBR2_REPOSERVER_KOPIA_ADDR: 0.0.0.0:51515
+      DBR2_REPOSERVER_TLS_NAMES: ${DBR2_HOSTNAME:-localhost},dbr2-reposerver
+      DBR2_REPOSERVER_MGMT_ADDR: ":8091"
+      DBR2_INTERNAL_TOKEN_FILE: /run/secrets/dbr2_internal_token
+    secrets: [dbr2_internal_token]
+    ports:
+      - "${DBR2_REPOSERVER_PORT:-51515}:51515"
     volumes:
       - type: bind
         source: ${DBR2_REPO_HOST_PATH:-/mnt/dbr2-repo}
         target: /mnt/dbr2-repo
         bind: { propagation: rslave }
+      # Mounted at /var/lib/dbr2 (owned by the image's nonroot user, which a
+      # new named volume inherits); the state dir is its reposerver/ subdir.
+      - reposerver-state:/var/lib/dbr2
     networks: [dbr2]
 
   postgres:

@@ -497,6 +497,7 @@ func (a *agentServer) Connect(stream agentv1.AgentService_ConnectServer) error {
 	if err := stream.Send(&agentv1.ConnectResponse{Body: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
 		SessionId: s.id, GatewayVersion: version.Of(version.Server), ProtocolVersion: version.Of(version.AgentProtocol),
 		HeartbeatIntervalSeconds: uint32(g.cfg.HeartbeatInterval / time.Second),
+		MaxConcurrentJobs:        g.maxConcurrentJobs(ctx, id),
 	}}}); err != nil {
 		return err
 	}
@@ -549,6 +550,8 @@ func (a *agentServer) Connect(stream agentv1.AgentService_ConnectServer) error {
 				if _, err := g.IngestInventory(sctx, agentID, b.Inventory.InventoryJson); err != nil {
 					g.log.ErrorContext(sctx, "periodic inventory ingestion failed", "agent_id", agentID, "err", err)
 				}
+			case *agentv1.ConnectRequest_Event:
+				g.recordAgentEvent(sctx, agentID, b.Event)
 			case *agentv1.ConnectRequest_Health:
 				h := b.Health
 				_ = g.q.UpdateAgentHealth(sctx, store.UpdateAgentHealthParams{ID: id, DockerReachable: &h.DockerReachable,

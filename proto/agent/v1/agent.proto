@@ -31,6 +31,8 @@ message ConnectRequest {
     // Unsolicited periodic discovery result.
     InventoryReport inventory = 4;
     HealthReport health = 5;
+    // Unsolicited event (quiesce auto-resume, lease warnings; ADR-0005).
+    AgentEvent event = 6;
   }
 }
 
@@ -71,6 +73,9 @@ message Welcome {
   string protocol_version = 3;
   // Seconds between heartbeats the gateway expects.
   uint32 heartbeat_interval_seconds = 4;
+  // Maximum number of data-moving commands (snapshots, restores) the agent
+  // runs at once; further commands queue on the agent (0 = agent default).
+  uint32 max_concurrent_jobs = 5;
 }
 
 // Heartbeat keeps the session and its PostgreSQL lease alive. The gateway
@@ -102,7 +107,189 @@ message Command {
   oneof kind {
     DiscoverCommand discover = 10;
     EchoCommand echo = 11;
+    ConfigureRepositoryCommand configure_repository = 12;
+    QuiesceCommand quiesce = 13;
+    ResumeCommand resume = 14;
+    RunHooksCommand run_hooks = 15;
+    SnapshotComponentsCommand snapshot_components = 16;
   }
+}
+
+// ConfigureRepositoryCommand gives the agent its Kopia identity for one
+// Repository (ADR-0002). The agent connects to the repository server as
+// user@host (host = agent ID) and pins the server certificate by its SHA-256
+// fingerprint. The password is stored only in the agent's state directory.
+message ConfigureRepositoryCommand {
+  string repository_id = 1;
+  string server_url = 2;
+  string cert_sha256 = 3;
+  string username = 4;
+  string hostname = 5;
+  string password = 6;
+}
+
+// ContainerState is the pre-quiesce state of one container (ADR-0005).
+message ContainerState {
+  string id = 1;
+  string name = 2;
+  // running | paused | exited | created | …
+  string state = 3;
+}
+
+// QuiesceMode selects how an application is quiesced.
+enum QuiesceMode {
+  QUIESCE_MODE_UNSPECIFIED = 0;
+  // Pause containers (cgroup freezer): no writes, no restart.
+  QUIESCE_MODE_PAUSE = 1;
+  // Stop containers (Offline consistency mode).
+  QUIESCE_MODE_STOP = 2;
+}
+
+// QuiesceCommand quiesces an application's containers and arms the agent's
+// dead-man switch: unless Resume arrives first, the agent resumes the
+// application on its own when the lease expires (ADR-0005 layer 2).
+message QuiesceCommand {
+  // Lease key, normally the recovery point ID.
+  string lease_id = 1;
+  string application_id = 2;
+  repeated string container_ids = 3;
+  QuiesceMode mode = 4;
+  uint32 lease_seconds = 5;
+}
+
+// QuiesceResult records the pre-state the agent will restore.
+message QuiesceResult {
+  repeated ContainerState pre_state = 1;
+  int64 quiesced_at_unix_ms = 2;
+  int64 lease_expires_unix_ms = 3;
+}
+
+// ResumeCommand restores the pre-state recorded by Quiesce. Idempotent: an
+// unknown or already released lease succeeds with already_resumed set.
+message ResumeCommand {
+  string lease_id = 1;
+}
+
+// ResumeResult reports what Resume did.
+message ResumeResult {
+  bool already_resumed = 1;
+  // The dead-man switch had already resumed the application.
+  bool auto_resumed = 2;
+  repeated string resumed_container_ids = 3;
+}
+
+// Hook runs one command inside a container (docker exec, no shell unless
+// the command invokes one).
+message Hook {
+  string container_id = 1;
+  repeated string command = 2;
+  uint32 timeout_seconds = 3;
+  // A failing optional hook is reported but does not fail the command.
+  bool optional = 4;
+}
+
+// RunHooksCommand runs pre- or post-backup hooks in order.
+message RunHooksCommand {
+  // pre | post
+  string phase = 1;
+  repeated Hook hooks = 2;
+}
+
+// HookResult is the outcome of one hook.
+message HookResult {
+  string container_id = 1;
+  int32 exit_code = 2;
+  // Truncated combined output (secrets are the hook author's responsibility).
+  string output = 3;
+  string error = 4;
+  int64 duration_ms = 5;
+}
+
+// RunHooksResult lists every hook outcome.
+message RunHooksResult {
+  repeated HookResult results = 1;
+}
+
+// ComponentKind mirrors the recovery manifest component kinds (ADR-0004).
+enum ComponentKind {
+  COMPONENT_KIND_UNSPECIFIED = 0;
+  COMPONENT_KIND_CONFIG = 1;
+  COMPONENT_KIND_VOLUME = 2;
+  COMPONENT_KIND_BIND_MOUNT = 3;
+  COMPONENT_KIND_DATABASE = 4;
+  COMPONENT_KIND_IMAGE = 5;
+  COMPONENT_KIND_FSMETA = 6;
+}
+
+// ComponentSpec describes one component to capture.
+message ComponentSpec {
+  // Unique within the recovery point, e.g. "volume:shop_db-data".
+  string name = 1;
+  ComponentKind kind = 2;
+  // Host path to read (volume mountpoint or bind-mount source). For config
+  // components: the Compose project working directory (may be empty).
+  string path = 3;
+  // Volume name (volume components).
+  string volume_name = 4;
+  bool required = 5;
+  // Config components: the files to stage (absolute host paths).
+  repeated string files = 6;
+  // Config components: the application's inventory JSON to stage as
+  // discovery.json.
+  bytes metadata_json = 7;
+  // Filesystem components: also capture an fsmeta component (ADR-0006).
+  bool capture_fsmeta = 8;
+  // Config components: containers whose full runtime inspect document the
+  // agent stages as containers/<id>.json (it holds the real environment,
+  // which never passes through the control plane in clear text).
+  repeated string container_ids = 9;
+}
+
+// SnapshotComponentsCommand snapshots components of one recovery point into
+// the configured Repository. Snapshots are tagged with the dbr2-* keys and
+// pinned; the manifest is written later by the worker (ADR-0004).
+message SnapshotComponentsCommand {
+  string repository_id = 1;
+  string recovery_point_id = 2;
+  string application_id = 3;
+  repeated ComponentSpec components = 4;
+  // Seed pass: a live pass tagged dbr2-kind=seed that is never committed; it
+  // loads content so the consistent pass only uploads the delta (ADR-0005).
+  bool seed = 5;
+}
+
+// ComponentResult is the outcome of one component.
+message ComponentResult {
+  string name = 1;
+  ComponentKind kind = 2;
+  bool required = 3;
+  // succeeded | failed | skipped
+  string status = 4;
+  string error = 5;
+  string snapshot_id = 6;
+  string root_object_id = 7;
+  // Snapshot source (user@host:path) as recorded by the Repository.
+  string source = 8;
+  int64 size_bytes = 9;
+  int64 files = 10;
+  int64 started_unix_ms = 11;
+  int64 finished_unix_ms = 12;
+  string path = 13;
+  string volume_name = 14;
+  // Root directory ownership and SELinux context (ADR-0006).
+  uint32 owner_uid = 15;
+  uint32 owner_gid = 16;
+  string mode = 17;
+  string selinux_context = 18;
+  // The component this fsmeta record belongs to (fsmeta components).
+  string parent = 19;
+  // live | snapshot (filesystem snapshot used; ADR-0005)
+  string capture_method = 20;
+}
+
+// SnapshotComponentsResult lists every component outcome.
+message SnapshotComponentsResult {
+  repeated ComponentResult components = 1;
 }
 
 // DiscoverCommand collects the host inventory (Phase 3).
@@ -140,6 +327,10 @@ message CommandUpdate {
   oneof result {
     DiscoverResult discover = 10;
     EchoResult echo = 11;
+    QuiesceResult quiesce = 12;
+    ResumeResult resume = 13;
+    RunHooksResult run_hooks = 14;
+    SnapshotComponentsResult snapshot_components = 15;
   }
 }
 
@@ -161,6 +352,18 @@ message CommandAck {
 // InventoryReport is an unsolicited periodic discovery result.
 message InventoryReport {
   bytes inventory_json = 1;
+}
+
+// AgentEvent is an unsolicited event the gateway records (audit + alerts).
+message AgentEvent {
+  // quiesce.auto_resumed | quiesce.resume_failed | quiesce.lease_warning
+  string type = 1;
+  // critical | warning | info
+  string severity = 2;
+  string application_id = 3;
+  string lease_id = 4;
+  string message = 5;
+  int64 occurred_unix_ms = 6;
 }
 
 // HealthReport describes the agent's view of its host.

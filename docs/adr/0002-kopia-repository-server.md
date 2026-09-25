@@ -81,3 +81,20 @@ Therefore `dbr2-reposerver`:
    On host installs, the systemd unit also uses `RequiresMountsFor=` and `ConditionPathIsMountPoint=`.
 2. Runs a **stall watchdog**: a periodic `stat` of the sentinel with a timeout, performed in a separate goroutine because `hard` NFS mounts block instead of returning errors. The reposerver reports unhealthy and raises an alert when the check stalls.
 3. Relies on activity heartbeats (ADR-0001) so that workflows detect a stalled data path and retry after recovery.
+
+## Phase 4 implementation amendment (2026-09-25)
+
+Decisions made while implementing `dbr2-reposerver` and the backup path:
+
+1. **TLS by fingerprint pinning, not by the DBR² CA.** Kopia clients can only trust a repository server by the SHA-256 fingerprint of its certificate (`TrustedServerCertificateFingerprint`); they cannot be given a custom CA. The reposerver therefore generates a **stable self-signed certificate** in its state directory. `dbr2-server` records the fingerprint (`repositories.cert_sha256`) when the Repository is created, and agents and the worker pin it. A changed fingerprint (replaced reposerver state) is shown as a Repository error; nothing re-trusts it automatically.
+2. **Repository password custody.** `dbr2-server` generates the password when a Repository is created, passes it once to the reposerver (`POST /v1/initialize`) and seals it into the age escrow package (ADR-0008). **It is not stored by `dbr2-server`.** It exists only in the reposerver state directory (0600) and in the escrow package.
+3. **Kopia identities.**
+   - Agents: user `agent`, host `<agent ID>` (`agent@<agent ID>`). A random 256-bit password is set on the reposerver and handed to the agent once, as a `ConfigureRepository` command over its mTLS session. It is stored only in the agent state directory (0600).
+   - `maint@dbr2`: `dbr2-worker` sets a **fresh random password every time it opens a session** (every worker start), and keeps it only in memory.
+4. **Management API.** Plain HTTP on `:8091`, reachable only on the deployment network. Bearer internal token (`DBR2_INTERNAL_TOKEN`, at least 32 characters). Endpoints: `GET /v1/status`, `POST /v1/initialize`, `PUT`/`DELETE /v1/users/{user}`, `POST`/`DELETE /v1/acl/read-grants`.
+5. **Process model.** The Kopia server runs as a supervised **child process of the same `dbr2-reposerver` binary** (hidden `kopia` subcommand running Kopia's public `cli` package). There is still no external `kopia` binary. The child keeps secrets out of `argv`: they are passed through environment variables that are removed from the child's own environment. The child is restarted with backoff, and the storage guard is checked before every start.
+6. **Policy and ACLs.**
+   - Global policy: `zstd-fastest` compression; every retention bucket kept at 10⁹ (retention never deletes).
+   - ACLs: Kopia's three default FULL entries are replaced by the spike-verified set (`*@*` APPEND content, APPEND own snapshots, READ own policies; `maint@dbr2` FULL on snapshots and policies).
+   - **ACL and user changes only apply to new sessions**, because Kopia checks them when a session opens. After revoking a read grant, the restore workflow (Phase 5) must reconnect.
+7. **Internal URL for the worker.** A Repository has a `server_url` (for agents, e.g. `https://backup.example.lan:51515`) and an optional `internal_server_url` (for `dbr2-worker` on the Compose network, e.g. `https://dbr2-reposerver:51515`). The same pinned certificate serves both.

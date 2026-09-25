@@ -23,6 +23,9 @@ import {
   UnprotectedBadge,
 } from "@/components/applications/app-badges";
 import { ComposeView } from "@/components/applications/compose-view";
+import { ApplicationBackups } from "@/components/backups/application-backups";
+import { BackUpNowButton } from "@/components/backups/back-up-now";
+import { BackupSettingsCard } from "@/components/backups/backup-settings-card";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-dialog";
 import { EditMetadataDialog } from "@/components/applications/edit-metadata-dialog";
 import { UnprotectedData } from "@/components/applications/unprotected-data";
@@ -40,6 +43,11 @@ import {
   type ApplicationDetail,
 } from "@/lib/api/fleet-schemas";
 import { useApplication } from "@/lib/api/hooks";
+import {
+  PERMISSION_BACKUP_EXECUTE,
+  PERMISSION_BACKUP_READ,
+  PERMISSION_POLICY_READ,
+} from "@/lib/api/protection-schemas";
 import { formatDateTime, formatRelative } from "@/lib/format";
 
 function Meta({ label, children }: { label: string; children: ReactNode }) {
@@ -56,6 +64,7 @@ function Header({ app }: { app: ApplicationDetail }) {
   const router = useRouter();
   const canManage = hasPermission(me, PERMISSION_APPLICATION_MANAGE);
   const canHosts = hasPermission(me, PERMISSION_HOST_READ);
+  const canBackup = hasPermission(me, PERMISSION_BACKUP_EXECUTE);
   const shown = displayName(app);
   const a = app.analysis;
 
@@ -72,10 +81,11 @@ function Header({ app }: { app: ApplicationDetail }) {
             {app.missing_since && <MissingBadge since={formatDateTime(app.missing_since)} />}
           </div>
         </div>
-        {canManage && (
+        {(canManage || canBackup) && (
           <div className="flex flex-wrap items-center gap-2">
-            <EditMetadataDialog app={app} />
-            {app.kind === "manual" && (
+            {canBackup && <BackUpNowButton applicationId={app.id} name={shown} />}
+            {canManage && <EditMetadataDialog app={app} />}
+            {canManage && app.kind === "manual" && (
               <DeleteApplicationButton
                 id={app.id}
                 name={shown}
@@ -155,43 +165,7 @@ function DetailBody({ id }: { id: string }) {
     <div className="space-y-6">
       <Header app={d} />
       {a ? (
-        <>
-          <UnprotectedData items={a.unprotected} />
-          <Tabs defaultValue="resources">
-            <TabsList>
-              <TabsTrigger value="resources">Resources</TabsTrigger>
-              <TabsTrigger value="containers">Containers ({d.containers_detail.length})</TabsTrigger>
-              <TabsTrigger value="compose">Compose</TabsTrigger>
-            </TabsList>
-            <TabsContent value="resources" className="mt-4 space-y-6">
-              {a.unprotected.length === 0 && (
-                <Alert role="status">
-                  <AlertTitle>No unprotected data detected</AlertTitle>
-                  <AlertDescription>
-                    Every writable path found in these containers is backed by a volume or bind mount.
-                  </AlertDescription>
-                </Alert>
-              )}
-              <ServicesSection analysis={a} />
-              <VolumesSection analysis={a} />
-              <BindMountsSection analysis={a} />
-              <TmpfsSection analysis={a} />
-              <NetworksSection analysis={a} />
-              <ImagesSection analysis={a} />
-              <DependenciesSection analysis={a} />
-            </TabsContent>
-            <TabsContent value="containers" className="mt-4">
-              <p className="mb-4 text-sm text-muted-foreground">
-                Collected {formatDateTime(d.collected_at)}. Sensitive environment values are masked
-                by the server.
-              </p>
-              <ContainersDetail containers={d.containers_detail} />
-            </TabsContent>
-            <TabsContent value="compose" className="mt-4">
-              <ComposeView applicationId={d.id} />
-            </TabsContent>
-          </Tabs>
-        </>
+        <UnprotectedData items={a.unprotected} />
       ) : (
         <Alert>
           <AlertTitle>Not in the latest inventory</AlertTitle>
@@ -202,7 +176,72 @@ function DetailBody({ id }: { id: string }) {
           </AlertDescription>
         </Alert>
       )}
+      <DetailTabs app={d} />
     </div>
+  );
+}
+
+function DetailTabs({ app: d }: { app: ApplicationDetail }) {
+  const me = useCurrentUser();
+  const a = d.analysis;
+  const canBackups = hasPermission(me, PERMISSION_BACKUP_READ);
+  const canSettings = hasPermission(me, PERMISSION_POLICY_READ);
+  const first = a ? "resources" : canBackups ? "backups" : canSettings ? "backup-settings" : null;
+  if (!first) return null;
+
+  return (
+    <Tabs defaultValue={first}>
+      <TabsList>
+        {a && <TabsTrigger value="resources">Resources</TabsTrigger>}
+        {a && <TabsTrigger value="containers">Containers ({d.containers_detail.length})</TabsTrigger>}
+        {a && <TabsTrigger value="compose">Compose</TabsTrigger>}
+        {canBackups && <TabsTrigger value="backups">Backups</TabsTrigger>}
+        {canSettings && <TabsTrigger value="backup-settings">Backup settings</TabsTrigger>}
+      </TabsList>
+      {a && (
+        <TabsContent value="resources" className="mt-4 space-y-6">
+          {a.unprotected.length === 0 && (
+            <Alert role="status">
+              <AlertTitle>No unprotected data detected</AlertTitle>
+              <AlertDescription>
+                Every writable path found in these containers is backed by a volume or bind mount.
+              </AlertDescription>
+            </Alert>
+          )}
+          <ServicesSection analysis={a} />
+          <VolumesSection analysis={a} />
+          <BindMountsSection analysis={a} />
+          <TmpfsSection analysis={a} />
+          <NetworksSection analysis={a} />
+          <ImagesSection analysis={a} />
+          <DependenciesSection analysis={a} />
+        </TabsContent>
+      )}
+      {a && (
+        <TabsContent value="containers" className="mt-4">
+          <p className="mb-4 text-sm text-muted-foreground">
+            Collected {formatDateTime(d.collected_at)}. Sensitive environment values are masked by
+            the server.
+          </p>
+          <ContainersDetail containers={d.containers_detail} />
+        </TabsContent>
+      )}
+      {a && (
+        <TabsContent value="compose" className="mt-4">
+          <ComposeView applicationId={d.id} />
+        </TabsContent>
+      )}
+      {canBackups && (
+        <TabsContent value="backups" className="mt-4">
+          <ApplicationBackups applicationId={d.id} />
+        </TabsContent>
+      )}
+      {canSettings && (
+        <TabsContent value="backup-settings" className="mt-4">
+          <BackupSettingsCard app={d} />
+        </TabsContent>
+      )}
+    </Tabs>
   );
 }
 

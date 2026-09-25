@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Command dbr2-reposerver serves one DBR² Repository (component
-// `reposerver`, ADR-0002). Phase 1 ships the storage-safety layer — the
-// mount guard, the repository sentinel and the stall watchdog — plus health
-// reporting. The embedded Kopia repository server arrives in Phase 4.
+// `reposerver`, ADR-0002): the storage-safety layer (mount guard, repository
+// sentinel, stall watchdog), the embedded Kopia repository server (Kopia's
+// public `cli` package, run as a supervised child process of this binary;
+// ADR-0007) and the internal management API (see internal/reposerver).
 //
-//	dbr2-reposerver [serve]   check storage, then serve /healthz
+//	dbr2-reposerver [serve]   check storage, run the Kopia server, serve
+//	                          /healthz and the management API
 //	dbr2-reposerver init      write the sentinel on an empty, correctly mounted path
 //	dbr2-reposerver check     run the guard once and exit non-zero on failure
 //	dbr2-reposerver version
@@ -13,19 +15,17 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/AxiomOperator/dbr2/internal/config"
 	"github.com/AxiomOperator/dbr2/internal/healthcheck"
 	"github.com/AxiomOperator/dbr2/internal/mountguard"
 	"github.com/AxiomOperator/dbr2/internal/obs"
+	"github.com/AxiomOperator/dbr2/internal/reposerver"
 	"github.com/AxiomOperator/dbr2/internal/version"
 )
 
@@ -39,6 +39,11 @@ func main() {
 	cmd := "serve"
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
+	}
+	if cmd == reposerver.KopiaSubcommand {
+		// Hidden: the embedded Kopia CLI, only run as a child of `serve`.
+		reposerver.KopiaMain(os.Args[2:])
+		return
 	}
 	if cmd == "healthcheck" {
 		addr := os.Getenv("DBR2_HEALTH_ADDR")
@@ -80,51 +85,7 @@ func main() {
 func serve(cfg *config.RepoServer, g *mountguard.Guard, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	// Refuse to start on unsafe storage (ADR-0002): never fall back to the
-	// local disk under an unmounted mount point.
-	if cfg.InitIfEmpty {
-		// Development profile only: initialize an empty, correctly mounted
-		// path. Initialize itself refuses unmounted or non-empty paths.
-		if err := g.Initialize(); err != nil {
-			return fmt.Errorf("storage guard (init-if-empty): %w", err)
-		}
-	}
-	if err := g.Check(); err != nil {
-		return fmt.Errorf("storage guard: %w (run `dbr2-reposerver init` once on a new, empty repository mount)", err)
-	}
-	w := &mountguard.Watchdog{Guard: g, Interval: cfg.WatchdogInterval, Timeout: cfg.WatchdogTimeout,
-		OnChange: func(err error) {
-			if err != nil {
-				log.Error("repository storage unhealthy", "path", cfg.Path, "err", err)
-			} else {
-				log.Info("repository storage healthy", "path", cfg.Path)
-			}
-		}}
-	go w.Run(ctx)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) {
-		ok, msg := w.Healthy()
-		rw.Header().Set("Content-Type", "application/json")
-		if !ok {
-			rw.WriteHeader(http.StatusServiceUnavailable)
-		}
-		_ = json.NewEncoder(rw).Encode(map[string]any{"healthy": ok, "error": msg,
-			"repository_id": cfg.RepositoryID, "path": cfg.Path, "version": version.Of(version.RepoServer)})
-	})
-	srv := &http.Server{Addr: cfg.HealthAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	go func() {
-		<-ctx.Done()
-		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(sctx)
-	}()
-	log.Info("dbr2-reposerver started (storage guard active; Kopia repository server arrives in Phase 4)",
-		"path", cfg.Path, "repository_id", cfg.RepositoryID, "health", cfg.HealthAddr)
-	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-		return err
-	}
-	return nil
+	return reposerver.Run(ctx, cfg, g, log)
 }
 
 func fatal(err error) {

@@ -8,7 +8,7 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
 | `dbr2-web` | Next.js console |
 | `dbr2-server` | Control plane API, Swagger UI at `/api/docs` |
 | `dbr2-worker` | Temporal worker |
-| `dbr2-reposerver` | Repository server (Phase 1: storage guard and watchdog) |
+| `dbr2-reposerver` | Kopia repository server (published on `51515` for agents; certificate pinned by fingerprint), management API on `:8091` (internal only), storage guard and stall watchdog |
 | `postgres` | PostgreSQL 18.6: `dbr2`, `temporal` and `temporal_visibility` databases with separate roles |
 | `valkey` | Disposable cache (no persistence, never used for locks) |
 | `temporal`, `temporal-schema`, `temporal-namespace` | Temporal 1.32.0, plus one-shot schema and namespace jobs |
@@ -29,7 +29,7 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
    ./init-secrets.sh
    ```
 
-3. **Initialize the Repository once.** This writes the sentinel file and refuses to run unless the path is an active, empty nfs4 mount:
+3. **Prepare the Repository storage once.** This writes the sentinel file and refuses to run unless the path is an active, empty nfs4 mount (the Kopia repository itself is created in step 6):
 
    ```bash
    docker compose run --rm dbr2-reposerver init
@@ -48,6 +48,26 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
    ```
 
    Change the password, enable TOTP, and delete the file.
+
+6. **Create the Repository (with key escrow, ADR-0008).** The console does this under **Repositories**; the API equivalent is:
+   1. On an offline machine, each of the two escrow holders runs `age-keygen -o escrow-<name>.txt`, keeps the identity file offline (in the safe), and gives you the public key (`age1…`).
+   2. Register both keys: `POST /api/v1/escrow/recipients {"name","public_key"}`.
+   3. Create the Repository:
+
+      ```json
+      POST /api/v1/repositories
+      {"name": "primary", "backend": "nfs", "default": true,
+       "management_url": "http://dbr2-reposerver:8091",
+       "server_url": "https://<DBR2_HOSTNAME>:51515",
+       "internal_server_url": "https://dbr2-reposerver:51515"}
+      ```
+
+      The response contains the **escrow package** (an age file). Store it offline (it is encrypted, so the NAS or a printout is fine as well).
+   4. An escrow holder decrypts it once (`age -d -i escrow-<name>.txt dbr2-escrow-repository-primary.age`) and enters its `confirmation_code`: `POST /api/v1/repositories/{id}/escrow/confirm`. Only then can the Repository be used.
+
+   Open TCP 51515 from the agent hosts to this host, and configure NAS snapshots on the share (`docs/operations/nas-snapshots.md`).
+
+7. **Back up.** Once a host is approved and discovered, run **Back up now** on an application (or `dbr2 backup --app <name> --wait`). Per-application settings (consistency mode, hooks, maximum quiesce, optional or excluded components) and per-host limits (concurrent jobs, backup window) are in the console.
 
 ## Entra ID
 

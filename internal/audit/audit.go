@@ -53,6 +53,24 @@ const (
 	ApplicationUpdated       = "application.updated"
 	ApplicationDeleted       = "application.deleted"
 	SecretsRevealed          = "secrets.revealed"
+	// Phase 4: repositories, escrow, backups.
+	EscrowRecipientAdded     = "escrow.recipient.added"
+	EscrowRecipientRemoved   = "escrow.recipient.removed"
+	RepositoryCreated        = "repository.created"
+	RepositoryEscrowExported = "repository.escrow.downloaded"
+	RepositoryEscrowConfirm  = "repository.escrow.confirmed"
+	RepositoryReindexRequest = "repository.reindex.requested"
+	RepositoryReindexed      = "repository.reindexed"
+	BackupSettingsUpdated    = "backup.settings.updated"
+	HostSettingsUpdated      = "host.settings.updated"
+	BackupRequested          = "backup.requested"
+	BackupCompleted          = "backup.completed"
+	BackupFailed             = "backup.failed"
+	ApplicationNotResumed    = "application.not_resumed"
+	QuiesceAutoResumed       = "quiesce.auto_resumed"
+	QuiesceResumeFailed      = "quiesce.resume_failed"
+	QuiesceLeaseWarning      = "quiesce.lease_warning"
+	AlertAcknowledged        = "alert.acknowledged"
 )
 
 // Result values.

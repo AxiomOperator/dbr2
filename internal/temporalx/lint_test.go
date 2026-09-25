@@ -19,7 +19,7 @@ import (
 func TestTemporalUsageLint(t *testing.T) {
 	root := "../.."
 	terminate := regexp.MustCompile(`\.TerminateWorkflow\(`)
-	execute := regexp.MustCompile(`\b[cC]lient\w*\.ExecuteWorkflow\(|\bc\.ExecuteWorkflow\(|\btc\.ExecuteWorkflow\(`)
+	execute := regexp.MustCompile(`\.ExecuteWorkflow\(`)
 	var problems []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -27,8 +27,11 @@ func TestTemporalUsageLint(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case "node_modules", "spikes", ".git", "web":
+			case "node_modules", "spikes", "web", "bin", "dist":
 				return filepath.SkipDir
+			}
+			if strings.HasPrefix(d.Name(), ".") && path != root {
+				return filepath.SkipDir // .git, .dev (root-owned dev state), …
 			}
 			return nil
 		}

@@ -120,7 +120,7 @@ func TestDiscoverHostThroughGatewayWithResume(t *testing.T) {
 	conn, _ := grpc.NewClient(ctrlLis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer conn.Close()
 	w := worker.New(c, "dbr2-test", worker.Options{})
-	workflows.Register(w, &diag.Activities{}, &hosts.Activities{Control: controlv1.NewGatewayControlServiceClient(conn), Token: token, WaitForAgent: time.Minute})
+	workflows.Register(w, &diag.Activities{}, &hosts.Activities{Control: controlv1.NewGatewayControlServiceClient(conn), Token: token, WaitForAgent: time.Minute}, nil)
 	if err := w.Start(); err != nil {
 		t.Fatal(err)
 	}

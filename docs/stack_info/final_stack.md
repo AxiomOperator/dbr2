@@ -519,30 +519,60 @@ Kopia remains responsible for efficiently storing the underlying backup data.
 
 Each Repository is served by a **Kopia Repository Server**, deployed as `dbr2-reposerver`.
 
-* Only `dbr2-reposerver` holds the repository password and the storage backend credentials.
-* Each agent authenticates as its own Kopia user. Its ACLs allow APPEND on its own snapshots and READ on its own policies, and nothing else. Agents **cannot delete** (spike-verified).
-* Every DBR² snapshot is **pinned**, and Kopia's own retention keeps everything. DBR² retention deletes whole recovery points through the **`maint@dbr2`** identity, which only `dbr2-worker` holds. Recovery manifests are written only by `maint@dbr2`.
-* **Maintenance and GC run inside `dbr2-reposerver`.** It runs Kopia's server in-process through Kopia's public `cli` package, because the server code itself is not importable (ADR-0007).
-* The agent splits and hashes data and skips content the server already has; the reposerver compresses and encrypts. **TLS on the agent link is mandatory.** New repositories use the `DYNAMIC-1M-BUZHASH` splitter.
+* Only `dbr2-reposerver` holds the repository password (plus the offline escrow package, ADR-0008). `dbr2-server` generates the password when the Repository is created and does not keep it.
+* Each agent authenticates as its own Kopia user, `agent@<agent ID>`. Its ACLs allow APPEND on its own snapshots and READ on its own policies, and nothing else. Agents **cannot delete** (spike- and integration-verified).
+* Every DBR² snapshot is **pinned**, and Kopia's own retention keeps everything (global policy keeps 10⁹ of every bucket). DBR² retention deletes whole recovery points through the **`maint@dbr2`** identity, which only `dbr2-worker` holds. Its password is regenerated at every worker start and kept only in memory. Recovery manifests are written only by `maint@dbr2`.
+* **Maintenance and GC run inside `dbr2-reposerver`.** It runs Kopia's server as a supervised child of its own binary through Kopia's public `cli` package, because the server code itself is not importable (ADR-0007).
+* The agent splits and hashes data and skips content the server already has; the reposerver compresses (`zstd-fastest`) and encrypts. **TLS on the agent link is mandatory.** The certificate is a stable self-signed one, **pinned by SHA-256 fingerprint**, which is the only trust mode Kopia clients support. New repositories use the `DYNAMIC-1M-BUZHASH` splitter.
+* A **management API** (`:8091`, deployment network only, internal token) creates the repository, manages Kopia users and grants temporary per-source READ access for cross-host restores.
 * Isolation caveat: object IDs act as read keys, and there is a content-existence oracle across agents. Use one Repository per host where strict host-to-host confidentiality is required (ADR-0002).
 * S3 Object Lock is used underneath where the storage backend supports it (v2).
 
+### Repository creation and key escrow (ADR-0008)
+
+1. Register the **escrow recipients**: two age public keys (`age1…`) in v1.0, whose private identities are kept offline in a safe. SSH ed25519/RSA public keys are also accepted. Private keys pasted by mistake are rejected.
+2. **Create the Repository** against an empty reposerver. `dbr2-server` generates the password, initializes the repository, and returns an **age-armored escrow package** encrypted to every recipient. The package contains the password, recovery instructions and a one-time **confirmation code**. The Repository is `awaiting_escrow` and **cannot be used for backups**.
+3. Store the package offline, decrypt it once with an escrow identity (`age -d -i identity.txt package.age`), and **enter the confirmation code**. This proves the package decrypts, and the Repository becomes `ready`.
+4. Recovery without DBR²: the password from the package plus a stock `kopia` CLI (verified: `kopia snapshot list --all --tags dbr2-kind:manifest`).
+
 ### Backup engine abstraction
 
-A **backup engine** abstraction is maintained internally, so that DBR² is not permanently coupled to Kopia (ADR-0012 terminology):
+A **backup engine** abstraction is maintained internally, so that DBR² is not permanently coupled to Kopia (ADR-0012 terminology). `internal/engine` defines it; `internal/engine/kopia` is the only package that imports Kopia:
 
 ```go
-type BackupEngine interface {
-    Backup(...)
-    Restore(...)
-    Verify(...)
-    Delete(...)
-    List(...)
-    Stats(...)
+type Repository interface {
+    SnapshotPath(ctx, dir, SnapshotRequest) (*Snapshot, error)
+    SnapshotStream(ctx, fileName, io.Reader, SnapshotRequest) (*Snapshot, error)
+    List(ctx, *Source, tags) ([]Snapshot, error)
+    Get(ctx, id) (*Snapshot, error)
+    Delete(ctx, id) error
+    RestorePath(ctx, id, targetDir, RestoreOptions) error
+    OpenStream(ctx, id, fileName) (io.ReadCloser, error)
+    Close(ctx) error
 }
 ```
 
-This allows additional backup engine implementations in the future.
+It handles the spike pitfalls in one place: deep restores (`RestoreDirEntryAtDepth = MaxInt32`), cancellation bridged to `Uploader.Cancel()`, incomplete snapshots never saved, hyphenated `dbr2-*` tag keys, and incremental uploads based on the previous snapshot of the same source.
+
+### Backup workflow (Phase 4)
+
+Workflow ID `application/<id>` (one operation per application; ADR-0011). Manual start: `POST /api/v1/applications/{id}/backups` or `dbr2 backup --app <name> [--wait]`.
+
+1. **Prepare** (`dbr2-server`): check that the host is active and the Repository is `ready`, record a `pending` recovery point, and build the plan from the latest inventory:
+   * `config`: Compose and env files, plus a redacted metadata document and the raw `docker inspect` of every container, staged by the agent.
+   * `volume:<name>`: every Local volume.
+   * `bind:<path>`: every bind mount, except host plumbing such as sockets, `/proc`, `/sys`, `/dev`, `/run` and `/etc/hosts`.
+   * An **`fsmeta:`** record for each filesystem component.
+
+   Scheduled backups wait for the host's **backup window**.
+2. **Agent access:** on first use, the server creates `agent@<agent ID>` on the reposerver and hands the agent its credentials over mTLS.
+3. **Seed pass:** for Quiesced and Offline backups, filesystem components that are not in the last committed recovery point get a Live pass first (tagged `dbr2-kind=seed`, never committed). The consistent pass then only uploads the delta.
+4. **Pre hooks → Quiesce** (pause in Quiesced mode, stop in Offline mode). The quiesce lease is the maximum quiesce time plus 10 minutes, and the agent's **dead-man switch** resumes the application on its own if the lease expires.
+5. **Protect:** the agent snapshots every component (tagged and pinned), bounded by the maximum quiesce time and limited by the host's **maximum concurrent jobs**.
+6. **Resume → post hooks.** These are saga compensations too, so they also run on failure and cancellation.
+7. **Commit** (`dbr2-worker` as `maint@dbr2`): verify every component snapshot's source and tags, write the manifest last, and record the recovery point as `committed` (Complete or Partial). If a required component failed, **no manifest** is written, the job fails and a critical alert is raised.
+
+Consistency modes: **Automatic** (the default) means Quiesced when hooks are defined, otherwise Live (crash-consistent). The other modes are Live, Quiesced (pause) and Offline (stop). Orphaned components and seed passes are garbage-collected after 7 days by the `platform-orphan-gc` schedule. `dbr2 admin reindex --repository <name>` rebuilds the index from the manifests.
 
 ### Recovery points (ADR-0004)
 

@@ -77,10 +77,13 @@ func (c *Config) Save(path string) error {
 
 // State file names inside StateDir.
 const (
-	keyFile  = "agent.key"
-	certFile = "agent.crt"
-	caFile   = "ca.crt"
-	jrnlFile = "journal.jsonl"
+	keyFile    = "agent.key"
+	certFile   = "agent.crt"
+	caFile     = "ca.crt"
+	jrnlFile   = "journal.jsonl"
+	leasesFile = "leases.json"
+	reposDir   = "repositories"
+	tmpDir     = "tmp"
 )
 
 func (c *Config) path(name string) string { return filepath.Join(c.StateDir, name) }

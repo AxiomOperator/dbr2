@@ -3,8 +3,10 @@
 // Command dbr2-agent is the DBR² data-plane agent (component `agent`,
 // ADR-0006): a native systemd service on each protected Docker host. It
 // enrolls with a single-use token, keeps an outbound mTLS session to the
-// Agent Gateway, runs commands from a durable journal (ADR-0001) and reports
-// its Docker inventory (Phase 3).
+// Agent Gateway, runs commands from a durable journal (ADR-0001), reports
+// its Docker inventory (Phase 3) and captures backups: repository
+// configuration, quiesce/resume with a dead-man switch (ADR-0005), hooks and
+// component snapshots into the Kopia repository server (Phase 4).
 //
 //	dbr2-agent enroll --server <host:port> --token <token> --ca-sha256 <fingerprint>
 //	dbr2-agent run [--config /etc/dbr2/agent.yaml]

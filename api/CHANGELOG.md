@@ -5,6 +5,8 @@ All notable changes to the `api` component. Format: [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Repositories: `GET/POST /repositories`, `GET /repositories/{id}` (live status, `usage_by_host`), `GET /repositories/{id}/escrow-package`, `POST /repositories/{id}/escrow/confirm`, `POST /repositories/{id}/reindex` (202); escrow recipients `GET/POST /escrow/recipients`, `DELETE /escrow/recipients/{id}`.
+- Backups: `POST /applications/{id}/backups` (202; 409 while an operation runs or the Repository is not ready), `GET/PUT /applications/{id}/backup-settings`, `GET /recovery-points`, `GET /recovery-points/{id}` (with manifest), `GET /alerts`, `POST /alerts/{id}/acknowledge`; host limits `GET/PUT /agents/{id}/settings`. Additive only.
 - Hosts: `GET /agents`, `GET /agents/{id}`, `POST /agents/{id}/{approve,suspend,resume,revoke}` (reason required), `POST /agents/{id}/discover` (202), `GET /agents/{id}/inventory` (secrets masked), registration tokens (`GET`/`POST`/`DELETE /agents/registration-tokens`; token and join command shown once).
 - Applications: `GET /applications`, `GET /applications/{id}` (analysis: services, volumes with class, bind mounts, networks, images with digest/platform, dependencies, unprotected paths; containers with masked env), `PATCH /applications/{id}` (owner, environment, criticality, display name), `POST /applications` (manual grouping), `DELETE /applications/{id}` (manual only), `GET /applications/{id}/compose` (original masked or reconstructed; `reveal=true` requires `secrets.read`, audited).
 - `GET /health/ready` description documents the platform-service checks (proxy, worker, reposerver). No schema change.

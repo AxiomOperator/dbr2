@@ -5,7 +5,9 @@ The Next.js administrative console for DBR² (component `web`, see
 provides the foundation: sign-in (master admin with optional TOTP, and Entra ID
 through OIDC), a dashboard, security settings, the audit log and the About page.
 Phases 2 and 3 add Hosts (enrollment, approval, health, inventory) and
-Applications (discovery results, unprotected data, Compose definitions). The full console arrives in Phase 6 (see
+Applications (discovery results, unprotected data, Compose definitions). Phase 4 adds
+Repositories (key escrow, storage health), backups (settings, "Back up now",
+recovery points and manifests), alerts and host limits. The full console arrives in Phase 6 (see
 [`docs/roadmap.md`](../docs/roadmap.md)).
 
 **Stack:** Next.js 16 (App Router, `output: "standalone"`), React 19,
@@ -54,8 +56,10 @@ DBR2_API_INTERNAL_URL=http://127.0.0.1:8099 npm run dev
 
 Open http://localhost:3000. The mock API accepts `admin` / `correct-horse-battery`
 (TOTP code `123456` once enabled); "Sign in with Microsoft" logs in as a
-read-only OIDC user (can view hosts and applications, cannot manage them or
-reveal secrets). Five wrong passwords lock the account for 60 seconds. See
+read-only OIDC user (can view hosts, applications, Repositories, recovery points
+and backup settings; cannot manage them, back up or reveal secrets). The
+awaiting-escrow mock Repository confirms with `K7QX-M2DA-PL4W-ZT6R`; Repositories
+created in the mock print their code to the mock's log. Five wrong passwords lock the account for 60 seconds. See
 the header of `scripts/mock-api.mjs` for details.
 
 The console's own version comes from `NEXT_PUBLIC_DBR2_VERSION`, inlined at
@@ -91,13 +95,15 @@ runs the standalone server as the unprivileged `node` user on port 3000
 
 ```text
 src/app/                   routes (App Router)
-  (console)/               signed-in pages: dashboard, hosts, applications, audit, settings (client-side AuthGuard)
+  (console)/               signed-in pages: dashboard, hosts, applications, repositories,
+                           recovery-points, alerts, audit, settings (client-side AuthGuard)
   login/  about/           public pages
   api/[...path]/route.ts   same-origin API proxy
 src/components/            app shell, footer, feature components; ui/ = shadcn/ui
 src/lib/api/               Zod schemas, typed client (problem+json → ApiError), endpoints, hooks
 src/lib/return-to.ts       open-redirect-safe ?return_to= handling
-scripts/mock-api.mjs       local mock of the API contract (Hosts / Applications in mock-fleet.mjs)
+scripts/mock-api.mjs       local mock of the API contract (Hosts / Applications in mock-fleet.mjs,
+                           Repositories / backups in mock-protection.mjs)
 ```
 
 Add shadcn/ui components with `npx shadcn@4.21.0 add <name>` and put the SPDX

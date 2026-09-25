@@ -33,7 +33,7 @@ func TestExclusivityAndTriggerAgainstRealServer(t *testing.T) {
 	c := srv.Client()
 	const q = "dbr2-test"
 	w := worker.New(c, q, worker.Options{})
-	workflows.Register(w, &diag.Activities{}, nil)
+	workflows.Register(w, &diag.Activities{}, nil, nil)
 	if err := w.Start(); err != nil {
 		t.Fatal(err)
 	}

@@ -130,24 +130,26 @@ Goal: remove the architectural unknowns before building.
 
 ## Phase 4 — Repositories & backup
 
-- [ ] `BackupEngine` interface plus `internal/engine/kopia` (pinned Kopia **v0.23.1**), covering the spike pitfalls: deep restore depth, cancellation bridged to `Uploader.Cancel()`, no saving incomplete manifests, hyphenated tag keys (ADR-0007)
-- [ ] `dbr2-reposerver` deployable: Kopia server in-process through the `cli` package; TLS from the DBR² CA; maintenance and GC owner; **mount guard, sentinel and stall watchdog**; `DYNAMIC-1M-BUZHASH` splitter for new repositories (ADR-0002)
-- [ ] Per-agent Kopia users with the spike-verified ACL set (APPEND own snapshots, READ own policies); `maint@dbr2` for the worker; **every snapshot pinned**, Kopia retention disabled; per-agent storage monitoring; temporary per-source READ ACL for cross-host restore, revoked by compensation
-- [ ] Storage backend: **NFS** (production; mounted only on the reposerver host, `hard` mount, export restricted) plus local filesystem (testing)
-- [ ] NAS guidance documented: scheduled read-only NAS snapshots on the Repository share (the v1.0 immutability substitute)
-- [ ] **Key escrow at Repository creation** to the two escrow recipients. Creation is blocked until escrow is confirmed (ADR-0008)
-- [ ] Recovery manifest schema v1 (`schema_version`), with a JSON schema published in the codebase (ADR-0004)
-- [ ] Backup workflow per the final stack: claim the application → hooks → dumps → quiesce → protect → resume → commit
-- [ ] Components: config, volumes, bind mounts, plus a **`fsmeta` record** for each filesystem component; tagged (`dbr2-*` keys) and pinned snapshots; manifest written last, **by `maint@dbr2` only**, with component sources validated (ADR-0004)
-- [ ] Required and optional component rules; recovery point status Complete or Partial; failure means no recovery point
-- [ ] Orphan-component garbage collection after a grace period
-- [ ] Consistency modes: Live, Quiesced (pre/post hooks), Offline; minimal-downtime defaults (ADR-0005)
-- [ ] **Quiesce safety:** saga compensation, **60-minute** default maximum quiesce, agent dead-man switch, alerts (ADR-0005)
-- [ ] **Seed pass** for large first-time volumes (~500 GB) so the consistent pass only uploads the delta (ADR-0005)
-- [ ] SELinux context captured for volume and bind-mount roots
-- [ ] Per-host concurrency limit (maximum concurrent jobs); configurable backup window, to avoid Veeam job windows
-- [ ] Manual backup through the API and the `dbr2` CLI
-- [ ] `dbr2 admin reindex`: rebuild the recovery-point index from a Repository (ADR-0003)
+- [x] `BackupEngine` interface plus `internal/engine/kopia` (pinned Kopia **v0.23.1**), covering the spike pitfalls: deep restore depth, cancellation bridged to `Uploader.Cancel()`, no saving incomplete manifests, hyphenated tag keys (ADR-0007)
+- [x] `dbr2-reposerver` deployable: Kopia server in-process through the `cli` package; TLS (self-signed, **pinned by fingerprint**: the only mode Kopia clients support; ADR-0002 Phase 4 amendment); maintenance and GC owner; **mount guard, sentinel and stall watchdog**; `DYNAMIC-1M-BUZHASH` splitter for new repositories (ADR-0002)
+- [x] Per-agent Kopia users with the spike-verified ACL set (APPEND own snapshots, READ own policies); `maint@dbr2` for the worker; **every snapshot pinned**, Kopia retention disabled; per-agent storage monitoring (per-host usage on each Repository); temporary per-source READ ACL grants in the management API (the restore-side compensation that revokes them ships with Phase 5)
+- [x] Storage backend: **NFS** (production; mounted only on the reposerver host, `hard` mount, export restricted) plus local filesystem (testing)
+- [x] NAS guidance documented: scheduled read-only NAS snapshots on the Repository share (the v1.0 immutability substitute)
+- [x] **Key escrow at Repository creation** to the two escrow recipients. Creation is blocked until escrow is confirmed (ADR-0008)
+- [x] Recovery manifest schema v1 (`schema_version`), with a JSON schema published in the codebase (ADR-0004)
+- [x] Backup workflow per the final stack: claim the application → hooks → dumps → quiesce → protect → resume → commit (the database-dump slot exists; dump plugins arrive in Phase 8)
+- [x] Components: config, volumes, bind mounts, plus a **`fsmeta` record** for each filesystem component; tagged (`dbr2-*` keys) and pinned snapshots; manifest written last, **by `maint@dbr2` only**, with component sources validated (ADR-0004)
+- [x] Required and optional component rules; recovery point status Complete or Partial; failure means no recovery point
+- [x] Orphan-component garbage collection after a grace period
+- [x] Consistency modes: Live, Quiesced (pre/post hooks), Offline; minimal-downtime defaults (ADR-0005)
+- [x] **Quiesce safety:** saga compensation, **60-minute** default maximum quiesce, agent dead-man switch, alerts (ADR-0005)
+- [x] **Seed pass** for large first-time volumes (~500 GB) so the consistent pass only uploads the delta (ADR-0005)
+- [x] SELinux context captured for volume and bind-mount roots
+- [x] Per-host concurrency limit (maximum concurrent jobs); configurable backup window, to avoid Veeam job windows
+- [x] Manual backup through the API and the `dbr2` CLI
+- [x] `dbr2 admin reindex`: rebuild the recovery-point index from a Repository (ADR-0003)
+
+**Status: complete (2026-09-25).** Verified end to end on the dev stack: Live, Quiesced (pause and hooks) and Offline (stop) backups, key escrow, reindex, and an escrow drill with the stock Kopia CLI.
 
 ## Phase 5 — Restore
 
@@ -298,6 +300,59 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Feature — Phase 4 (Repositories & backup) complete
+- **Notes:**
+  - **Backup engine:** `internal/engine` interface plus `internal/engine/kopia`, pinned to Kopia v0.23.1 and the only package that imports Kopia. It covers the spike pitfalls: deep restore, `Uploader.Cancel()` bridged to cancellation, incomplete snapshots never saved, hyphenated tag keys, and incremental uploads based on the previous snapshot of the same source.
+  - **dbr2-reposerver:** the Kopia server runs as a supervised child of the same binary through Kopia's public `cli` package; secrets are kept off `argv` and scrubbed from logs, and the storage guard is checked before each start.
+    - Stable self-signed TLS certificate pinned by fingerprint. Kopia clients cannot trust a custom CA, so the roadmap's "TLS from the DBR² CA" was replaced (ADR-0002 Phase 4 amendment).
+    - Management API on `:8091` (internal only, token): status, initialize, users, read grants.
+    - Global policy: `zstd-fastest`, retention never deletes. The spike ACL set replaces Kopia's defaults.
+    - Integration test with real Kopia clients: agents cannot delete or see other agents' data, `maint@dbr2` can, read grants work, fingerprint pinning works, restart works.
+  - **Key escrow (ADR-0008):**
+    - Recipients are age or SSH public keys; private keys are rejected.
+    - The Repository password is generated by `dbr2-server`, sent once to the reposerver, sealed into an age package for every recipient, and **never stored**.
+    - A Repository stays `awaiting_escrow`, so backups are refused, until the one-time confirmation code from the decrypted package is entered.
+    - Verified: 409 before confirmation, 400 for a wrong code, and the code accepted in any case and spacing.
+  - **Recovery manifest schema v1** (`internal/manifest`, JSON Schema `schema/v1.json`): invariants that the schema cannot express are validated in Go; `rp_<ULID>` IDs.
+  - **Backup workflow** (`application/<id>`): prepare → agent access → seed pass → pre hooks → quiesce → protect → resume → post hooks → commit, with a saga plus the agent's dead-man lease.
+    - Commit runs as `maint@dbr2`, verifies every component's source and tags, and writes the manifest last, pinned.
+    - Required component failed: no manifest and a critical alert. Optional component failed: Partial.
+  - **Agent:**
+    - `ConfigureRepository` (credentials stored 0600, never logged).
+    - `Quiesce`/`Resume` with a journaled dead-man lease that is re-armed after an agent restart; events buffered while disconnected.
+    - `RunHooks` via docker exec.
+    - `SnapshotComponents`: config staging with the raw inspect documents, volumes, bind mounts including single files, the `fsmeta` record (extended attributes, ACLs, SELinux, hardlinks, directory mtimes as zstd JSON Lines), SELinux and ownership of roots, and a per-host concurrency limit.
+  - **Server:** `PlatformService` for the worker; API for Repositories, escrow, backups, backup settings, host limits, recovery points and alerts; CLI `dbr2 backup`, `dbr2 recovery-points` and `dbr2 admin reindex`; orphan GC schedule (7-day grace) and the reindex workflow.
+  - **Found by the end-to-end run and fixed:**
+    1. The worker cannot reach the Kopia server through the agents' public URL, so Repositories gained `internal_server_url`.
+    2. A manual backup against an unconfirmed Repository returned 202 and then failed silently; it now returns 409 with the reason.
+    3. There was no `.dockerignore`: local state and Compose secrets were sent into the image build context (not into the final images). The build failed on root-owned dev state.
+    4. The Temporal usage lint only matched a few variable names. It now flags any `.ExecuteWorkflow(` outside `internal/temporalx`, which caught a direct start of the reindex workflow; `temporalx.StartRepositoryOperation` was added for `repository/<id>/<op>` IDs.
+  - **Verification:**
+    - Unit tests (race) and every integration suite pass. That includes Temporal workflow tests for ordering, resume on failure and on cancel inside the quiesce window, the seed pass, and "required failed means no manifest", plus commit, orphan GC and reindex against real filesystem Kopia repositories.
+    - The dev stack backed up a Compose app in Live, Quiesced and Offline modes:
+      - 5 components each: config, volume, bind mount, and 2 `fsmeta` records.
+      - The container was paused for about 1 s; hooks ran in order.
+      - The app returned to `running` after each backup.
+      - SELinux contexts were captured (`container_file_t`, `user_tmp_t`).
+    - Reindex found 2 manifests and marked 0 missing. The escrowed password plus the stock Kopia CLI listed the pinned manifests without DBR².
+    - License policy passes with no new exceptions; govulncheck finds no reachable vulnerabilities.
+  - **Dev environment:** the dev agent was moved into a privileged `debian:trixie-slim` container (`dbr2-dev-agent`, host network) because reading Docker volume data requires root. The dev database had been recreated during the session, so the agent was re-enrolled.
+  - **Deferred or noted:**
+    - Lease renewal (not needed while the lease exceeds the activity bound).
+    - Agent events have no acknowledgement (they are logged and buffered, but lost if the agent restarts while disconnected).
+    - Per-host storage quotas.
+    - Database dump plugins (Phase 8).
+    - Filesystem-snapshot providers such as LVM (v2).
+    - A gracefully stopped agent keeps an application paused until it starts again (threat model T28).
+    - Console and API gaps noted by the web work, for Phase 6:
+      - No running-backup status (only a `workflow_id`).
+      - No pagination or Repository filter for recovery points; no severity filter for alerts.
+      - No endpoints to retire a Repository, change the default or edit its URLs.
+      - The console derives backup components from the analysis, duplicating the server's skip rules.
+  - **Console:** Repositories (list, detail with per-host usage, three-step create wizard with the escrow download and confirmation code), escrow recipients (private keys cleared, never sent), Recovery points (filters, detail with component table and manifest viewer), Alerts (dashboard card, list, acknowledge), application "Back up now" with Backups and Backup settings tabs (hooks editor), host Limits card. Web tests went from 78 to 146. `RepositoryDTO.live` is null when the reposerver is unreachable (Huma cannot mark a struct reference nullable; documented in the field description).
+- **Files:** `internal/{engine,manifest,escrow,repoclient,protection,reposerver,fsmeta,agent,runtime,gateway,api,audit,config}`, `workflows/{backup,agentcmd,hosts}`, `cmd/{server,worker,reposerver,agent,dbr2}`, `proto/{agent,control}/v1`, `db/migrations/00003_*`, `db/queries/{repositories,backups}.sql`, `deployments/docker-compose`, `.dockerignore`, `web/**`, `api/openapi.yaml`, `THIRD_PARTY_NOTICES`, component changelogs, `docs/adr/0002`, `docs/stack_info/final_stack.md`, `docs/threat_model.md` (T26–T30), `docs/dev/audit-events.md`, `docs/operations/nas-snapshots.md` (new), `README.md`, `docs/roadmap.md`
 
 ### 2026-09-25 — Fix — CI failures after the Phase 2 & 3 push
 - **Notes:**

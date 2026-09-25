@@ -53,3 +53,20 @@ Events are stored in the append-only `audit_events` table, where UPDATE, DELETE 
 | `application.updated` | Application ownership metadata changed (before/after). |
 | `application.deleted` | Manual application deleted. |
 | `secrets.revealed` | Secret values revealed (requires secrets.read). |
+| `escrow.recipient.added` | Escrow recipient (age public key) registered. |
+| `escrow.recipient.removed` | Escrow recipient removed (existing packages unchanged). |
+| `repository.created` | Repository initialized; escrow package generated (status `awaiting_escrow`). |
+| `repository.escrow.downloaded` | Encrypted escrow package downloaded. |
+| `repository.escrow.confirmed` | Confirmation code checked; `failure` for a wrong code, `success` makes the Repository ready. |
+| `repository.reindex.requested` | Reindex workflow started. |
+| `repository.reindexed` | Index rebuilt from the Repository's manifests (upserted, marked missing). System actor. |
+| `backup.requested` | Manual backup workflow started. |
+| `backup.completed` | Recovery point committed (Complete or Partial). System actor. |
+| `backup.failed` | Backup failed; no recovery point (critical alert). System actor. |
+| `backup.settings.updated` | Application backup settings changed (before/after). |
+| `host.settings.updated` | Host limits changed (before/after). |
+| `application.not_resumed` | Resume failed after its retry budget (critical alert). System actor. |
+| `quiesce.auto_resumed` | The agent's dead-man switch resumed an application (critical alert). Agent actor. |
+| `quiesce.resume_failed` | The agent could not resume an application (critical alert). Agent actor. |
+| `quiesce.lease_warning` | Quiesced longer than 80% of its lease (warning alert). Agent actor. |
+| `alert.acknowledged` | An alert was acknowledged. |

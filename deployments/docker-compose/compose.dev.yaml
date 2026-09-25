@@ -50,10 +50,18 @@ services:
       # filesystem type, so accept any type but still require a mount point.
       DBR2_REPOSERVER_EXPECT_FSTYPE: any
       DBR2_REPOSERVER_INIT_IF_EMPTY: "true"
+    ports: !override
+      - "127.0.0.1:${DBR2_DEV_REPOSERVER_PORT:-51515}:51515"
     volumes: !override
       - type: bind
         source: ../../.dev/repo
         target: /mnt/dbr2-repo
+        bind: { create_host_path: true, selinux: Z }
+      # Runs as the host user, so state lives in a host directory owned by
+      # it (pre-created by `make dev-up`; Docker would create it root-owned).
+      - type: bind
+        source: ../../.dev/reposerver-state
+        target: /var/lib/dbr2/reposerver
         bind: { create_host_path: true, selinux: Z }
 
   temporal-ui:

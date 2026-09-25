@@ -3,6 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys } from "./endpoints";
+import type { RecoveryPointState } from "./protection-schemas";
 
 export function useMe() {
   return useQuery({
@@ -95,6 +96,85 @@ export function useApplicationCompose(id: string, options: { enabled?: boolean }
   return useQuery({
     queryKey: queryKeys.applicationCompose(id),
     queryFn: ({ signal }) => api.applicationCompose(id, false, signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+// --- Repositories & backup (Phase 4) ----------------------------------------
+
+/** Repository list refresh interval (live storage health and capacity). */
+export const REPOSITORIES_REFRESH_MS = 30_000;
+/** Recovery point and alert refresh interval (backups finish asynchronously). */
+export const BACKUPS_REFRESH_MS = 15_000;
+
+export function useEscrowRecipients(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.escrowRecipients,
+    queryFn: ({ signal }) => api.escrowRecipients(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useRepositories(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.repositories,
+    queryFn: ({ signal }) => api.repositories(signal),
+    refetchInterval: REPOSITORIES_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useRepository(id: string) {
+  return useQuery({
+    queryKey: queryKeys.repository(id),
+    queryFn: ({ signal }) => api.repository(id, signal),
+    refetchInterval: REPOSITORIES_REFRESH_MS,
+  });
+}
+
+export function useBackupSettings(applicationId: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.backupSettings(applicationId),
+    queryFn: ({ signal }) => api.backupSettings(applicationId, signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useRecoveryPoints(
+  filters: { applicationId?: string | null; state?: RecoveryPointState | null },
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.recoveryPoints(filters),
+    queryFn: ({ signal }) => api.recoveryPoints({ ...filters, limit: RECOVERY_POINTS_LIMIT }, signal),
+    refetchInterval: BACKUPS_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+/** Page size of recovery point lists (the API has no cursor; newest first). */
+export const RECOVERY_POINTS_LIMIT = 200;
+
+export function useRecoveryPoint(id: string) {
+  return useQuery({
+    queryKey: queryKeys.recoveryPoint(id),
+    queryFn: ({ signal }) => api.recoveryPoint(id, signal),
+  });
+}
+
+export function useAlerts(all: boolean, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.alerts(all),
+    queryFn: ({ signal }) => api.alerts({ all, limit: 200 }, signal),
+    refetchInterval: BACKUPS_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useHostSettings(agentId: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.hostSettings(agentId),
+    queryFn: ({ signal }) => api.hostSettings(agentId, signal),
     enabled: options.enabled ?? true,
   });
 }

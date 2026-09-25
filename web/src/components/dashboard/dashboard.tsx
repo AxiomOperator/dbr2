@@ -3,6 +3,7 @@
 
 import { ExternalLinkIcon } from "lucide-react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
+import { AlertsCard } from "@/components/backups/alerts";
 import { PlatformStatusCard } from "@/components/dashboard/platform-status-card";
 import { ProtectionOverviewCard } from "@/components/dashboard/protection-overview-card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PERMISSION_APPLICATION_READ } from "@/lib/api/fleet-schemas";
+import { PERMISSION_BACKUP_READ } from "@/lib/api/protection-schemas";
 import { API_DOCS_PATH } from "@/lib/version";
 
 export function Dashboard() {
@@ -44,13 +46,14 @@ export function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Getting started</CardTitle>
-            <CardDescription>Enroll hosts, then review what discovery found.</CardDescription>
+            <CardDescription>Enroll hosts, review what discovery found, then back up.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p>
               Add your Docker hosts under <strong>Hosts</strong>, approve them, and DBR² discovers
-              their applications, including data that no volume protects. Backup policies,
-              recovery points and restores arrive in later phases.
+              their applications, including data that no volume protects. Then create a
+              Repository (with two escrow recipients) and back applications up; restores arrive
+              in a later phase.
             </p>
             <a
               href={API_DOCS_PATH}
@@ -65,6 +68,7 @@ export function Dashboard() {
         </Card>
         <PlatformStatusCard />
         {hasPermission(me, PERMISSION_APPLICATION_READ) && <ProtectionOverviewCard />}
+        {hasPermission(me, PERMISSION_BACKUP_READ) && <AlertsCard />}
       </div>
     </div>
   );

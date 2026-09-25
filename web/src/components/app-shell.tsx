@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api/endpoints";
 import { PERMISSION_APPLICATION_READ, PERMISSION_HOST_READ } from "@/lib/api/fleet-schemas";
+import { PERMISSION_BACKUP_READ, PERMISSION_REPOSITORY_READ } from "@/lib/api/protection-schemas";
 import { PERMISSION_AUDIT_READ } from "@/lib/api/schemas";
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/lib/version";
@@ -60,6 +61,24 @@ export function AppShell({ children }: { children: ReactNode }) {
       visible: hasPermission(me, PERMISSION_APPLICATION_READ),
     },
     {
+      href: "/repositories",
+      label: "Repositories",
+      match: "/repositories",
+      visible: hasPermission(me, PERMISSION_REPOSITORY_READ),
+    },
+    {
+      href: "/recovery-points",
+      label: "Recovery points",
+      match: "/recovery-points",
+      visible: hasPermission(me, PERMISSION_BACKUP_READ),
+    },
+    {
+      href: "/alerts",
+      label: "Alerts",
+      match: "/alerts",
+      visible: hasPermission(me, PERMISSION_BACKUP_READ),
+    },
+    {
       href: "/audit",
       label: "Audit",
       match: "/audit",
@@ -84,7 +103,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/" className="text-lg font-semibold tracking-tight">
             {PRODUCT_NAME}
           </Link>
-          <nav aria-label="Main" className="flex items-center gap-1">
+          <nav aria-label="Main" className="-mx-1 flex min-w-0 items-center gap-1 overflow-x-auto px-1">
             {items
               .filter((i) => i.visible)
               .map((item) => (
@@ -93,7 +112,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   href={item.href}
                   aria-current={isActive(item) ? "page" : undefined}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                    "rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                     isActive(item) && "bg-muted font-medium text-foreground",
                   )}
                 >

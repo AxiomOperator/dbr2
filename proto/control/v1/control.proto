@@ -31,3 +31,144 @@ message DispatchRequest {
 message DispatchResponse {
   agent.v1.CommandUpdate update = 1;
 }
+
+// PlatformService lets dbr2-worker read and update platform state owned by
+// dbr2-server (PostgreSQL, repository management, agent credentials).
+service PlatformService {
+  // PrepareBackup validates the application, host and Repository, records a
+  // pending recovery point and returns the capture plan.
+  rpc PrepareBackup(PrepareBackupRequest) returns (PrepareBackupResponse);
+  // EnsureAgentAccess makes sure the agent has a Kopia user on the
+  // Repository and has been configured with it. Passwords never leave
+  // dbr2-server except to the reposerver and the agent.
+  rpc EnsureAgentAccess(EnsureAgentAccessRequest) returns (EnsureAgentAccessResponse);
+  // CompleteBackup records the outcome of a backup (committed or failed).
+  rpc CompleteBackup(CompleteBackupRequest) returns (CompleteBackupResponse);
+  // GetRepository returns a Repository's connection details.
+  rpc GetRepository(GetRepositoryRequest) returns (GetRepositoryResponse);
+  // ListRepositories returns every Repository that is not retired.
+  rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
+  // IndexRecoveryPoints upserts recovery points found by reindexing.
+  rpc IndexRecoveryPoints(IndexRecoveryPointsRequest) returns (IndexRecoveryPointsResponse);
+  // RecordEvent records an audit event and alert on behalf of the worker.
+  rpc RecordEvent(RecordEventRequest) returns (RecordEventResponse);
+}
+
+// Repository describes how to reach a Repository.
+message Repository {
+  string id = 1;
+  string name = 2;
+  // Kopia repository server URL (agents and worker).
+  string server_url = 3;
+  string cert_sha256 = 4;
+  // Reposerver management API base URL (internal network).
+  string management_url = 5;
+  // ready | awaiting_escrow | …
+  string status = 6;
+  // Kopia repository server URL for dbr2-worker on the deployment network
+  // (empty = server_url).
+  string internal_server_url = 7;
+}
+
+message PrepareBackupRequest {
+  string application_id = 1;
+  string workflow_id = 2;
+  string run_id = 3;
+  // manual | scheduled
+  string trigger = 4;
+  string requested_by = 5;
+  // Optional override: live | quiesced | offline.
+  string consistency_mode = 6;
+}
+
+message PrepareBackupResponse {
+  string recovery_point_id = 1;
+  string agent_id = 2;
+  Repository repository = 3;
+  string application_name = 4;
+  // live | quiesced | offline
+  string consistency_mode = 5;
+  uint32 max_quiesce_seconds = 6;
+  repeated agent.v1.ComponentSpec components = 7;
+  repeated string container_ids = 8;
+  repeated agent.v1.Hook pre_hooks = 9;
+  repeated agent.v1.Hook post_hooks = 10;
+  // Components with no previous committed recovery point that need a seed
+  // pass (ADR-0005).
+  repeated string seed_components = 11;
+  // Application identity and source snapshot for the manifest (JSON).
+  bytes application_json = 12;
+  string host_id = 13;
+  string hostname = 14;
+  // Seconds to wait for the backup window to open (0 = open now).
+  uint32 wait_for_window_seconds = 15;
+}
+
+message EnsureAgentAccessRequest {
+  string agent_id = 1;
+  string repository_id = 2;
+  string command_id = 3;
+}
+
+message EnsureAgentAccessResponse {
+  string username = 1;
+  string hostname = 2;
+}
+
+message CompleteBackupRequest {
+  string recovery_point_id = 1;
+  // committed | failed
+  string outcome = 2;
+  // Manifest JSON (committed).
+  bytes manifest_json = 3;
+  string manifest_snapshot_id = 4;
+  string error = 5;
+}
+
+message CompleteBackupResponse {}
+
+message GetRepositoryRequest {
+  string repository_id = 1;
+}
+
+message GetRepositoryResponse {
+  Repository repository = 1;
+}
+
+message ListRepositoriesRequest {}
+
+message ListRepositoriesResponse {
+  repeated Repository repositories = 1;
+}
+
+message IndexRecoveryPointsRequest {
+  string repository_id = 1;
+  repeated IndexedRecoveryPoint recovery_points = 2;
+  // Recovery point IDs present in the Repository; with complete=true, index
+  // rows of this Repository not listed are marked missing (ADR-0003).
+  bool complete = 3;
+}
+
+message IndexedRecoveryPoint {
+  bytes manifest_json = 1;
+  string manifest_snapshot_id = 2;
+}
+
+message IndexRecoveryPointsResponse {
+  uint32 upserted = 1;
+  uint32 marked_missing = 2;
+}
+
+message RecordEventRequest {
+  string type = 1;
+  string target_type = 2;
+  string target_id = 3;
+  // success | failure
+  string outcome = 4;
+  // JSON details.
+  bytes details = 5;
+  // critical | warning | info ("" = audit only)
+  string alert_severity = 6;
+}
+
+message RecordEventResponse {}

@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
 import { HostActions } from "@/components/hosts/host-actions";
+import { HostLimitsCard } from "@/components/hosts/host-limits-card";
 import {
   AgentStatusBadge,
   CertExpiry,
@@ -247,6 +248,7 @@ function HostDetailBody({ id }: { id: string }) {
         ) : (
           <InventoryCard agentId={a.id} />
         )}
+        {a.status !== "revoked" && <HostLimitsCard agentId={a.id} hostname={a.hostname} />}
       </div>
     </div>
   );

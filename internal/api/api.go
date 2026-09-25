@@ -19,6 +19,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/auth"
 	"github.com/AxiomOperator/dbr2/internal/docsui"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
+	"github.com/AxiomOperator/dbr2/internal/protection"
 	"github.com/AxiomOperator/dbr2/internal/version"
 )
 
@@ -55,6 +56,7 @@ type ReadyCheck struct {
 type Deps struct {
 	Auth           *auth.Service
 	Fleet          *fleet.Service
+	Protection     *protection.Service
 	Log            *slog.Logger
 	Ready          []ReadyCheck
 	DocsPublic     bool
@@ -119,6 +121,7 @@ func NewAPI(r chi.Router, d *Deps) huma.API {
 	registerUsers(a, d)
 	registerAudit(a, d)
 	registerFleet(a, d)
+	registerProtection(a, d)
 	return a
 }
 

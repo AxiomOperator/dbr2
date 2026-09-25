@@ -5,9 +5,15 @@
 //
 //	dbr2 version [--server URL]   local version, and the server's when given
 //	dbr2 whoami  --server URL     identity and permissions of DBR2_TOKEN
+//	dbr2 backup  --app APP [--mode M] [--wait]   back up an application now
+//	dbr2 recovery-points [--app APP]             list recovery points
+//	dbr2 admin reindex --repository REPO          rebuild the recovery-point index
 package main
 
 import (
+	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -38,6 +44,12 @@ func main() {
 		err = cmdVersion(os.Args[2:])
 	case "whoami":
 		err = cmdWhoami(os.Args[2:])
+	case "backup":
+		err = cmdBackup(os.Args[2:])
+	case "recovery-points", "rps":
+		err = cmdRecoveryPoints(os.Args[2:])
+	case "admin":
+		err = cmdAdmin(os.Args[2:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command %q", os.Args[1])
@@ -52,8 +64,15 @@ func usage() {
 	fmt.Fprint(os.Stderr, `Usage:
   dbr2 version [--server URL]
   dbr2 whoami --server URL        (token from DBR2_TOKEN)
+  dbr2 backup --app APP [--mode live|quiesced|offline] [--wait]
+  dbr2 recovery-points [--app APP] [--limit N]
+  dbr2 admin reindex --repository REPO
 
-Environment: DBR2_SERVER (default server URL), DBR2_TOKEN (personal API token).
+APP is an application ID or name ("name@host" when ambiguous); REPO is a
+Repository ID or name.
+
+Environment: DBR2_SERVER (default server URL), DBR2_TOKEN (personal API token),
+DBR2_CA_FILE (extra PEM CA bundle, e.g. the proxy's internal CA).
 `)
 }
 
@@ -106,25 +125,66 @@ func cmdWhoami(args []string) error {
 }
 
 func get(server, path, token string, out any) error {
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(server, "/")+path, nil)
+	return call(http.MethodGet, server, path, token, nil, out)
+}
+
+func httpClient() (*http.Client, error) {
+	c := &http.Client{Timeout: 30 * time.Second}
+	if f := os.Getenv("DBR2_CA_FILE"); f != "" {
+		pem, err := os.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("DBR2_CA_FILE %s: no certificates", f)
+		}
+		c.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}}
+	}
+	return c, nil
+}
+
+func call(method, server, path, token string, in, out any) error {
+	var body io.Reader
+	if in != nil {
+		b, err := json.Marshal(in)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, strings.TrimRight(server, "/")+path, body)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", binary+"/"+version.Of(version.CLI))
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	res, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	hc, err := httpClient()
+	if err != nil {
+		return err
+	}
+	res, err := hc.Do(req)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if res.StatusCode != http.StatusOK {
+	data, _ := io.ReadAll(io.LimitReader(res.Body, 8<<20))
+	if res.StatusCode/100 != 2 {
 		var p struct{ Detail, Code string }
-		_ = json.Unmarshal(body, &p)
-		return fmt.Errorf("%s: HTTP %d %s %s", path, res.StatusCode, p.Code, p.Detail)
+		_ = json.Unmarshal(data, &p)
+		return fmt.Errorf("%s %s: HTTP %d %s %s", method, path, res.StatusCode, p.Code, p.Detail)
 	}
-	return json.Unmarshal(body, out)
+	if out == nil || len(data) == 0 {
+		return nil
+	}
+	return json.Unmarshal(data, out)
 }
