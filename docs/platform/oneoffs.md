@@ -1,17 +1,19 @@
-Yes. At this point, I’d start adding the features that solve the ugly edge cases administrators discover only after they actually need a restore.
+# DBR² — Edge Cases and Backlog
 
-A few additional areas stand out.
+> Aligned with `../stack_info/final_stack.md`, which wins on any conflict. Items marked *(stack)* are already covered by a final-stack technology choice.
+
+These features address the edge cases administrators usually discover only when they actually need a restore.
 
 * **Docker Swarm support** — stacks, configs, secrets, overlay networks, placement constraints, service replicas, update policies, node labels, and swarm-specific restore logic.
-* **Podman compatibility** — not necessarily V1, but architect the agent/runtime abstraction so Docker is a provider rather than being hard-coded everywhere.
+* **Podman compatibility** — not in v1.0. The final stack's `ContainerRuntime` abstraction ships with `DockerRuntime` first, leaving room for a future `PodmanRuntime` *(stack)*.
 * **Compose normalization** — support `compose.yaml`, `docker-compose.yml`, multiple `-f` files, profiles, `extends`, anchors, interpolation, and environment-specific overrides.
 * **Environment-variable provenance** — distinguish values coming from `.env`, shell environment, Compose `environment:`, `env_file`, secrets, and runtime overrides.
 * **Docker Configs/Secrets** — back up metadata and optionally protected content where technically available, rather than only environment variables.
 * **External volume-driver awareness** — NFS, CIFS, Ceph, Longhorn-like drivers, cloud volume plugins, etc. Don't blindly attempt to archive data owned by an external storage system.
 * **Filesystem-type awareness** — XFS, ext4, ZFS, Btrfs. If the host supports native snapshots, use those for consistent and potentially much faster backups.
-* **Snapshot-provider plugins** — ZFS snapshots, LVM snapshots, Btrfs snapshots, SAN/NAS snapshots, cloud block-volume snapshots.
-* **Guest-freeze/application-freeze hooks** — extensible quiescing rather than only `docker stop`.
-* **Dependency graph visualization** — containers, networks, volumes, databases, reverse proxies, shared services and external dependencies displayed as an actual topology.
+* **Snapshot-provider plugins** — ZFS snapshots, LVM snapshots, Btrfs snapshots, SAN/NAS snapshots, cloud block-volume snapshots. An optional accelerator only: many hosts will not have snapshots, and every mode must work without them (ADR-0005).
+* **Guest-freeze/application-freeze hooks** — extensible quiescing rather than only `docker stop`. The quiesce safety guarantees (saga plus dead-man switch) are in ADR-0005.
+* **Dependency graph visualization** — containers, networks, volumes, databases, reverse proxies, shared services and external dependencies displayed as an actual topology, rendered with React Flow *(stack)*.
 * **Shared-resource detection** — alert when two unrelated Compose projects use the same volume, network, bind path or external database.
 * **Orphan detection** — volumes, networks, containers and images that no longer belong to an active application.
 * **Unprotected-data detection** — perhaps one of the most valuable features: “this container writes to `/data`, but `/data` is not backed by a volume or bind mount.”
@@ -42,26 +44,26 @@ A few additional areas stand out.
 * **Backup dependency sequencing** — take PostgreSQL before application volumes, for example, rather than treating all resources independently.
 * **Consistency groups** — several Compose projects can form one recovery unit.
 * **Cross-application recovery points** — guarantee that several related services are recoverable from approximately the same timestamp.
-* **Continuous log capture around failures** — retain agent/Docker logs from immediately before and after a failed backup.
-* **Automatic retry policy** — exponential backoff, maintenance-window limits and maximum retry counts.
-* **Missed-schedule handling** — after a host returns from being offline, optionally execute the missed backup.
+* **Continuous log capture around failures** — retain agent/Docker logs from immediately before and after a failed backup (structured `slog` JSON with OpenTelemetry trace correlation).
+* **Automatic retry policy** — exponential backoff, maintenance-window limits and maximum retry counts, implemented as Temporal retry policies and timeouts *(stack)*.
+* **Missed-schedule handling** — after a host returns from being offline, optionally execute the missed backup, using Temporal scheduled workflows.
 * **Agent store-and-forward** — let remote agents spool metadata or backup data temporarily if the central server is unreachable.
-* **Resumable transfers** — extremely important for large backups and unreliable WAN links.
-* **Multipart/object-store uploads** — especially for multi-hundred-GB backups.
-* **WAN optimization** — compression, dedupe and transfer throttling before data leaves the Docker host.
+* **Resumable transfers** — extremely important for large backups and unreliable WAN links. Kopia's content-addressed uploads skip chunks already stored, and Temporal resumes interrupted workflows *(stack)*.
+* **Multipart/object-store uploads** — especially for multi-hundred-GB backups; handled by Kopia's S3-compatible storage backend *(stack)*.
+* **WAN optimization** — compression, dedupe and transfer throttling before data leaves the Docker host. Compression and dedup come from Kopia running on the agent *(stack)*; throttling is still needed.
 * **Repository locality rules** — ensure a workload always has at least one copy outside the source host/site.
-* **Replication policies** — local → remote NAS → object storage, rather than requiring every host to upload separately.
+* **Replication policies** — local → remote NAS → object storage, rather than requiring every host to upload separately (the "Replicate Backup" workflow stage and replication workflows in Temporal).
 * **Backup copy jobs** — copy existing recovery points between repositories without re-reading production data.
 * **Legal hold** — mark particular backups so retention cleanup cannot remove them.
-* **Retention simulation** — “If I apply this policy, 783 snapshots and approximately 2.1 TB will be removed.”
+* **Retention simulation** — “If I apply this policy, 783 recovery points and approximately 2.1 TB will be removed.”
 * **Deletion grace period** — deleted backups enter a recoverable state for X days.
 * **Cryptographic signing** — sign manifests in addition to hashing backup contents.
 * **Chain-of-custody records** — particularly useful in government/regulated environments.
-* **Key escrow/recovery** — an encrypted backup nobody can decrypt after losing one key is not much of a backup.
-* **Key rotation without full re-backup** — envelope encryption becomes especially valuable here.
-* **Repository key separation** — an agent that can write backup data should not automatically possess credentials that can destroy every historical backup.
-* **Per-host credentials** — compromise of one Docker host should not expose all other hosts' backups.
-* **Agent certificate lifecycle** — registration tokens, mTLS certificates, renewal and revocation.
+* **Key escrow/recovery** — an encrypted backup nobody can decrypt after losing one key is not much of a backup. *Mandatory: ADR-0008.*
+* **Key rotation without full re-backup** — rely on the repository engine's (Kopia's) key handling rather than a custom envelope-encryption scheme, because the platform avoids designing its own cryptography.
+* **Repository key separation** — an agent that can write backup data should not automatically possess credentials that can destroy every historical backup. *Decided: ADR-0002 (Kopia Repository Server, per-agent append-only identities).*
+* **Per-host credentials** — compromise of one Docker host should not expose all other hosts' backups. *Decided: ADR-0002.*
+* **Agent certificate lifecycle** — registration tokens, mTLS certificates, renewal and revocation; each agent has its own certificate identity *(stack)*.
 * **Host approval workflow** — newly installed agents remain pending until explicitly trusted.
 * **Agent pinning** — certificate and host identity changes should be visible.
 * **Tamper alerts** — agent disabled, backup schedule changed, exclusions modified, repository credentials changed, retention reduced.
@@ -81,17 +83,17 @@ A few additional areas stand out.
 * **Disaster mode** — a simplified interface that suppresses normal administration and focuses entirely on recovery operations.
 * **Emergency offline documentation** — generate human-readable restore instructions that can be printed or stored independently.
 * **Bootstrap ISO/USB concept** — long-term, you could offer a minimal recovery environment that connects to the repository and restores Docker applications onto a fresh host.
-* **Self-backup** — the platform must back up its own PostgreSQL database, configuration, keys and policy definitions.
+* **Self-backup** — the platform must back up its own PostgreSQL database, Temporal state, configuration, keys (including Kopia repository credentials and the agent CA) and policy definitions.
 * **Self-recovery export** — periodically generate enough configuration to rebuild the backup server itself.
 * **Clustered control plane** — later, support multiple management servers or at least active/passive deployment so the backup controller is not a single point of failure.
-* **Agent-only restore** — allow an authorized administrator to recover directly from an agent/repository even if the central web console is unavailable.
+* **Agent-only restore** — allow an authorized administrator to recover directly from an agent/repository even if the central web console is unavailable. *Enabled by ADR-0003 (the Repository is authoritative).*
 * **Webhook/API event bus** — external systems should be able to react to `backup.completed`, `restore.failed`, `host.offline`, etc.
-* **Prometheus/OpenTelemetry endpoint** — even if the product provides its own monitoring UI, external observability should remain possible.
+* **OpenTelemetry export** — logs, metrics and traces exported over OTLP, so external observability works alongside DBR²'s own dashboards; Prometheus via an OpenTelemetry Collector if needed *(stack)*.
 * **Syslog support** — important for enterprise/SIEM environments.
-* **SIEM-friendly audit format** — normalized JSON audit events with stable event IDs.
+* **SIEM-friendly audit format** — normalized JSON audit events with stable event IDs; consistent with the structured `slog` logging in the final stack *(stack)*.
 * **Multi-tenancy** — even if you don't need it initially, model organizations/projects/tenants early enough that adding MSP functionality later doesn't require redesigning authorization.
-* **Delegated administration** — application owners can restore their own app without having global Docker-host control.
-* **Approval workflows** — production restore can optionally require a second administrator.
+* **Delegated administration** — application owners can restore their own app without having global Docker-host control (the Application Operator role).
+* **Approval workflows** — production restore (`restore.production`) can optionally require approval from a second user who holds `restore.production` and is not the requester, with a mandatory reason and an audited emergency override. The same mechanism provides dual authorization for destructive operations. See final_stack → Authorization → *Production restores and approval workflows*.
 * **Change tickets/reason fields** — “Restore requested under INC-48391.”
 * **Maintenance-window-aware restores** — production restore restricted to authorized windows unless emergency override is used.
 
@@ -131,10 +133,10 @@ Recovery Risk
 
 That solves a problem most administrators don't even know they have until a container is destroyed.
 
-I'd also introduce the concept of a **Recovery Contract** for every application:
+Every application also has a **Recovery Contract**, a first-class entity stored in PostgreSQL and managed by the control plane per the final stack:
 
 ```yaml
-application: planix
+application: inventory
 
 protection:
   maximum_rpo: 1h
@@ -160,7 +162,7 @@ Backup succeeded.
 It can say:
 
 ```text
-Planix Protection
+Inventory Protection
 ────────────────────────────────
 
 Backup                         PASS
@@ -193,4 +195,4 @@ Required:
 
 That shifts the whole product from **“Did the backup job run?”** to **“Is this application currently recoverable to the standard we require?”**
 
-That is the direction I would take the platform. It would make it meaningfully different from a Docker GUI wrapped around `tar`, Restic, or Kopia.
+That is the direction of the platform. It makes DBR² meaningfully different from a Docker GUI wrapped around `tar` or Kopia.

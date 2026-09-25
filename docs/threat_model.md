@@ -1,0 +1,57 @@
+# DBR² — Threat Model
+
+> Aligned with `stack_info/final_stack.md` and `adr/`. Review this document whenever an ADR changes a trust boundary, and log the review in `roadmap.md`.
+
+## Assets (most to least critical)
+
+1. **Repository passwords and storage backend credentials**: full access to all backup data (held only by `dbr2-reposerver` and in escrow).
+2. **Backup data**: application data, database dumps and captured secrets.
+3. **DBR² CA private key**: can mint agent and reposerver identities.
+4. **Maintenance identity**: can delete and restore any recovery point.
+5. **Root access on protected hosts**: the agent runs as root and holds the Docker socket.
+6. **Master admin account** (local username and password): bypasses the external identity provider (Entra ID).
+7. **OIDC client secret and user sessions.**
+8. **Platform state** (PostgreSQL): policies, RBAC and the audit log.
+9. **Escrow private keys**: held offline by administrators.
+10. **Self-backup / Platform Recovery Bundles**: contain items 1, 3, 4 and 7.
+
+## Trust boundaries
+
+```text
+[Browser/CLI] ──HTTPS+OIDC──► [dbr2-web / dbr2-server] ──► [PostgreSQL, Temporal, Valkey]
+                                      │ Agent Gateway (gRPC+mTLS, agent-initiated)
+                                      ▼
+                       [dbr2-agent: root on Docker host] ──TLS + Kopia user──► [dbr2-reposerver] ──► [Storage backend]
+[dbr2-worker] ──maintenance identity──► [dbr2-reposerver]
+```
+
+## Threats and mitigations
+
+| # | Threat | Mitigations | Residual risk |
+|---|---|---|---|
+| T1 | **Compromised Docker host or agent** reads or destroys other hosts' backups | Per-agent Kopia users with ACLs limited to the host's own sources, append-only, no delete (ADR-0002). Agents never hold repository passwords or storage credentials. S3 Object Lock where available. | The attacker can read that host's own historical backups, which contain data they could already reach on the host |
+| T2 | Compromised host **poisons** backups (ransomware writes encrypted data that later gets backed up) | Immutable retention windows; changed-data anomaly detection (advisory); multiple retained RPs; restore tests | Detection is heuristic |
+| T3 | **Rogue agent enrollment** | Registration tokens that are single-use and expire; host approval workflow (Pending until approved); visible identity pinning; audit | An administrator approves a malicious host |
+| T4 | **Stolen agent certificate** or Kopia user credential | Per-agent revocation and rotation; certificates bound to agent identity; anomaly alerts (new source IP or identity changes); credentials root-only (`0600`) | Valid until revoked |
+| T5 | **Compromised `dbr2-reposerver`** | It is the only holder of repository secrets, so it must be hardened, minimal and isolated; S3 Object Lock limits destruction; offsite or secondary Repositories use separate credentials | Full read access to its Repository |
+| T6 | **Compromised control plane** (`dbr2-server` or `dbr2-worker`) issues malicious restores or deletes | RBAC; `restore.production` plus approval workflows; dual authorization for destructive operations; deletion grace period; Object Lock; tamper alerts; audit log shipped externally (SIEM/syslog) | The worker holds the maintenance identity: deletion is possible outside the lock window |
+| T7 | **Malicious or careless administrator** | Dual authorization for destructive operations (delete, retention reduction, immutability changes, key rotation); approval for production restore; mandatory reason or change-ticket fields; append-oriented audit log | Two colluding administrators |
+| T8 | **Master admin abuse or password guessing** | Username and password required for lockout protection (owner requirement). Argon2id hashing, rate limiting and progressive lockout, optional TOTP (recommended), a notification on every login, audit, and rotation after emergency use. Password reset only as root on the server host (`dbr2 admin reset-master-password`) | Password-only authentication when TOTP is not enabled; mitigated by keeping the console off the public internet |
+| T9 | **Secrets exposed** through the UI, API, logs or manifests | Secret detection and masking; `secrets.read` required to reveal; never logged (structured-logging redaction); protected in the Repository by Kopia encryption and in exports by age | Captured `.env` files remain in the backup data by design |
+| T10 | **Docker socket misuse** through DBR² | Only the agent holds the socket; no API passes arbitrary Docker commands through; hooks are defined by administrators with `policy.manage` and audited; hook execution is scoped to the Application's containers | Hooks are code execution by design |
+| T11 | **Loss of keys** makes backups unrecoverable (availability) | Mandatory key escrow and escrow health checks (ADR-0008) | Every escrow recipient's key lost |
+| T12 | **Loss of the control plane** | Self-backup plus Platform Recovery Bundle; the Repository is authoritative (ADR-0003); agent-only and stock-`kopia` recovery paths | — |
+| T13 | **Self-backup bundle theft** | age encryption to escrow recipients; stored outside the System Repository with access controls; access audited | — |
+| T14 | **Supply chain** (dependencies, images, agent binaries) | Dependency scanning, SBOMs, signed containers and agent releases, pinned Kopia version with a compatibility suite | — |
+| T15 | **Network attacker between components** | mTLS for agents; TLS to the reposerver using certificates from the DBR² CA; HTTPS for the web and API; internal services on a private network in the Compose deployment | — |
+| T16 | **Temporal UI or API exposure** reveals workflow inputs | Not exposed publicly; administrator-only access; no secrets in workflow inputs (pass references, not values) | — |
+| T17 | **Single NAS** (v1.0) is a single point of failure, and ransomware can reach it over NFS | NFS export restricted to the reposerver host; agents never mount it (ADR-0002); scheduled read-only NAS snapshots; Platform Recovery Bundle in a separate export; Veeam as an independent layer | No offsite copy and no object lock in v1.0. The owner accepts this for a single site; S3 and offsite replication are v2 |
+| T18 | **Single operator** (ADR-0014): one compromised account can issue destructive operations | Deletion grace period; typed confirmation plus a reason; audit notifications; NAS snapshots; Entra ID conditional access and MFA on the operator's account | Accepted until a second operator exists and approvals are enabled |
+
+## Security requirements derived from this model (tracked in `roadmap.md`)
+
+- No secrets in Temporal workflow inputs, logs or traces.
+- Every privileged action is audited with who, what, when, source IP, target, reason and result.
+- Destructive operations support dual authorization, and production restores support approval.
+- The agent is hardened: minimal listening ports (none inbound), a systemd sandboxing profile compatible with restore, and signed updates.
+- Periodic review: update this document whenever an ADR is added or changed.

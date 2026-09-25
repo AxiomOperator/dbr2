@@ -1,5 +1,34 @@
 # DBR² — Final Technology Stack
 
+> **Source of truth.** Accepted ADRs in `../adr/` are reflected here. Related documents: `../domain_model.md` (entities and glossary), `../threat_model.md`, `../roadmap.md` (phases, checklists and change log).
+>
+> **Terminology (ADR-0012):** *Repository* = a Kopia-backed recovery-point store; *storage backend* = its physical target; *backup engine* = the Go abstraction over Kopia; *store* = the PostgreSQL data-access layer; *source repository* = a Git repository.
+
+---
+
+# Context & Constraints
+
+Owner answers recorded 2026-09-25. Release naming: **v1.0 = the MVP**; **v2** = the post-MVP tier; **Later** = unscheduled.
+
+| Topic | Constraint | Design impact |
+|---|---|---|
+| Purpose and license | Internal tool, published as open source: free to use, modify and commercialize, provided the original repository is credited | **Apache-2.0** with a `NOTICE` crediting https://github.com/AxiomOperator/dbr2; copyright **DBR2 Team** (ADR-0013). Dependencies must have compatible licenses (Kopia Apache-2.0, Temporal MIT, Valkey BSD-3). |
+| Operators | One operator today; must also support teams | Every feature must be operable by one person. Multi-person controls (approvals, dual authorization) are optional and switch on only when enough eligible users exist (ADR-0014). |
+| Scale (v1.0) | 6 Docker hosts; largest volume about 500 GB; total data unknown | A single `dbr2-reposerver` is sufficient. The default maximum quiesce duration is **60 minutes**. Large volumes are seeded with an initial Live pass (ADR-0005). |
+| Platform | AMD64 only. Rocky Linux now; Fedora required; Debian-based distributions nice to have | RPM packages for Rocky and Fedora in v1.0, DEB in v2. SELinux-enforcing hosts are the primary test target; AppArmor handling comes with Debian support. |
+| Compose | Deployed by hand with `docker compose` only in v1.0 | Discovery relies on Compose labels and host-readable project directories. Portainer, Dockge and Git-driven deployments are out of scope for v1.0. |
+| Sites | Single site in v1.0 | The reposerver is co-located with the control plane. Offsite replication and WAN features are v2 or Later. |
+| Development environment | The dev box is **not connected to the NAS** | NFS is **mocked** in development and CI (see Testing → Storage mocking). **No throughput testing** until the NAS is connected. |
+| Source control and CI | GitHub (`AxiomOperator/dbr2`), **GitHub Actions** | All CI/CD, including the versioning and changelog checks (ADR-0015), runs on GitHub Actions. |
+| Versioning | Every component is versioned `MAJOR.MINOR.BUGFIX.BUILD` and keeps its own changelog | ADR-0015 |
+| Storage | A single NAS over **NFS** in v1.0 | NFS is the only production storage backend in v1.0 (local filesystem for development and testing). SMB and S3-compatible storage are v2. Without S3 Object Lock, immutability relies on ADR-0002 identities, NFS export restrictions and NAS snapshots. |
+| Identity | Entra ID in v1.0; other providers later. A **master admin (username and password) is required** for lockout protection | Entra ID via OIDC is the only v1.0 identity provider (group-to-role mapping). The local master admin always exists (see Authentication). |
+| Compliance | None at this time | No mandated retention; legal hold and chain of custody stay Later. |
+| Key escrow | 2 people hold escrow keys offline, in a safe | Two age escrow recipients. Escrow packages are encrypted, so they can be stored anywhere; only the private identities live in the safe (ADR-0008). |
+| Databases (v1.0) | PostgreSQL and **Redis** | Database plugins in v1.0: PostgreSQL (`pg_dump`) and Redis (RDB via `BGSAVE`). Everything else is Later. |
+| Downtime | As little as possible, but some is acceptable | Default policy favors online database dumps plus short quiesce windows; seeding and filesystem snapshots reduce the window (ADR-0005). |
+| Existing backups | **Veeam** (VM-level) today | DBR² focuses on application-level protection. Bare-host recovery moves to Later. Veeam also protects the DBR² server VM as an extra layer of platform recovery. DBR² backup windows should avoid Veeam job windows. |
+
 ## Frontend
 
 DBR² will use a modern TypeScript-based web stack focused on administrative usability, real-time visibility, and maintainable component development.
@@ -67,7 +96,7 @@ The control plane is the authoritative management layer of DBR². It will manage
 * Backup jobs
 * Recovery points
 * Restore operations
-* Storage repositories
+* Repositories and their repository servers
 * Recovery contracts
 * Users and roles
 * Notifications
@@ -81,6 +110,19 @@ Huma will sit above Chi to provide schema-driven API development, request and re
 pgx will be used as the native PostgreSQL driver.
 
 sqlc will generate type-safe Go data-access code directly from SQL queries. DBR² will deliberately avoid making a traditional ORM the primary database abstraction so that complex reporting, retention, backup-history, and recovery queries remain explicit and controllable.
+
+**Interactive API documentation (required).** The API serves a **Swagger-style interactive documentation UI**, rendered by Huma from the generated OpenAPI document (Swagger UI renderer):
+
+```text
+/api/docs            Swagger UI (browse the API, "Try it out", Authorize with a bearer token)
+/api/openapi.json    OpenAPI document (JSON)
+/api/openapi.yaml    OpenAPI document (YAML)
+```
+
+* By default the docs require an authenticated session. `api.docs.public: true` makes them public.
+* "Try it out" runs under the caller's own RBAC permissions. It never bypasses authorization.
+* Every operation carries a summary, a description, tags, examples and error schemas. The CI API contract check (ADR-0015) fails on undocumented operations.
+* The OpenAPI `info.version` is the `api` component version (ADR-0015).
 
 OpenAPI will serve as the formal external API contract and support:
 
@@ -113,7 +155,7 @@ Discover Application
         ↓
 Validate Protection Policy
         ↓
-Acquire Backup Lock
+Claim Application (exclusive workflow ID)
         ↓
 Run Pre-Backup Hooks
         ↓
@@ -129,18 +171,25 @@ Upload Backup Data
         ↓
 Verify Repository Objects
         ↓
-Generate Recovery Manifest
+Commit Recovery Point (write manifest last)
         ↓
 Replicate Backup
         ↓
 Apply Retention
         ↓
-Update Recovery Point
+Update Recovery Point Index
         ↓
 Run Post-Backup Hooks
         ↓
 Notify
 ```
+
+Notes on the workflow:
+
+* **Protect / Upload.** If a filesystem snapshot is available, "Protect Volumes" takes the snapshot, the application resumes immediately, and "Upload Backup Data" reads from the snapshot. Without snapshots, which is the common case and must always work, the Kopia upload runs inside the quiesce window, so Protect and Upload are effectively one step (ADR-0005).
+* **Resume is guaranteed.** `Resume Application` and the post-backup hooks are registered as saga compensation as soon as Quiesce succeeds. The agent also enforces a quiesce-lease dead-man switch (ADR-0005).
+* **Atomic commit.** Components are captured first. The recovery point exists only once its manifest is committed to the Repository (ADR-0004).
+* **Execution.** Activities run in `dbr2-worker` and reach agents through the Agent Gateway (ADR-0001).
 
 Temporal will also manage:
 
@@ -157,13 +206,42 @@ Temporal will also manage:
 
 This keeps complex workflow state out of ad-hoc job tables and prevents the control-plane API from becoming responsible for long-running execution.
 
+## Concurrency Control
+
+DBR² must never run two conflicting operations against the same application at once, such as two backups, or a backup and a restore. Mutual exclusion therefore relies only on durable systems: **Temporal and PostgreSQL**. It is never held in the cache, because a lock that can disappear on restart, eviction or failover does not provide exclusion.
+
+**Application operations use Temporal workflow IDs as the lock.**
+
+Every workflow that operates on a live application (backup, restore, migration) starts with a deterministic workflow ID derived from the application:
+
+```text
+application/{application_id}
+```
+
+Temporal allows only one running workflow execution per workflow ID within a namespace, regardless of workflow type. A second start attempt for the same application is rejected, with the ID conflict policy set to fail, until the running workflow closes. The lock is held for exactly as long as the workflow runs, it survives worker and server restarts, and it is released when the workflow completes, fails, times out or is terminated.
+
+* Manual, scheduled and API-triggered operations all use the same ID scheme, so they exclude one another.
+* When a scheduled run collides with an operation already in progress, it is skipped and recorded as an overlapping run, not queued silently.
+* Test restores into an isolated sandbox do not touch the live application, so they do not claim the application ID.
+* Repository-wide operations (maintenance, verification, retention across a repository) use their own ID scheme, for example `repository/{repository_id}/maintenance`.
+
+**PostgreSQL provides exclusion for short control-plane critical sections.**
+
+* Prefer declarative guarantees first: unique constraints, conditional updates (`UPDATE … WHERE state = …`) and `SELECT … FOR UPDATE`.
+* Use transaction-scoped advisory locks (`pg_advisory_xact_lock`) where a critical section spans several statements, for example agent enrollment or policy changes.
+* Do not hold session-level advisory locks across Temporal activities or network calls. Long-lived exclusion belongs to Temporal.
+
 ---
 
 # Data Layer
 
 ## PostgreSQL 18
 
-PostgreSQL 18 will be the primary persistent database and system of record.
+PostgreSQL 18 will be the primary persistent database and the system of record for **platform state**.
+
+> **Recovery data is authoritative in the Repository, not in PostgreSQL (ADR-0003).** Every recovery point's components and its versioned recovery manifest live in the Repository. For recovery points, PostgreSQL is an **index** that can be rebuilt at any time with `dbr2 admin reindex`. If PostgreSQL and a Repository disagree, the Repository wins. Losing PostgreSQL must never make a backup unrecoverable.
+
+Temporal's persistence uses separate databases (`temporal`, `temporal_visibility`) on the same PostgreSQL server (ADR-0009).
 
 It will store metadata including:
 
@@ -179,7 +257,7 @@ It will store metadata including:
 * Policies
 * Repositories
 * Backup jobs
-* Recovery points
+* Recovery points (index only)
 * Restore operations
 * Restore tests
 * Recovery contracts
@@ -192,9 +270,11 @@ PostgreSQL stores the metadata describing where protected data resides and how i
 
 ---
 
-## Dragonfly
+## Valkey
 
-Dragonfly will provide high-performance ephemeral storage and caching where appropriate.
+Valkey will provide ephemeral storage and caching where appropriate.
+
+Valkey is a BSD-licensed, Redis-compatible in-memory store maintained under the Linux Foundation. It was chosen over Dragonfly because its license (BSD-3 rather than BSL) is simpler for a distributable product, it has broad ecosystem and client support (including `valkey-go` and `go-redis`), and DBR²'s cache workload does not need Dragonfly's multithreaded throughput.
 
 Primary uses may include:
 
@@ -202,12 +282,11 @@ Primary uses may include:
 * Short-lived application state
 * Rate limiting
 * Session acceleration
-* Distributed locks
 * Temporary job progress
-* Event fanout
+* Event fanout (for example, SSE across multiple `dbr2-server` instances)
 * Expiring tokens
 
-Dragonfly will not be treated as a durable system of record.
+Valkey will not be treated as a durable system of record, and it will **not** be used for distributed locks or any other correctness-critical coordination (see *Concurrency Control*). Losing all Valkey data must never cause incorrect behavior, only cache misses and slower responses.
 
 The responsibility boundaries will remain:
 
@@ -216,9 +295,9 @@ PostgreSQL
 Durable platform state
 
 Temporal
-Durable workflow state
+Durable workflow state and operation exclusivity
 
-Dragonfly
+Valkey
 Disposable high-speed state
 ```
 
@@ -252,14 +331,23 @@ Responsibilities include:
 * Restore execution
 * Database backup hooks
 * Filesystem traversal
-* Repository access
+* Repository access (through `dbr2-reposerver`, limited to its own snapshots; ADR-0002)
 * Health reporting
 * Application control
+* Quiesce dead-man switch (ADR-0005)
 * Restore validation
 
 The agent will use the Docker/Moby Go SDK instead of relying primarily on shelling out to Docker CLI commands.
 
-The agent should operate as a native system service, for example:
+**Volume access (ADR-0006).**
+
+* The agent reads data at the host level.
+* Paths are resolved from Docker (`VolumeInspect().Mountpoint`, `Info().DockerRootDir`, container `Mounts`), never hard-coded.
+* Non-local driver volumes and network-backed local volumes are classified **External** and are not backed up by default.
+* Rootless Docker support is v2.
+* SELinux contexts are recorded at capture and reapplied or relabeled on restore.
+
+The agent should operate as a native system service (ADR-0006), for example:
 
 ```text
 /usr/local/bin/dbr2-agent
@@ -304,6 +392,23 @@ Each agent should receive its own certificate identity so that an agent can be i
 * Rotated
 * Suspended
 * Revoked
+
+## Agent Gateway (ADR-0001)
+
+`dbr2-worker` runs every Temporal activity. Activities reach agents through the **Agent Gateway** hosted in `dbr2-server`:
+
+```text
+dbr2-worker (activity) ──Dispatch(agent_id, command)──► Agent Gateway (dbr2-server)
+                                                             │ bidirectional stream opened by the agent
+                                                             ▼
+                                                        dbr2-agent
+```
+
+* Agents open a long-lived `AgentService.Connect` stream. Session leases are tracked in PostgreSQL.
+* Every command carries an idempotency key: `command_id` = workflow ID + activity ID + attempt.
+* The agent journals commands locally. A command keeps running if the stream drops, and its status is reported on reconnect.
+* Progress is relayed as Temporal activity heartbeats. If the agent does not return, the heartbeat timeout fails the activity, and Temporal retries it with the same `command_id`.
+* Backup payloads never pass through the gateway or the worker.
 
 ---
 
@@ -354,12 +459,28 @@ RPO/RTO requirements
 
 Kopia remains responsible for efficiently storing the underlying backup data.
 
-A repository abstraction should be maintained internally so that DBR² is not permanently coupled to Kopia.
+### Integration (ADR-0007)
 
-For example:
+* Kopia is embedded as a **Go library**, pinned to an exact version.
+* No other package imports Kopia directly; it is used only through `internal/engine/kopia`.
+* Kopia upgrades are deliberate roadmap items, gated by an engine compatibility suite that restores fixture repositories from every previously shipped version.
+* Repositories remain standard Kopia repositories. With the escrowed repository password, a stock `kopia` CLI can still recover data if DBR² binaries are unavailable.
+
+### Repository Server (ADR-0002)
+
+Each Repository is served by a **Kopia Repository Server**, deployed as `dbr2-reposerver`.
+
+* Only `dbr2-reposerver` holds the repository password and the storage backend credentials.
+* Each agent authenticates as its own Kopia user. Its ACLs allow appending and reading its **own** snapshots only, with no delete access.
+* Retention, deletion, maintenance and cross-host restore use a separate **maintenance identity** held only by `dbr2-worker`.
+* S3 Object Lock is used underneath where the storage backend supports it.
+
+### Backup engine abstraction
+
+A **backup engine** abstraction is maintained internally, so that DBR² is not permanently coupled to Kopia (ADR-0012 terminology):
 
 ```go
-type Repository interface {
+type BackupEngine interface {
     Backup(...)
     Restore(...)
     Verify(...)
@@ -369,7 +490,13 @@ type Repository interface {
 }
 ```
 
-This allows additional repository implementations in the future.
+This allows additional backup engine implementations in the future.
+
+### Recovery points (ADR-0004)
+
+* A recovery point is a set of tagged Kopia snapshots (config, volumes, bind mounts, database dumps, optional images) plus a versioned JSON **recovery manifest**. The manifest is stored in the Repository and written **last**, as the commit marker.
+* No manifest means no recovery point.
+* If an optional component fails, the recovery point is committed with status **Partial**. If a required component fails, no recovery point is committed and the job fails.
 
 ---
 
@@ -388,7 +515,7 @@ Potential use cases include:
 Example:
 
 ```text
-planix-volume.tar.zst
+inventory-volume.tar.zst
 postgres.dump.zst
 application-recovery.tar.zst
 ```
@@ -414,14 +541,25 @@ The platform should avoid designing proprietary cryptography.
 
 DBR² will support multiple storage models through repository and storage abstractions.
 
-## Initial storage targets
+## Storage targets
 
-* Local filesystem
-* NFS-mounted storage
+**v1.0:**
+
+* NFS-mounted storage. This is the production target: a single NAS, mounted **only on the `dbr2-reposerver` host**, never on agents.
+* Local filesystem (development and testing)
+
+**v2:**
+
 * SMB-mounted storage
-* S3-compatible object storage
+* S3-compatible object storage (enables S3 Object Lock immutability)
 
-## S3-Compatible Platforms
+**NFS guidance for v1.0:**
+
+* Export the share only to the reposerver host's address.
+* Mount it `hard`, never `soft`.
+* Enable scheduled, read-only **NAS snapshots** on the share. They are the v1.0 substitute for object-lock immutability.
+
+## S3-Compatible Platforms (v2)
 
 Support should include:
 
@@ -448,11 +586,13 @@ Storage backend
 For example:
 
 ```text
-DBR² Repository
+DBR² Agent (Kopia client, per-agent identity)
     ↓
-Kopia
+dbr2-reposerver (Kopia Repository Server)
     ↓
-S3-compatible storage
+DBR² Repository (Kopia repository format)
+    ↓
+Storage backend: S3-compatible storage
     ↓
 MinIO
 ```
@@ -469,7 +609,9 @@ DBR² will use standards-based external authentication where possible.
 
 * OIDC
 * OAuth2
-* Local break-glass account
+* Local master admin account (username and password; lockout protection)
+
+**v1.0:** Microsoft Entra ID through OIDC. Entra ID groups (or app roles) map to DBR² roles.
 
 Supported identity providers should eventually include:
 
@@ -483,9 +625,13 @@ Supported identity providers should eventually include:
 
 DBR² should act as an OIDC client rather than becoming a full identity provider.
 
-A local emergency account should remain available for circumstances where the external identity provider is unavailable.
+**Master admin (required).** A local **master admin** account, authenticated by username and password, always exists for lockout protection. It works when Entra ID is unavailable or misconfigured.
 
-The local account should be heavily protected and intended strictly for break-glass administration.
+* The password is stored as an Argon2id hash. Logins are rate-limited and locked out progressively.
+* TOTP is optional and recommended; it is not required.
+* Every login is audited, and a notification is sent (this can be configured).
+* The master admin always holds the Administrator role and cannot be deleted or demoted.
+* **Last-resort reset:** `dbr2 admin reset-master-password`, run as root on the `dbr2-server` host, for the case where the password itself is lost. The reset is audited.
 
 ---
 
@@ -534,12 +680,59 @@ audit.read
 secrets.read
 ```
 
+### Production restores and approval workflows
+
+`restore.production` is tied to the optional **production restore approval** policy:
+
+* **What counts as production:** a restore is a *production restore* when the target Application or Host is tagged `environment: production`, or when the restore would overwrite a live application in place.
+* **Permission required:** requesting a production restore requires `restore.execute` **and** `restore.production`.
+* **When approval is enabled** (per environment or per Application):
+  * The restore workflow waits in **Pending Approval**, as a Temporal workflow waiting on a signal with an expiry.
+  * A **second user** holding `restore.production`, who is not the requester, must approve it.
+  * A reason or change-ticket field (for example `INC-48391`) is mandatory.
+* **Emergency override:** an Administrator can override approval. The override requires a reason, raises a critical alert, and is audited.
+* **Maintenance windows:** production restores outside configured maintenance windows are treated as emergency overrides.
+* **One operator or a team (ADR-0014):** approval and dual authorization can be enabled only when at least two eligible users exist (the master admin is not counted). Single-operator safeguards are always on: typed confirmation, a mandatory reason, the impact preview, and a 7-day deletion grace period.
+* **Other destructive operations** use the same approval mechanism as optional **dual authorization**: deleting a recovery point, deleting a Repository, reducing retention, disabling immutability, and rotating a repository key.
+
 If authorization requirements become substantially more complex, DBR² can later integrate:
 
 * OPA
 * OpenFGA
 
 This allows the first implementation to remain straightforward without closing off future relationship-based or policy-based authorization.
+
+---
+
+# Platform Self-Protection (ADR-0008) — mandatory
+
+DBR² must be able to survive its own loss.
+
+**Self-backup.** A built-in Platform Protection workflow, run daily and after security-relevant configuration changes, backs up:
+
+* the DBR² PostgreSQL database
+* the Temporal databases (kept for forensics)
+* configuration, including the OIDC client configuration
+* the DBR² CA and TLS keys
+* repository passwords, storage credentials and the maintenance identity
+
+It writes to a dedicated **System Repository** and to an **age-encrypted Platform Recovery Bundle** stored outside that repository.
+
+**Key escrow.**
+
+* Every repository password and every other critical secret is sealed with age to one or more **escrow recipients**. Hardware-backed or offline keys are recommended.
+* A new Repository cannot be completed until an administrator confirms that its escrow package has been stored.
+* An escrow health check alerts when escrow is missing, stale or out of date.
+
+**Platform recovery runbook.**
+
+1. Install a fresh DBR².
+2. Run `dbr2 admin restore-platform <bundle>`.
+3. Run `dbr2 admin reindex` for each Repository.
+4. Start Temporal fresh. Schedules are rebuilt from policies.
+5. Agents reconnect with their existing certificates.
+
+A platform recovery test is part of the release checklist.
 
 ---
 
@@ -687,12 +880,13 @@ A basic deployment may contain:
 dbr2-web
 dbr2-server
 dbr2-worker
+dbr2-reposerver    (one per Repository; may be co-located or deployed near storage)
 postgres
-dragonfly
+valkey
 temporal
 ```
 
-Remote Docker hosts will run:
+Protected Docker hosts will run:
 
 ```text
 dbr2-agent
@@ -715,7 +909,7 @@ Next.js
 Go API
 PostgreSQL
 Temporal
-Dragonfly
+Valkey
 Authentication
 Authorization
 Policies
@@ -732,30 +926,35 @@ DBR² Agent
 Docker Engine
 Host filesystem
 Database utilities
-Kopia
-Backup repository
-Object storage
+Kopia (embedded)
+dbr2-reposerver
+Repository
+Storage backend
 ```
 
 The data plane performs the backup and restore operations.
 
-Backup payloads should not normally flow through the central DBR² API.
+Backup payloads never flow through the central DBR² API, the Agent Gateway or the worker.
 
 Preferred architecture:
 
 ```text
                         DBR² Control Plane
+                     (dbr2-server / dbr2-worker)
                                │
-                               │ instructions
+                               │ instructions (Agent Gateway)
                                ▼
 Docker Host ───────────── DBR² Agent
                                │
-                               │ backup data
+                               │ backup data (per-agent Kopia identity)
                                ▼
-                         Repository
+                        dbr2-reposerver
                                │
                                ▼
-                        Storage Backend
+                          Repository
+                               │
+                               ▼
+                        Storage backend
 ```
 
 This prevents the control plane from becoming a throughput bottleneck.
@@ -764,10 +963,7 @@ This prevents the control plane from becoming a throughput bottleneck.
 
 # CI/CD
 
-DBR² can support either:
-
-* GitHub Actions
-* Azure DevOps
+DBR² uses **GitHub Actions**. The source repository is `github.com/AxiomOperator/dbr2`.
 
 CI/CD responsibilities should include:
 
@@ -784,17 +980,35 @@ Container signing
 Release packaging
 Agent binary publishing
 Database migration validation
+Changelog check per component (ADR-0015)
+OpenAPI breaking-change diff (oasdiff) and proto breaking-change check (buf)
+License and NOTICE / third-party notice check
 ```
+
+**Versioning (ADR-0015):**
+
+* Every component (api, server, worker, agent, reposerver, cli, web, agent-protocol, manifest-schema, db-schema, deployment) has its own `VERSION` and `CHANGELOG.md`.
+* Versions use the form `MAJOR.MINOR.BUGFIX.BUILD`, where BUILD is the GitHub Actions `run_number`.
+* Platform releases pin component versions in `release-manifest.json`.
 
 The release pipeline should generate versioned artifacts for:
 
 ```text
 dbr2-server
 dbr2-worker
-dbr2-agent
+dbr2-agent (static binary, RPM, DEB)
+dbr2-reposerver
 dbr2 CLI
 Web container
 Deployment manifests
+```
+
+Every release must also pass:
+
+```text
+Engine compatibility suite (restore repositories from all prior versions)
+Recovery manifest schema compatibility tests
+Platform recovery test (ADR-0008)
 ```
 
 ---
@@ -808,12 +1022,22 @@ DBR² requires substantially more than unit testing because the product directly
 Used for:
 
 * Domain logic
-* Repository abstractions
-* Manifest parsing
+* Backup engine abstraction
+* Manifest parsing and schema versioning
 * Retention logic
 * Policy evaluation
 * Docker metadata translation
 * Recovery planning
+
+---
+
+## Storage mocking (development and CI)
+
+The development box is not connected to the NAS, so **NFS is mocked**:
+
+* **Default dev profile:** the Repository's storage backend is a local directory mounted at the same path the production NFS mount will use (for example `/mnt/dbr2-repo`). Configuration is identical to production apart from the source of the mount.
+* **Functional NFS tests:** Testcontainers runs a containerized NFS server. The reposerver mounts it with the production mount options, and the tests cover export permissions and squashing, `hard` mount behavior, and an **NFS outage** (stop the server container mid-backup, then recover).
+* **No throughput or performance testing** until the real NAS is connected. The seed and incremental timing measurement for the ~500 GB volume is deferred until then.
 
 ---
 
@@ -880,13 +1104,21 @@ Image digest mismatch
 Corrupt backup object
 Partial restore
 Application health-check failure
+Agent disconnect while application is quiesced (dead-man auto-resume)
+Worker crash after quiesce (saga compensation resumes the application)
+Required component failure (no recovery point committed)
+Optional component failure (Partial recovery point)
+Reindex from Repository after PostgreSQL loss
+Agent credential cannot delete or read other hosts' snapshots
+SELinux-enforcing host: bind-mount and volume restore
+Concurrent backup and restore on same application (rejected)
 ```
 
 Backup software should be tested primarily on whether it can restore correctly, not merely whether it can create an archive.
 
 ---
 
-# Source Repository Structure
+# Codebase Structure
 
 A practical monorepo layout would be:
 
@@ -897,29 +1129,35 @@ dbr2/
 │   ├── server/
 │   ├── worker/
 │   ├── agent/
+│   ├── reposerver/
 │   └── dbr2/
 │
 ├── internal/
+│   ├── agentgateway/    # Agent Gateway (ADR-0001)
 │   ├── api/
 │   ├── auth/
 │   ├── backup/
 │   ├── compose/
-│   ├── database/
+│   ├── database/        # database-aware backup plugins (pg_dump, mysqldump, …)
 │   ├── docker/
-│   ├── encryption/
-│   ├── manifest/
+│   ├── encryption/      # age exports, escrow
+│   ├── engine/          # BackupEngine interface
+│   │   └── kopia/       # the only package that imports Kopia (ADR-0007)
+│   ├── manifest/        # versioned recovery manifest (ADR-0004)
 │   ├── policy/
-│   ├── repository/
+│   ├── repository/      # Repository domain: configuration, reposerver management
 │   ├── restore/
 │   ├── runtime/
-│   ├── storage/
+│   ├── storage/         # storage backend configuration
+│   ├── store/           # PostgreSQL data access (sqlc)
 │   └── workloads/
 │
 ├── workflows/
 │   ├── backup/
 │   ├── restore/
 │   ├── verify/
-│   └── retention/
+│   ├── retention/
+│   └── platform/        # self-backup (ADR-0008)
 │
 ├── proto/
 │   └── agent/
@@ -1014,8 +1252,8 @@ Execution and Docker interaction
 
         ↓
 
-Kopia
-Backup repository mechanics
+Kopia (embedded) via dbr2-reposerver
+Backup repository mechanics; authoritative recovery data
 
         ↓
 
@@ -1027,9 +1265,9 @@ Supporting infrastructure:
 
 ```text
 PostgreSQL
-Durable DBR² platform state
+Durable DBR² platform state; recovery-point index
 
-Dragonfly
+Valkey
 High-speed temporary state
 
 OpenTelemetry
@@ -1044,6 +1282,6 @@ Secure agent communication
 
 The architectural principle behind the final stack is:
 
-> **Go owns Docker and recovery orchestration. Temporal owns durable execution. PostgreSQL owns DBR² platform state. Kopia owns backup repository mechanics. Next.js owns the administrative experience.**
+> **Go owns Docker and recovery orchestration. Temporal owns durable execution and operation exclusivity. PostgreSQL owns DBR² platform state. The Repository owns recovery data, with Kopia providing its mechanics. Next.js owns the administrative experience.**
 
 This keeps DBR² focused on its actual value: understanding containerized applications, protecting them correctly, proving they are recoverable, and rebuilding them reliably when required.

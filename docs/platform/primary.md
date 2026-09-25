@@ -61,7 +61,7 @@ Docker Host: docker-prod-01
 
 Applications
 ──────────────────────────────────────
-✓ Planix
+✓ Inventory
   6 containers
   4 volumes
   2 bind mounts
@@ -129,19 +129,19 @@ The authoritative architecture and technology choices live in `../stack_info/fin
        │                  │                  │
        ▼                  ▼                  ▼
 ┌──────────────┐  ┌───────────────┐  ┌──────────────────────┐
-│ PostgreSQL 18│  │   Temporal    │  │     Dragonfly        │
+│ PostgreSQL 18│  │   Temporal    │  │       Valkey         │
 │ Platform     │  │ Durable       │  │ Disposable           │
 │ state        │  │ workflows     │  │ high-speed state     │
 └──────────────┘  └───────┬───────┘  └──────────────────────┘
                           │
                           ▼
                  DBR² Worker (dbr2-worker)
-                          │ gRPC + mTLS
+                          │ Agent Gateway (gRPC + mTLS)
                           ▼
             DBR² Agent (dbr2-agent) on each Docker host
                           │ backup data (not via the API)
                           ▼
-                   Kopia repository
+          dbr2-reposerver → Repository (Kopia)
                           │
                           ▼
    Local filesystem / NFS / SMB / S3-compatible storage
@@ -153,61 +153,43 @@ The authoritative architecture and technology choices live in `../stack_info/fin
 | Frontend | Next.js + React + TypeScript + ShadCN + TailwindCSS + TanStack + React Flow + Zod |
 | Database | PostgreSQL 18 (metadata only; no backup payloads) |
 | Orchestration | Temporal (Go SDK) |
-| Ephemeral state / cache | Dragonfly (never a system of record) |
+| Ephemeral state / cache | Valkey (never a system of record; no locks) |
 | Container runtime access | DBR² Agent via Docker/Moby Go SDK, behind a `ContainerRuntime` abstraction |
-| Backup repository engine | Kopia (chunking, dedup, compression, encryption, incrementals) |
+| Backup engine | Kopia, embedded as a library (ADR-0007), served per Repository by `dbr2-reposerver` (ADR-0002) |
 | Exported artifacts | Zstandard compression, age encryption |
-| Storage | Local filesystem, NFS, SMB, S3-compatible |
-| Authentication | OIDC client plus a local break-glass account |
+| Storage | v1.0: NFS (single NAS) plus local filesystem for testing; v2: SMB, S3-compatible |
+| Authentication | OIDC client (Entra ID in v1.0) plus a local master admin (username and password) |
 | Observability | OpenTelemetry, `slog`, OTLP export |
 
 ---
 
 # Host connectivity
 
-This is one architectural decision I would make very carefully.
-
-I would support **two host connection models**.
-
-### Local Docker socket
-
-For the Docker server running the backup software:
+DBR² uses a **single host connection model**: the DBR² Agent. Every protected Docker host runs the agent, including a host that also runs the DBR² control plane. The control plane never talks to a Docker daemon directly.
 
 ```text
-/var/run/docker.sock
-```
-
-Example:
-
-```yaml
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock
-```
-
-But mounting the Docker socket effectively grants **root-equivalent control of the host**, so your API should never expose the socket directly.
-
-### Remote agent
-
-For production, I prefer:
-
-```text
-Central Backup Server
+DBR² Control Plane
+       ▲
+       │ gRPC + mTLS (agent-initiated, outbound)
        │
-       │ TLS / mTLS
-       ▼
-Docker Backup Agent
+DBR² Agent (dbr2-agent)
        │
        ▼
-Docker Engine
+Docker Engine (local socket, via Docker/Moby Go SDK)
 ```
 
-Install a tiny Go binary:
+The agent is a native system service:
 
 ```text
-dockerbackup-agent
+/usr/local/bin/dbr2-agent
+/etc/dbr2/agent.yaml
+/etc/dbr2/certs/
+systemd: dbr2-agent.service
 ```
 
-on each Docker host.
+Access to the Docker socket gives **root-equivalent control of the host**. The agent is the only component that holds it, and the socket is never exposed through the DBR² API.
+
+Each agent has its own certificate identity, so it can be individually approved, audited, rotated, suspended and revoked.
 
 The agent:
 
@@ -221,13 +203,13 @@ Performs restores
 Reports health
 ```
 
-This avoids exposing:
+Because agents connect outbound, DBR² never needs a remotely exposed Docker daemon such as:
 
 ```text
 tcp://docker-host:2375
 ```
 
-which you absolutely should not do.
+which should never be used.
 
 ---
 
@@ -238,23 +220,23 @@ This should be one of the strongest parts of the product.
 Suppose Docker contains:
 
 ```text
-planix-web
-planix-api
-planix-worker
-planix-postgres
-planix-dragonfly
+inventory-web
+inventory-api
+inventory-worker
+inventory-postgres
+inventory-dragonfly
 ```
 
 The program detects:
 
 ```text
-com.docker.compose.project=planix
+com.docker.compose.project=inventory
 ```
 
 and presents:
 
 ```text
-Application: planix
+Application: inventory
 
 Services:
   web
@@ -264,16 +246,16 @@ Services:
   dragonfly
 
 Volumes:
-  planix_pgdata
-  planix_uploads
+  inventory_pgdata
+  inventory_uploads
 
 Bind mounts:
-  /opt/planix/config
-  /srv/planix/documents
+  /opt/inventory/config
+  /srv/inventory/documents
 
 Networks:
-  planix_backend
-  planix_frontend
+  inventory_backend
+  inventory_frontend
 ```
 
 Everything becomes one logical **application**.
@@ -317,8 +299,8 @@ services:
     restart: unless-stopped
 
     environment:
-      POSTGRES_DB: planix
-      POSTGRES_USER: planix
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
 
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -365,29 +347,17 @@ Backup flow:
 Docker volume
      │
      ▼
-temporary helper container
+DBR² Agent (filesystem traversal on the host)
      │
      ▼
-tar stream
+Kopia snapshot
+(chunking · dedup · compression · encryption)
      │
      ▼
-zstd
-     │
-     ▼
-backup repository
+DBR² repository → storage backend
 ```
 
-Something conceptually equivalent to:
-
-```bash
-tar -C /volume -cf - . | zstd
-```
-
-would generate:
-
-```text
-postgres-data.tar.zst
-```
+The recovery manifest records the resulting snapshot for the volume, for example `postgres-data`. A standalone `postgres-data.tar.zst` archive is produced only when the application is exported as a disaster-recovery bundle.
 
 ### Bind mounts
 
@@ -395,14 +365,14 @@ Example:
 
 ```yaml
 volumes:
-  - /srv/planix/uploads:/app/uploads
+  - /srv/inventory/uploads:/app/uploads
 ```
 
 Record both:
 
 ```text
 Original host location:
-/srv/planix/uploads
+/srv/inventory/uploads
 
 Container location:
 /app/uploads
@@ -413,7 +383,7 @@ The restore UI can then offer:
 ```text
 Restore original path
 
-/srv/planix/uploads
+/srv/inventory/uploads
 
 or map to:
 
@@ -445,14 +415,14 @@ For MySQL/MariaDB:
 mysqldump
 ```
 
-Eventually:
+v1.0 supports **PostgreSQL** and **Redis** (RDB through `BGSAVE`). Later:
 
 ```text
 PostgreSQL
+Redis
 MySQL
 MariaDB
 MongoDB
-Redis
 Microsoft SQL Server
 InfluxDB
 Elasticsearch
@@ -461,7 +431,7 @@ Elasticsearch
 Then the UI can show:
 
 ```text
-planix-postgres
+inventory-postgres
 
 Database detected: PostgreSQL 18
 
@@ -474,11 +444,11 @@ Backup strategy:
 
 I'd recommend **Both** by default for important databases.
 
-That gives you:
+That gives you, within one recovery point:
 
 ```text
-postgres-data.tar.zst
-planix-postgres.dump.zst
+Kopia snapshot of the postgres-data volume
+inventory-postgres.dump.zst (logical dump, stored in the repository)
 ```
 
 ---
@@ -535,9 +505,11 @@ The UI:
 Backup consistency
 
 ○ Live
-● Application aware
-○ Stop application during backup
+● Quiesced (pre/post hooks)
+○ Offline (stop application during backup)
 ```
+
+These modes map to the backup workflow stages in the final stack: Run Pre-Backup Hooks → Create Database Dumps → Quiesce Application → Protect Volumes / Bind Mounts → Resume Application.
 
 ---
 
@@ -560,17 +532,11 @@ Weekly:      8
 Monthly:    12
 Yearly:      3
 
-Compression
-Zstandard Level 6
-
-Encryption
-Enabled
-
-Storage
-FBCAD-NAS
+Repository
+Primary-NAS (Kopia; compressed and encrypted)
 ```
 
-You could support:
+Schedules run as Temporal scheduled workflows. Supported schedule types:
 
 ```text
 Cron
@@ -586,92 +552,75 @@ and later more sophisticated policies.
 
 # Incremental backups
 
-I would absolutely put this on the roadmap.
+Incremental, deduplicated backups are available **from the first release**, because DBR² uses Kopia as its repository engine.
 
-A naive backup system creates:
-
-```text
-100GB
-100GB
-100GB
-100GB
-```
-
-for four backups.
-
-Instead, implement deduplicated chunks:
+A naive backup system stores four full 100 GB copies for four backups. Kopia instead splits content into chunks, stores each chunk once, and uploads only chunks that have changed. Kopia handles:
 
 ```text
-File
- ↓
-Chunking
- ↓
-Hash
- ↓
-Object store
+Content chunking
+Deduplication
+Compression
+Encryption
+Snapshot management
+Incremental backups
+Repository maintenance
+Integrity verification
 ```
 
-Example:
-
-```text
-SHA256(chunk) → backup object
-```
-
-If unchanged:
-
-```text
-already exists
-→ don't upload
-```
-
-Then backup manifests reference objects.
-
-Eventually you essentially build something similar conceptually to:
-
-```text
-restic
-borg
-kopia
-```
-
-You could even use one of those engines underneath initially rather than implementing deduplication yourself.
-
-I would strongly consider **Kopia or Restic as the underlying data repository engine**, while your software handles Docker awareness and orchestration.
+DBR² does not reimplement any of this. It provides the Docker-aware orchestration above Kopia, behind the internal `BackupEngine` interface, so that DBR² is not permanently coupled to Kopia.
 
 ---
 
 # Storage providers
 
-For V1:
+Storage targets for v1.0 (see final_stack → Context & Constraints):
 
 ```text
-Local filesystem
-NFS-mounted filesystem
+NFS-mounted filesystem   (production: single NAS, mounted only on dbr2-reposerver)
+Local filesystem         (development and testing)
+```
+
+v2:
+
+```text
 SMB-mounted filesystem
-S3 compatible
+S3-compatible object storage
 ```
 
-Then:
+S3-compatible platforms (v2):
 
 ```text
-AWS S3
-Backblaze B2
-Wasabi
-Cloudflare R2
 MinIO
-SFTP
-Azure Blob
+AWS S3
+Cloudflare R2
+Wasabi
+Backblaze B2 (where compatible)
 ```
 
-Because the application writes through a storage abstraction:
+Other providers (for example SFTP or Azure Blob) can be added later through the same abstraction layer.
+
+DBR² distinguishes a **Repository** from a **storage backend**:
+
+```text
+DBR² Repository
+    ↓
+Kopia
+    ↓
+S3-compatible storage
+    ↓
+MinIO
+```
+
+The internal abstraction is the `BackupEngine` interface defined in the final stack (ADR-0012 terminology), not a raw storage interface:
 
 ```go
-type StorageProvider interface {
-    Put()
-    Get()
-    Delete()
-    List()
-    Stat()
+type BackupEngine interface {
+    Backup(...)
+    Restore(...)
+    Verify(...)
+    Delete(...)
+    List(...)
+    Stats(...)
 }
 ```
 
@@ -684,7 +633,7 @@ This is arguably more important than backup.
 The restore page should look like:
 
 ```text
-Restore: Planix
+Restore: Inventory
 
 Backup
 September 24, 2026 02:00
@@ -769,7 +718,7 @@ docker-old-01
 
         ↓
 
-planix
+inventory
 
         ↓
 
@@ -877,29 +826,15 @@ Sensitive config
 Secrets
 ```
 
-The backup repository itself should be encrypted.
-
-I would use:
+Encryption follows the final stack. DBR² does not design its own cryptography.
 
 ```text
-Envelope encryption
-
-Master Key
-    ↓
-Data Encryption Key
-    ↓
-AES-256-GCM encrypted backup
+Repository data       Kopia repository encryption (always on)
+Exported artifacts    age (DR bundles, offline exports, transported packages)
+Agent transport       gRPC + mTLS
 ```
 
-Eventually allow:
-
-```text
-Local key
-HashiCorp Vault
-AWS KMS
-Azure Key Vault
-YubiKey-backed key
-```
+External key management (for example HashiCorp Vault, AWS KMS, Azure Key Vault or hardware-backed keys) is a possible future integration. It is not part of the final stack.
 
 ---
 
@@ -964,7 +899,7 @@ I'd put a strong dashboard around backup state.
 Something like:
 
 ```text
-Docker Backup
+DBR²
 ─────────────────────────────────────────────
 
 Hosts                 5
@@ -991,8 +926,8 @@ Savings
 
 APPLICATION       LAST BACKUP      STATUS
 
-Planix            22 min ago       ✓ Protected
-Xlynk             47 min ago       ✓ Protected
+Inventory         22 min ago       ✓ Protected
+Wiki              47 min ago       ✓ Protected
 Qdrant            1 hr ago        ✓ Protected
 Nagios            3 hr ago        ⚠ Warning
 Legacy ERP        Never           ✕ Unprotected
@@ -1016,7 +951,7 @@ Docker
 Protection
 ├── Backup Policies
 ├── Backup Jobs
-└── Snapshots
+└── Recovery Points
 
 Recovery
 ├── Restore
@@ -1043,56 +978,71 @@ That's important.
 
 # Suggested internal services
 
-You don't need dozens of microservices.
-
-Start with:
+There is no need for dozens of microservices. The initial deployment is Docker Compose:
 
 ```text
-dockerbackup-api
-dockerbackup-worker
-dockerbackup-agent
-dockerbackup-web
+dbr2-web
+dbr2-server
+dbr2-worker
+dbr2-reposerver   (one per Repository)
 postgres
+valkey
+temporal
 ```
 
-Architecture:
+Each protected Docker host runs:
+
+```text
+dbr2-agent
+```
 
 ```text
                ┌───────────────┐
-               │     Web       │
+               │   dbr2-web    │
                │    Next.js    │
                └───────┬───────┘
-                       │
+                       │ REST / SSE
                        ▼
                ┌───────────────┐
-               │      API      │
+               │  dbr2-server  │
                │      Go       │
                └───────┬───────┘
                        │
           ┌────────────┼────────────┐
           ▼            ▼            ▼
-     PostgreSQL      Worker       Storage
+     PostgreSQL    Temporal      Valkey
                        │
                        ▼
-                    Agents
+                  dbr2-worker
+                       │ gRPC + mTLS
+                       ▼
+                  dbr2-agents
                        │
            ┌───────────┼───────────┐
            ▼           ▼           ▼
         Docker 1    Docker 2    Docker 3
+                       │
+                       ▼
+                dbr2-reposerver
+                       │
+                       ▼
+              Repository / storage
 ```
+
+Backup payloads flow from agents through `dbr2-reposerver` to storage. They never pass through `dbr2-server` or `dbr2-worker` (ADR-0001, ADR-0002).
 
 ---
 
 # A backup manifest
 
-Every backup should have a machine-readable manifest.
+Every recovery point has a machine-readable recovery manifest, written **last** as the commit marker by the "Commit Recovery Point" workflow step (ADR-0004). The manifest lives in the Repository, which is authoritative; PostgreSQL only indexes it (ADR-0003). The schema is versioned from day one. It references the Kopia snapshots that make up the recovery point. The `archive` path below applies to exported bundles; inside the repository, each entry references its snapshot.
 
 For example:
 
 ```json
 {
   "version": "1.0",
-  "application": "planix",
+  "application": "inventory",
   "backup_id": "01K6...",
   "created_at": "2026-09-24T02:00:00Z",
 
@@ -1103,15 +1053,15 @@ For example:
   },
 
   "compose": {
-    "project": "planix",
+    "project": "inventory",
     "source": "original",
     "file": "compose/compose.yaml"
   },
 
   "volumes": [
     {
-      "name": "planix_pgdata",
-      "archive": "data/volumes/planix_pgdata.tar.zst",
+      "name": "inventory_pgdata",
+      "archive": "data/volumes/inventory_pgdata.tar.zst",
       "sha256": "..."
     }
   ],
@@ -1138,10 +1088,10 @@ Add a button:
 It produces:
 
 ```text
-planix-dr-2026-09-24.tar.zst
+inventory-dr-2026-09-24.tar.zst        (optionally age-encrypted: .tar.zst.age)
 ```
 
-containing everything necessary to reconstruct the application.
+containing everything necessary to reconstruct the application, following the final stack's use of Zstandard and age for disaster-recovery bundles.
 
 And ideally:
 
@@ -1174,23 +1124,10 @@ That prevents the backup software itself from becoming a recovery dependency.
 
 # Development phases
 
-I would build it in this order:
+The phases, checklists and change log live in **`../roadmap.md`**, the single authoritative plan. They are not repeated here.
 
-1. **Docker discovery** — hosts, stacks, Compose projects, containers, volumes, bind mounts and networks.
-2. **Backup engine** — Compose files + named volumes + bind mounts + manifest + Zstd compression.
-3. **Restore engine** — restore to original or alternate Docker host.
-4. **Web console** — application inventory, backup status, manual backup/restore.
-5. **Scheduling and retention** — backup policies, pruning and notifications.
-6. **Database-aware backups** — PostgreSQL first, then MySQL/MariaDB.
-7. **Remote agents** — securely manage multiple Docker hosts.
-8. **S3/storage providers** — local/NFS first, then S3-compatible.
-9. **Encryption** — encrypted repositories and protected secrets.
-10. **Verification** — integrity checks and automatic test restores.
-11. **Deduplication/incrementals** — probably through Kopia/restic initially.
-12. **Migration/DR orchestration** — host-to-host migration, path mapping and recovery plans.
-
-The MVP target I'd use is very concrete:
+The MVP target is concrete:
 
 > **A web application that detects Docker Compose stacks, allows an administrator to click Back Up, captures the Compose definition plus all persistent data, and can restore that application onto a clean Docker server with one workflow.**
 
-If you nail that workflow, everything else—retention, cloud storage, deduplication, agents, database plugins, migration, DR testing—can grow around a very solid core.
+If that workflow is solid, everything else (retention, cloud storage, database plugins, migration, DR testing) can grow around a very solid core.
