@@ -32,7 +32,7 @@ name_dbr2       := dbr2
 
 .PHONY: all build $(BINARIES) test test-integration lint fmt fmt-check vet generate versions \
         sqlc proto openapi check-generated tools web-install web-build web-test \
-        images dev-up dev-down clean help
+        images dev-up dev-password dev-down clean help
 
 all: generate build test ## Generate, build and test everything
 
@@ -124,6 +124,10 @@ dev-up: ## Start the development stack (mocked NFS; see deployments/docker-compo
 	@test -e deployments/docker-compose/.env || deployments/docker-compose/init-secrets.sh
 	@mkdir -p .dev/repo
 	docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml up -d --build
+
+dev-password: ## Print the master admin initial password of the running dev stack
+	@docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml \
+		cp dbr2-server:/var/lib/dbr2/master-admin-initial-password - | tar -xO
 
 dev-down: ## Stop the development stack and delete its volumes
 	docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml down -v

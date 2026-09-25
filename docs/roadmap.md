@@ -299,6 +299,14 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-25 — Fix — Easier retrieval of the dev master admin password
+- **Notes:**
+  - The owner ran `sudo docker compose cp dbr2-server:… | tar -xO` from the repo root and got "no configuration file provided". Two causes:
+    - The dev stack needs both Compose files, from `deployments/docker-compose/`.
+    - The stack had been stopped with `make dev-down`, which deletes volumes, so a new password is generated on the next start.
+  - Added `make dev-password`, and clarified the deployment README (where to run the command; `sudo` not needed in the `docker` group; `dev-down` resets the password).
+- **Files:** `Makefile`, `deployments/docker-compose/README.md`, `deployments/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-25 — Feature / Deployment — Phase 1 (Foundations) complete
 - **Notes:**
   - **Control plane:**
