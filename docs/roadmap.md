@@ -340,6 +340,7 @@ Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix /
     - sharp/libvips LGPL-3.0 exception approved for the optional Next.js image libraries. **Pending owner review**; remove sharp to drop it.
     - Wrong current password on a password change returns 400, so the console does not treat it as an expired session.
   - **Verification:** `make lint`, `make test` (race), `make test-integration`, `make generate` (no drift), web lint, typecheck, 55 tests and build, CI script tests (71), actionlint and `tests/nfs/run.sh` all green locally.
+  - **First GitHub Actions run:** every job passed except govulncheck, which flagged standard-library vulnerabilities because CI resolved `go 1.26` to go1.26.0. **Fix:** pinned `toolchain go1.26.8` in `go.mod` (local builds and images already used 1.26.8).
   - **Moved to Phase 2:** enforcing agent versions at `Connect`, because `Connect` is a Phase 2 deliverable.
   - **Deferred:** a real Entra ID tenant, OTLP collector validation, and a console CSP with nonces (Phase 6).
 - **Files:** `cmd/**`, `internal/**`, `workflows/**`, `db/**`, `proto/**`, `api/**`, `web/**`, `deployments/**`, `tests/nfs/**`, `.github/**`, `scripts/**`, `Makefile`, `buf*.yaml`, `sqlc.yaml`, `go.mod`, `README.md`, `CHANGELOG.md`, `THIRD_PARTY_NOTICES`, all component `VERSION`/`CHANGELOG.md`, `docs/stack_info/final_stack.md`, `docs/adr/0015`, `docs/threat_model.md` (T21), `docs/dev/*`, `docs/roadmap.md`

@@ -14,5 +14,8 @@ All notable changes to the `server` component. Format: [Keep a Changelog](https:
 - `slog` JSON logging with secret redaction and trace correlation; OpenTelemetry traces/metrics via OTLP (`DBR2_OTEL_ENABLED`).
 - Readiness checks for PostgreSQL, Temporal and Valkey; hourly purge of expired sessions and OIDC state.
 
+### Security
+- Go toolchain pinned to go1.26.8 (`toolchain` directive in `go.mod`) so CI and release builds include the standard-library fixes for GO-2026-6218, GO-2026-6091, GO-2026-6090, GO-2026-6089, GO-2026-6088 and GO-2026-5972 (found by govulncheck when CI resolved `go 1.26` to go1.26.0). Applies to every Go binary.
+
 ### Notes
 - The offline reset command is `dbr2-server admin reset-master-password` (run on the server host, e.g. `docker compose exec dbr2-server …`), not the `dbr2` CLI: it needs direct database access.
