@@ -6,6 +6,13 @@
 	admin off
 }
 
+# Internal liveness endpoint (not published): probed by dbr2-server's
+# readiness check and by the container HEALTHCHECK.
+http://:8090 {
+	respond /healthz "ok" 200
+	respond 404
+}
+
 {$DBR2_HOSTNAME} {
 	tls {$DBR2_TLS}
 	encode zstd gzip

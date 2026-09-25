@@ -41,7 +41,7 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
    docker compose up -d
    ```
 
-5. **Sign in** at `https://<DBR2_HOSTNAME>/` as `dbr2-admin`. The initial password is inside the server's state volume:
+5. **Sign in** at `https://<DBR2_HOSTNAME>/` as `dbr2-admin`. The initial password is inside the server's state volume. Run this from `deployments/docker-compose/` (no `sudo` needed if you are in the `docker` group):
 
    ```bash
    docker compose cp dbr2-server:/var/lib/dbr2/master-admin-initial-password - | tar -xO
@@ -70,8 +70,9 @@ docker compose exec dbr2-server /usr/local/bin/app admin reset-master-password [
 The dev box is not connected to the NAS. From the repository root:
 
 ```bash
-make dev-up    # builds from source; console at https://localhost:9443
-make dev-down  # stops the stack and deletes its volumes
+make dev-up        # builds from source; console at https://localhost:9443
+make dev-password  # prints the master admin's initial password (username dbr2-admin)
+make dev-down      # stops the stack and DELETES its volumes (a new password is generated next time)
 ```
 
 `compose.dev.yaml` mocks the Repository with `.dev/repo`, a bind-mounted local directory. The functional NFS test (`tests/nfs/run.sh`) exercises a real nfs4 mount in containers. No throughput testing is done.

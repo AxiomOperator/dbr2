@@ -5,6 +5,7 @@ All notable changes to the `api` component. Format: [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- `GET /health/ready` description documents the platform-service checks (proxy, worker, reposerver). No schema change.
 - Component scaffold (Phase 1).
 - `/api/v1` REST API (Huma v2 + Chi), OpenAPI 3.1 document committed as `api/openapi.yaml` (22 paths, 24 operations).
 - System: `GET /version`, `GET /health/live`, `GET /health/ready` (PostgreSQL critical; Temporal, Valkey degrade).

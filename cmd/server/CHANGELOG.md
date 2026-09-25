@@ -5,6 +5,7 @@ All notable changes to the `server` component. Format: [Keep a Changelog](https:
 ## [Unreleased]
 
 ### Added
+- `DBR2_READY_HTTP_CHECKS` (`name=url,…`): non-critical readiness checks for other platform services. The dashboard's Platform status card now lists the Caddy edge proxy, dbr2-worker and dbr2-reposerver next to PostgreSQL, Temporal and Valkey (owner request).
 - Component scaffold (Phase 1).
 - `dbr2-server` subcommands: `serve` (default), `migrate [up|status]`, `openapi -o <file>`, `admin reset-master-password [--password-file] [--disable-totp]`, `healthcheck`, `version`.
 - Master admin bootstrap on first start: random initial password written to a root-only file (`/var/lib/dbr2/master-admin-initial-password`, 0600), never logged.
