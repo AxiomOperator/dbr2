@@ -178,7 +178,9 @@ func (d *DockerRuntime) container(ctx context.Context, id string, opts DiscoverO
 				c.Ports = append(c.Ports, p)
 			}
 		}
-		sort.Slice(c.Ports, func(a, b int) bool { return c.Ports[a].ContainerPort+c.Ports[a].HostPort < c.Ports[b].ContainerPort+c.Ports[b].HostPort })
+		sort.Slice(c.Ports, func(a, b int) bool {
+			return c.Ports[a].ContainerPort+c.Ports[a].HostPort < c.Ports[b].ContainerPort+c.Ports[b].HostPort
+		})
 	}
 	for _, m := range r.Mounts {
 		c.Mounts = append(c.Mounts, inventory.Mount{

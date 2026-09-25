@@ -31,25 +31,25 @@ const (
 
 // Application is the analyzed view of one application on one host.
 type Application struct {
-	Key            string          `json:"key"`
-	Kind           string          `json:"kind"`
-	Name           string          `json:"name"`
-	ComposeProject string          `json:"compose_project,omitempty"`
-	WorkingDir     string          `json:"working_dir,omitempty"`
-	Source         string          `json:"source"`
-	SourceReason   string          `json:"source_reason,omitempty"`
-	Services       []Service       `json:"services"`
-	Volumes        []VolumeUse     `json:"volumes"`
-	BindMounts     []BindUse       `json:"bind_mounts"`
-	Tmpfs          []TmpfsUse      `json:"tmpfs"`
-	Networks       []NetworkUse    `json:"networks"`
-	Images         []ImageRef      `json:"images"`
-	Dependencies   []Dependency    `json:"dependencies"`
-	Unprotected    []Unprotected   `json:"unprotected"`
-	SecretsCount   int             `json:"secrets_count"`
-	Containers     []string        `json:"containers"`
-	ConfigFiles    []File          `json:"-"`
-	EnvFiles       []File          `json:"-"`
+	Key            string        `json:"key"`
+	Kind           string        `json:"kind"`
+	Name           string        `json:"name"`
+	ComposeProject string        `json:"compose_project,omitempty"`
+	WorkingDir     string        `json:"working_dir,omitempty"`
+	Source         string        `json:"source"`
+	SourceReason   string        `json:"source_reason,omitempty"`
+	Services       []Service     `json:"services"`
+	Volumes        []VolumeUse   `json:"volumes"`
+	BindMounts     []BindUse     `json:"bind_mounts"`
+	Tmpfs          []TmpfsUse    `json:"tmpfs"`
+	Networks       []NetworkUse  `json:"networks"`
+	Images         []ImageRef    `json:"images"`
+	Dependencies   []Dependency  `json:"dependencies"`
+	Unprotected    []Unprotected `json:"unprotected"`
+	SecretsCount   int           `json:"secrets_count"`
+	Containers     []string      `json:"containers"`
+	ConfigFiles    []File        `json:"-"`
+	EnvFiles       []File        `json:"-"`
 }
 
 // Service is a Compose service (or a standalone container).

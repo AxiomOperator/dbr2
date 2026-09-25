@@ -37,9 +37,9 @@ import (
 
 type fakeRuntime struct{ discovers atomic.Int32 }
 
-func (f *fakeRuntime) Name() string                              { return "fake" }
-func (f *fakeRuntime) Close() error                              { return nil }
-func (f *fakeRuntime) Ping(context.Context) (string, error)      { return "29.8.1", nil }
+func (f *fakeRuntime) Name() string                         { return "fake" }
+func (f *fakeRuntime) Close() error                         { return nil }
+func (f *fakeRuntime) Ping(context.Context) (string, error) { return "29.8.1", nil }
 func (f *fakeRuntime) Discover(context.Context, runtime.DiscoverOptions) (*inventory.Inventory, error) {
 	f.discovers.Add(1)
 	return &inventory.Inventory{SchemaVersion: 1, CollectedAt: time.Now().UTC(), Host: inventory.Host{Hostname: "host-a", RootDir: "/var/lib/docker"},

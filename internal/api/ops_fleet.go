@@ -189,12 +189,20 @@ func registerFleet(a huma.API, d *Deps) {
 	// ---- agents ----
 	huma.Register(a, op("list-agents", http.MethodGet, "/api/v1/agents", "Hosts",
 		"List agents", "Lists every enrolled host agent with its status, versions, health and live connection state.", rbac.HostRead),
-		func(ctx context.Context, _ *struct{}) (*struct{ Body struct{ Items []AgentDTO `json:"items"` } }, error) {
+		func(ctx context.Context, _ *struct{}) (*struct {
+			Body struct {
+				Items []AgentDTO `json:"items"`
+			}
+		}, error) {
 			rows, err := d.Fleet.ListAgents(ctx)
 			if err != nil {
 				return nil, d.fleetErr(ctx, err)
 			}
-			out := &struct{ Body struct{ Items []AgentDTO `json:"items"` } }{}
+			out := &struct {
+				Body struct {
+					Items []AgentDTO `json:"items"`
+				}
+			}{}
 			out.Body.Items = make([]AgentDTO, 0, len(rows))
 			for _, r := range rows {
 				out.Body.Items = append(out.Body.Items, agentDTO(r))
@@ -241,7 +249,11 @@ func registerFleet(a huma.API, d *Deps) {
 	huma.Register(a, withStatus(op("discover-agent", http.MethodPost, "/api/v1/agents/{id}/discover", "Hosts",
 		"Run discovery now", "Starts the DiscoverHost workflow; the agent's inventory and applications update when it completes. "+
 			"Agents also report their inventory periodically.", rbac.HostManage, http.StatusNotFound, http.StatusConflict), http.StatusAccepted),
-		func(ctx context.Context, in *idPath) (*struct{ Body struct{ WorkflowID string `json:"workflow_id"` } }, error) {
+		func(ctx context.Context, in *idPath) (*struct {
+			Body struct {
+				WorkflowID string `json:"workflow_id"`
+			}
+		}, error) {
 			id, err := parseID(in.ID)
 			if err != nil {
 				return nil, err
@@ -250,7 +262,11 @@ func registerFleet(a huma.API, d *Deps) {
 			if err != nil {
 				return nil, d.fleetErr(ctx, err)
 			}
-			out := &struct{ Body struct{ WorkflowID string `json:"workflow_id"` } }{}
+			out := &struct {
+				Body struct {
+					WorkflowID string `json:"workflow_id"`
+				}
+			}{}
 			out.Body.WorkflowID = wf
 			return out, nil
 		})
@@ -285,12 +301,20 @@ func registerFleet(a huma.API, d *Deps) {
 	// ---- registration tokens ----
 	huma.Register(a, op("list-registration-tokens", http.MethodGet, "/api/v1/agents/registration-tokens", "Hosts",
 		"List registration tokens", "Lists agent registration tokens (secrets are never returned).", rbac.HostManage),
-		func(ctx context.Context, _ *struct{}) (*struct{ Body struct{ Items []RegistrationTokenDTO `json:"items"` } }, error) {
+		func(ctx context.Context, _ *struct{}) (*struct {
+			Body struct {
+				Items []RegistrationTokenDTO `json:"items"`
+			}
+		}, error) {
 			rows, err := d.Fleet.ListRegistrationTokens(ctx)
 			if err != nil {
 				return nil, d.fleetErr(ctx, err)
 			}
-			out := &struct{ Body struct{ Items []RegistrationTokenDTO `json:"items"` } }{}
+			out := &struct {
+				Body struct {
+					Items []RegistrationTokenDTO `json:"items"`
+				}
+			}{}
 			out.Body.Items = make([]RegistrationTokenDTO, 0, len(rows))
 			for _, r := range rows {
 				t := RegistrationTokenDTO{ID: r.ID.String(), Prefix: r.Prefix, Description: r.Description, CreatedAt: r.CreatedAt,
@@ -352,12 +376,20 @@ func registerFleet(a huma.API, d *Deps) {
 	// ---- applications ----
 	huma.Register(a, op("list-applications", http.MethodGet, "/api/v1/applications", "Applications",
 		"List applications", "Lists every discovered or manually defined application with protection-relevant counts.", rbac.ApplicationRead),
-		func(ctx context.Context, _ *struct{}) (*struct{ Body struct{ Items []ApplicationSummary `json:"items"` } }, error) {
+		func(ctx context.Context, _ *struct{}) (*struct {
+			Body struct {
+				Items []ApplicationSummary `json:"items"`
+			}
+		}, error) {
 			apps, err := d.Fleet.ListApplications(ctx)
 			if err != nil {
 				return nil, d.fleetErr(ctx, err)
 			}
-			out := &struct{ Body struct{ Items []ApplicationSummary `json:"items"` } }{}
+			out := &struct {
+				Body struct {
+					Items []ApplicationSummary `json:"items"`
+				}
+			}{}
 			out.Body.Items = make([]ApplicationSummary, 0, len(apps))
 			for _, x := range apps {
 				out.Body.Items = append(out.Body.Items, summary(x))
@@ -438,7 +470,11 @@ func registerFleet(a huma.API, d *Deps) {
 				HostID     string   `json:"host_id" format:"uuid"`
 				Containers []string `json:"containers" minItems:"1"`
 			}
-		}) (*struct{ Body struct{ ID string `json:"id"` } }, error) {
+		}) (*struct {
+			Body struct {
+				ID string `json:"id"`
+			}
+		}, error) {
 			host, err := parseID(in.Body.HostID)
 			if err != nil {
 				return nil, err
@@ -447,7 +483,11 @@ func registerFleet(a huma.API, d *Deps) {
 			if err != nil {
 				return nil, d.fleetErr(ctx, err)
 			}
-			out := &struct{ Body struct{ ID string `json:"id"` } }{}
+			out := &struct {
+				Body struct {
+					ID string `json:"id"`
+				}
+			}{}
 			out.Body.ID = id.String()
 			return out, nil
 		})

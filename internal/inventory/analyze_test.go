@@ -25,8 +25,8 @@ func fixture() *Inventory {
 		SchemaVersion: SchemaVersion, CollectedAt: time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC),
 		Containers: []Container{
 			{ID: "c1", Name: "shop-db-1", Image: "postgres:18", ImageID: "sha256:pg", State: "running", Labels: svc("db"),
-				Env:    []EnvVar{{Key: "POSTGRES_USER", Value: "shop"}, {Key: "POSTGRES_PASSWORD", Value: "hunter2"}, {Key: "PATH", Value: "/usr/bin"}},
-				Mounts: []Mount{{Type: MountVolume, Name: "shop_pgdata", Source: "/var/lib/docker/volumes/shop_pgdata/_data", Destination: "/var/lib/postgresql", RW: true}},
+				Env:      []EnvVar{{Key: "POSTGRES_USER", Value: "shop"}, {Key: "POSTGRES_PASSWORD", Value: "hunter2"}, {Key: "PATH", Value: "/usr/bin"}},
+				Mounts:   []Mount{{Type: MountVolume, Name: "shop_pgdata", Source: "/var/lib/docker/volumes/shop_pgdata/_data", Destination: "/var/lib/postgresql", RW: true}},
 				Networks: []string{"shop_backend"}, RestartPolicy: "unless-stopped"},
 			{ID: "c2", Name: "shop-api-1", Image: "shop/api:2.8.1", ImageID: "sha256:api", State: "running", Labels: svc("api"),
 				Env: []EnvVar{{Key: "DATABASE_URL", Value: "postgres://shop:hunter2@db/shop"}, {Key: "LOG_LEVEL", Value: "info"}},

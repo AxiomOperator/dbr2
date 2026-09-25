@@ -90,10 +90,10 @@ vet:
 	$(GO) vet ./...
 
 fmt-check:
-	@out=$$(gofmt -l $$(git ls-files '*.go' | grep -v '^spikes/')); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@out=$$(gofmt -l $$(git ls-files --cached --others --exclude-standard '*.go' | grep -v '^spikes/')); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 fmt: ## Format Go code
-	gofmt -w $$(git ls-files '*.go' | grep -v '^spikes/')
+	gofmt -w $$(git ls-files --cached --others --exclude-standard '*.go' | grep -v '^spikes/')
 
 tools: ## Install pinned CI tools into ./bin
 	@mkdir -p $(BIN)
