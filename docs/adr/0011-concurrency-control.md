@@ -25,3 +25,24 @@ Two conflicting operations on the same application (two backups, or a backup and
 
 - The backup workflow's former "Acquire Backup Lock" step becomes "Claim Application (exclusive workflow ID)".
 - The UI and API must return a clear "operation already in progress" error, including the ID of the running workflow.
+
+## Spike results (2026-09-25): `spikes/temporal/RESULTS.md`
+
+Confirmed:
+
+- A second start with the same `application/{id}` fails with `WorkflowExecutionAlreadyStarted`, and the error carries the running RunID. This is true even when the workflow type is different.
+- A new start succeeds after the previous run completes or is terminated.
+
+**Amendments:**
+
+1. **SDK default:** the Go SDK's `ExecuteWorkflow` **silently returns a handle to the already-running execution**, even one of a different workflow type, unless `WorkflowExecutionErrorWhenAlreadyStarted: true` is set. Every `application/*` start therefore goes through **one helper**, `StartApplicationOperation()`, that sets all three of:
+   - `WorkflowIDConflictPolicy = FAIL`
+   - `WorkflowIDReusePolicy = ALLOW_DUPLICATE`
+   - `WorkflowExecutionErrorWhenAlreadyStarted = true`
+
+   A unit test and a lint rule forbid starting `application/*` workflows any other way.
+2. **Schedules cannot start `application/{id}` directly** (schedule actions append a timestamp to workflow IDs). The pattern is:
+   - The Temporal Schedule (overlap policy `SKIP`) starts `ScheduledBackupTrigger`.
+   - The trigger starts `BackupWorkflow` as a **child workflow** with ID `application/{id}` and `ParentClosePolicy = ABANDON`.
+   - If the child is already started, the trigger records a `skipped_overlap` run, calling Describe to get the running RunID, and completes successfully.
+   - A child workflow is preferred over starting from an activity, because a start from an activity is not idempotent across retries (the SDK exposes no public request ID).

@@ -1,0 +1,9 @@
+
+Server will allow connections from users whose accounts are stored in the repository.
+User accounts can be added using 'kopia server user add'.
+
+SERVER CERT SHA256: d7758c9020d2ef22b9a7bd39626617b747af1e8bc0eb77830b71ddfc17d32292
+writing TLS certificate to /home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/tls.crt
+writing TLS private key to /home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/tls.key
+SERVER ADDRESS: https://127.0.0.1:51515
+pid=992080 fingerprint=d7758c9020d2ef22b9a7bd39626617b747af1e8bc0eb77830b71ddfc17d32292

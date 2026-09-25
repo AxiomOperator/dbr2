@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reviewed exceptions to the dependency license policy enforced by
+# scripts/ci/third-party-notices.sh. One "<go|npm>:<package name glob>" per line;
+# every entry MUST carry a "#" justification and the approving owner/date.
+# Exceptions are reported as CI warnings, never silently.
+#
+# Next.js optional `sharp` image optimizer: its @img/* platform packages bundle
+# libvips, licensed LGPL-3.0-or-later. Justification: unmodified dynamically
+# loaded native libraries (libvips) used optionally by Next.js; LGPL permits
+# distribution with Apache-2.0 code; source: https://github.com/libvips/libvips;
+# approved 2026-09-25 by session lead, pending owner review — remove sharp from
+# web/ to drop. (`sharp` itself is Apache-2.0 and needs no exception.)
+npm:@img/sharp-libvips-*   # LGPL-3.0-or-later libvips binaries (see above)
+npm:@img/sharp-wasm32      # Apache-2.0 AND LGPL-3.0-or-later AND MIT; bundles libvips (see above)
+npm:@img/sharp-win32-*     # Apache-2.0 AND LGPL-3.0-or-later; bundles libvips (see above)
+
+# Temporal SDK dependency. The v0.1.0 module ships no LICENSE file, so
+# go-licenses reports "Unknown"; the upstream repository is MIT licensed
+# (github.com/nexus-rpc/nexus-proto-annotations, checked 2026-09-25).
+go:github.com/nexus-rpc/nexus-proto-annotations/*   # MIT per upstream repository; no LICENSE in v0.1.0 module

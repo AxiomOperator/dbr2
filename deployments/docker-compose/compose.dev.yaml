@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Development override: builds images from source and MOCKS the NFS
+# Repository with a local directory (the dev box is not connected to the NAS;
+# no throughput testing — final_stack → Testing → Storage mocking).
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+# Console: https://localhost:9443 (Caddy internal CA; accept the certificate).
+
+services:
+  proxy:
+    ports: !override
+      - "127.0.0.1:${DBR2_DEV_HTTPS_PORT:-9443}:443"
+
+  dbr2-web:
+    image: dbr2-web:dev
+    build:
+      context: ../../web
+      args: { BUILD: "0" }
+
+  dbr2-server:
+    image: dbr2-server:dev
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.services
+      args: { CMD: server, BUILD: "0" }
+    environment:
+      DBR2_PUBLIC_URL: https://localhost:${DBR2_DEV_HTTPS_PORT:-9443}
+      DBR2_LOG_LEVEL: debug
+
+  dbr2-worker:
+    image: dbr2-worker:dev
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.services
+      args: { CMD: worker, BUILD: "0" }
+
+  dbr2-reposerver:
+    image: dbr2-reposerver:dev
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.services
+      args: { CMD: reposerver, BUILD: "0" }
+    user: "${DBR2_DEV_UID:-1000}:${DBR2_DEV_GID:-1000}"
+    environment:
+      DBR2_REPOSITORY_ID: dev
+      # Mock: a bind-mounted local directory is a mount point of the host's
+      # filesystem type, so accept any type but still require a mount point.
+      DBR2_REPOSERVER_EXPECT_FSTYPE: any
+      DBR2_REPOSERVER_INIT_IF_EMPTY: "true"
+    volumes: !override
+      - type: bind
+        source: ../../.dev/repo
+        target: /mnt/dbr2-repo
+        bind: { create_host_path: true, selinux: Z }
+
+  temporal-ui:
+    ports: !override
+      - "127.0.0.1:${DBR2_TEMPORAL_UI_PORT:-18233}:8080"

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# gitleaks findings reviewed and accepted as false positives (fingerprints).
+# Used by the CI security job: gitleaks git --gitleaks-ignore-path .github
+# Only add an entry after confirming the value is not a real secret.
+
+# Placeholder bearer token "viewer-token" in spike documentation.
+b8641ea2f00821b8aa4156b2686e2a718b688c55:spikes/huma-swagger/RESULTS.md:curl-auth-header:225
+b8641ea2f00821b8aa4156b2686e2a718b688c55:spikes/huma-swagger/RESULTS.md:curl-auth-header:386

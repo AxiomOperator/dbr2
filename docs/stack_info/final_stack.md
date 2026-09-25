@@ -119,10 +119,20 @@ sqlc will generate type-safe Go data-access code directly from SQL queries. DBR�
 /api/openapi.yaml    OpenAPI document (YAML)
 ```
 
-* By default the docs require an authenticated session. `api.docs.public: true` makes them public.
-* "Try it out" runs under the caller's own RBAC permissions. It never bypasses authorization.
-* Every operation carries a summary, a description, tags, examples and error schemas. The CI API contract check (ADR-0015) fails on undocumented operations.
-* The OpenAPI `info.version` is the `api` component version (ADR-0015).
+* **Swagger UI is served from embedded, version-pinned files** (Go `embed`; Swagger UI 5.31.1 at the time of the spike, about 1.7 MB in the binary). Huma's built-in docs route is **disabled** (`DocsPath: ""`), because every Huma renderer loads from unpkg.com, which breaks air-gapped installs. The docs page uses a strict security policy with no inline script, never stores tokens, and never calls validator.swagger.io. The Swagger UI version is recorded in the `api` changelog.
+* By default the docs and spec require an authenticated session (a bearer token or the console session cookie; Swagger UI fetches on the same origin, so the cookie is sent automatically). A browser without a session is redirected to login. `api.docs.public: true` makes the docs public; `/api/v1/*` always stays protected.
+* "Try it out" runs under the caller's own RBAC permissions. It never bypasses authorization. Cookie-authenticated POST, PUT and DELETE requests get a same-origin (CSRF) check.
+* A **single `NewAPI(router)`** is shared by the server and the spec-export command. A bearer security scheme is applied globally. Each operation's required permission is published in the spec as `x-dbr2-permission` **and** enforced by one Huma middleware reading that same metadata, so documented and enforced security cannot drift apart. Entra ID is declared as an OAuth2/OIDC scheme in Phase 1.
+* **Spec export without a server:** `dbr2-server openapi -o api/openapi.yaml`, which produces byte-identical output across runs.
+* **CI (ADR-0015):**
+  * `git diff --exit-code api/openapi.yaml` after the export
+  * `oasdiff breaking base.yaml api/openapi.yaml --fail-on ERR -f githubactions` (oasdiff **pinned to v1.32.1**); a breaking change is allowed only with an `api` MAJOR bump
+  * `oasdiff changelog -f markdown` to help draft the `api` changelog
+  * a spec lint test failing on any operation without a summary, description, tags or operationId, or any secured operation that does not document 401
+* The OpenAPI `info.version` is the `api` component version, injected with `-ldflags -X`. A malformed value makes the binary stop at startup (ADR-0015).
+* **Decision (Phase 1):** Huma's default `$schema` body field and `Link` response header are disabled.
+* **Errors** are RFC 9457 `application/problem+json` with a stable machine-readable `code` (e.g. `invalid_credentials`, `totp_required`, `account_locked`, `rate_limited`, `csrf_rejected`). Unexpected errors return a generic message with the request ID; details are only logged.
+* Spike evidence: `spikes/huma-swagger/RESULTS.md`.
 
 OpenAPI will serve as the formal external API contract and support:
 
@@ -241,7 +251,9 @@ PostgreSQL 18 will be the primary persistent database and the system of record f
 
 > **Recovery data is authoritative in the Repository, not in PostgreSQL (ADR-0003).** Every recovery point's components and its versioned recovery manifest live in the Repository. For recovery points, PostgreSQL is an **index** that can be rebuilt at any time with `dbr2 admin reindex`. If PostgreSQL and a Repository disagree, the Repository wins. Losing PostgreSQL must never make a backup unrecoverable.
 
-Temporal's persistence uses separate databases (`temporal`, `temporal_visibility`) on the same PostgreSQL server (ADR-0009).
+Temporal's persistence uses separate databases (`temporal`, `temporal_visibility`) on the same PostgreSQL server, each with its **own owner role** (ADR-0009).
+
+Pinned images: `temporalio/server:1.32.0` plus `temporalio/admin-tools:1.32.0` (one-shot Compose jobs for schema setup and the `dbr2` namespace), `temporalio/ui:2.54.1` and `postgres:18.6-trixie`. `auto-setup` is not used. The PG18 data volume mounts at `/var/lib/postgresql`.
 
 It will store metadata including:
 
@@ -471,9 +483,12 @@ Kopia remains responsible for efficiently storing the underlying backup data.
 Each Repository is served by a **Kopia Repository Server**, deployed as `dbr2-reposerver`.
 
 * Only `dbr2-reposerver` holds the repository password and the storage backend credentials.
-* Each agent authenticates as its own Kopia user. Its ACLs allow appending and reading its **own** snapshots only, with no delete access.
-* Retention, deletion, maintenance and cross-host restore use a separate **maintenance identity** held only by `dbr2-worker`.
-* S3 Object Lock is used underneath where the storage backend supports it.
+* Each agent authenticates as its own Kopia user. Its ACLs allow APPEND on its own snapshots and READ on its own policies, and nothing else. Agents **cannot delete** (spike-verified).
+* Every DBR² snapshot is **pinned**, and Kopia's own retention keeps everything. DBR² retention deletes whole recovery points through the **`maint@dbr2`** identity, which only `dbr2-worker` holds. Recovery manifests are written only by `maint@dbr2`.
+* **Maintenance and GC run inside `dbr2-reposerver`.** It runs Kopia's server in-process through Kopia's public `cli` package, because the server code itself is not importable (ADR-0007).
+* The agent splits and hashes data and skips content the server already has; the reposerver compresses and encrypts. **TLS on the agent link is mandatory.** New repositories use the `DYNAMIC-1M-BUZHASH` splitter.
+* Isolation caveat: object IDs act as read keys, and there is a content-existence oracle across agents. Use one Repository per host where strict host-to-host confidentiality is required (ADR-0002).
+* S3 Object Lock is used underneath where the storage backend supports it (v2).
 
 ### Backup engine abstraction
 
@@ -558,6 +573,7 @@ DBR² will support multiple storage models through repository and storage abstra
 * Export the share only to the reposerver host's address.
 * Mount it `hard`, never `soft`.
 * Enable scheduled, read-only **NAS snapshots** on the share. They are the v1.0 substitute for object-lock immutability.
+* **Mount guard (ADR-0002):** `dbr2-reposerver` refuses to run unless the path is an active `nfs4` mount containing the matching `.dbr2-repository-id` sentinel, because Kopia will otherwise silently create a repository on the local disk. A stall watchdog reports a hung `hard` mount.
 
 ## S3-Compatible Platforms (v2)
 
@@ -631,7 +647,8 @@ DBR² should act as an OIDC client rather than becoming a full identity provider
 * TOTP is optional and recommended; it is not required.
 * Every login is audited, and a notification is sent (this can be configured).
 * The master admin always holds the Administrator role and cannot be deleted or demoted.
-* **Last-resort reset:** `dbr2 admin reset-master-password`, run as root on the `dbr2-server` host, for the case where the password itself is lost. The reset is audited.
+* **Last-resort reset:** `dbr2-server admin reset-master-password [--disable-totp]`, run on the server host (for Compose: `docker compose exec dbr2-server /usr/local/bin/app admin reset-master-password`), for the case where the password itself is lost. It needs direct database access, which is why it is a server subcommand rather than a `dbr2` CLI command. It revokes every master admin session and is audited.
+* **Bootstrap:** on first start the server creates the master admin with a random password written to a root-only file (`/var/lib/dbr2/master-admin-initial-password`, mode 0600, never logged).
 
 ---
 
@@ -657,6 +674,9 @@ Examples:
 ```text
 host.read
 host.manage
+
+user.read
+user.manage
 
 application.read
 application.manage
@@ -874,9 +894,10 @@ Used for:
 
 DBR² will support Docker Compose as the initial deployment method.
 
-A basic deployment may contain:
+A basic deployment contains:
 
 ```text
+proxy              (Caddy: TLS termination and routing; the only published port)
 dbr2-web
 dbr2-server
 dbr2-worker
@@ -885,6 +906,10 @@ postgres
 valkey
 temporal
 ```
+
+**Edge proxy (Phase 1 decision).** Caddy terminates TLS (its internal CA by default, or your certificate) and routes `/api/*` to `dbr2-server` and everything else to `dbr2-web`, keeping one origin for the session cookie. It discards client-supplied `X-Forwarded-*` headers, and `dbr2-server` trusts `X-Forwarded-For` only from Caddy's fixed address (`DBR2_TRUSTED_PROXY_CIDRS`). This keeps audit source IPs and the login rate limit from being spoofed; the console's own Next.js `/api` proxy cannot guarantee that and is used only in development. Temporal UI is bound to loopback (administrators reach it through an SSH tunnel).
+
+Pinned images: `caddy:2.10.2-alpine`, `postgres:18.6-trixie`, `valkey/valkey:8.1.4-alpine`, `temporalio/server|admin-tools:1.32.0`, `temporalio/ui:2.54.1`; DBR² Go services are distroless (`static-debian12:nonroot`) with a binary-based HEALTHCHECK. Secrets are Compose secrets generated by `deployments/docker-compose/init-secrets.sh`; DBR² services read them through `*_FILE` variables.
 
 Protected Docker hosts will run:
 
@@ -1036,7 +1061,12 @@ Used for:
 The development box is not connected to the NAS, so **NFS is mocked**:
 
 * **Default dev profile:** the Repository's storage backend is a local directory mounted at the same path the production NFS mount will use (for example `/mnt/dbr2-repo`). Configuration is identical to production apart from the source of the mount.
-* **Functional NFS tests:** Testcontainers runs a containerized NFS server. The reposerver mounts it with the production mount options, and the tests cover export permissions and squashing, `hard` mount behavior, and an **NFS outage** (stop the server container mid-backup, then recover).
+* **Functional NFS tests:** a userspace **nfs-ganesha** server container (the host's kernel `nfsd` is not used) plus a **privileged client container**, which mounts with the production options (`nfs4,hard,timeo=600,retrans=2,noatime`). CI runners must allow `--privileged` for this job. The tests cover:
+  * export restriction: the allowed IP mounts, and another client is refused (assert that the mount fails, not a specific error code)
+  * an **NFS outage** mid-snapshot, with Kopia uploads throttled so the outage lands mid-write: expect a stall, then completion and a clean verify
+  * the server being unavailable at connect time
+  * the mount guard and sentinel rejecting an unmounted path
+* Validated in `spikes/kopia-fidelity-nfs/`.
 * **No throughput or performance testing** until the real NAS is connected. The seed and incremental timing measurement for the ~500 GB volume is deferred until then.
 
 ---

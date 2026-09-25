@@ -18,6 +18,21 @@ Resuming the application is guaranteed at **two independent layers**.
 - **Bound every activity:** activities inside the quiesce window have `StartToClose` timeouts bounded by the application's **maximum quiesce duration** (a policy setting; default **60 minutes**, as set by the owner on 2026-09-25; configurable per application).
 - **Retry `Resume` aggressively.** If it still fails, the application is flagged **Needs Attention: not resumed** and a critical alert is raised.
 
+**Spike-confirmed limits of Layer 1** (`spikes/temporal/RESULTS.md`):
+
+- Deferred `Resume` compensation in a disconnected context ran exactly once after:
+  - a permanent activity failure
+  - a client **cancel**
+  - a worker SIGKILL followed by a restart
+- A stalled activity was detected by its heartbeat timeout (about 4 s) despite a 60-minute StartToClose.
+- **Termination runs no compensation**, and neither do workflow-level timeouts (documented Temporal behavior). Consequently:
+  - The UI and API offer **Cancel only**. Terminating `application/*` workflows is forbidden in DBR² tooling and runbooks.
+  - Workflows that quiesce have **no workflow-level run or execution timeouts**.
+  - A terminated run frees the application's workflow ID while the application may still be quiesced. Every new operation therefore **checks for an unexpired quiesce lease** on the agent before quiescing again.
+  - Activities inside the quiesce window use `WaitForCancellation: true`, so Resume runs only after the agent has stopped reading data.
+  - The `Resume` retry policy has an overall `ScheduleToClose` limit. When it is reached, the application is marked **Needs Attention: not resumed** and a critical alert is raised.
+- Because of these limits, **Layer 2 is mandatory**, never optional.
+
 ### Layer 2: dead-man switch (agent)
 
 - The `Quiesce` command carries a **quiesce lease**: the maximum quiesce duration plus a grace period.

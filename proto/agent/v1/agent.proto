@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// DBR² agent protocol (component `agent-protocol`, ADR-0001, ADR-0015).
+//
+// Phase 1 fixes the session handshake so version compatibility can be
+// enforced from the first connection; the command catalogue (snapshot,
+// quiesce, restore, …) is added in Phase 2+. Breaking changes require an
+// agent-protocol version bump (buf breaking in CI).
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1;agentv1";
+
+// AgentService is served by the Agent Gateway (dbr2-server). Agents open the
+// stream outbound over mTLS; the gateway never connects to agents.
+service AgentService {
+  // Connect is the long-lived bidirectional session. The first agent message
+  // must be Hello; the gateway answers with Welcome or closes the stream.
+  rpc Connect(stream ConnectRequest) returns (stream ConnectResponse);
+}
+
+// ConnectRequest is a message sent by the agent on the session stream.
+message ConnectRequest {
+  oneof body {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+  }
+}
+
+// ConnectResponse is a message sent by the gateway on the session stream.
+message ConnectResponse {
+  oneof body {
+    Welcome welcome = 1;
+    Heartbeat heartbeat = 2;
+  }
+}
+
+// Hello opens a session and reports versions (ADR-0015: the gateway rejects
+// a mismatched agent-protocol MAJOR and flags outdated agents).
+message Hello {
+  // Four-part agent component version, e.g. "0.1.0.57".
+  string agent_version = 1;
+  // Four-part agent-protocol version the agent speaks, e.g. "0.1.0.0".
+  string protocol_version = 2;
+  // Host facts for inventory and compatibility checks.
+  string hostname = 3;
+  string os_release = 4;
+  string architecture = 5;
+  // Commands the agent journaled and is still reporting (ADR-0001 reconnect).
+  repeated string inflight_command_ids = 6;
+}
+
+// Welcome accepts the session.
+message Welcome {
+  string session_id = 1;
+  string gateway_version = 2;
+  string protocol_version = 3;
+  // Seconds between heartbeats the gateway expects.
+  uint32 heartbeat_interval_seconds = 4;
+}
+
+// Heartbeat keeps the session and its PostgreSQL lease alive.
+message Heartbeat {
+  int64 sent_unix_ms = 1;
+}

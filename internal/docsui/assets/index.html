@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/png" href="{{.Path}}/favicon-32x32.png">
+    <link rel="stylesheet" href="{{.Path}}/swagger-ui.css">
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="{{.Path}}/swagger-ui-bundle.js"></script>
+    <script src="{{.Path}}/dbr2-init.js" data-config="{{.ConfigJSON}}"></script>
+  </body>
+</html>

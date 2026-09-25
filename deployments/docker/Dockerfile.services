@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# One Dockerfile for the Go services (server, worker, reposerver).
+#   docker build -f deployments/docker/Dockerfile.services --build-arg CMD=server --build-arg BUILD=57 .
+# The runtime image is distroless (no shell); HEALTHCHECK uses the binary's
+# own `healthcheck` subcommand.
+
+ARG GO_IMAGE=docker.io/library/golang:1.26.8-trixie
+ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot
+
+FROM ${GO_IMAGE} AS build
+ARG CMD
+ARG BUILD=0
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/root/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/root/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    test -n "${CMD}" && \
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags "-s -w -X github.com/AxiomOperator/dbr2/internal/version.Build=${BUILD}" \
+      -o /out/app ./cmd/${CMD} && \
+    mkdir -p /out/state
+
+FROM ${RUNTIME_IMAGE}
+ARG CMD
+LABEL org.opencontainers.image.source="https://github.com/AxiomOperator/dbr2" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.title="dbr2-${CMD}"
+COPY --from=build /out/app /usr/local/bin/app
+# State directory (e.g. the master admin initial-password file); named
+# volumes inherit this ownership on first mount.
+COPY --from=build --chown=65532:65532 /out/state /var/lib/dbr2
+COPY LICENSE NOTICE /licenses/
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/app"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=4 CMD ["/usr/local/bin/app", "healthcheck"]

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+FROM fedora:44
+RUN dnf -y install nfs-ganesha nfs-ganesha-vfs && dnf clean all
+COPY ganesha-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

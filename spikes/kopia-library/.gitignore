@@ -1,0 +1,5 @@
+.work/
+bin/
+*.bin
+*.log
+!evidence/*.log

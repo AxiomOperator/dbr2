@@ -1,0 +1,88 @@
+connected as agent-a@hosta
+connected as agent-b@hostb
+connected as maint@dbr2
+
+### agent-a: create, list, delete own, delete other, maintenance
+$ kopia [agent-a@hosta] snapshot create /home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a --tags=dbr2-kind:volume
+    Snapshotting agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a ...
+    Created snapshot with root k84ace7300daf239709266594ffc18a7c and ID c02a3ebb819d7c17a4856adb97a7b99c in 0s
+    exit=0
+$ kopia [agent-b@hostb] snapshot create /home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-b
+    Snapshotting agent-b@hostb:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-b ...
+    Created snapshot with root ka33d40b1d046f570be6be495a7ae7118 and ID fd437befe3aec792437b820b0ccf5ef0 in 0s
+    exit=0
+$ kopia [agent-a@hosta] snapshot list --all
+    agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a
+      2026-09-25 10:15:28 CDT k84ace7300daf239709266594ffc18a7c 50 MB drwxr-xr-x files:1 dirs:1 (latest-1,hourly-1,daily-1,weekly-1,monthly-1,annual-1)
+    agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/hosta-pinned
+      2026-09-25 10:15:20 CDT ke4e78106071353077bcaef67153b3805 262.1 KB drwxr-xr-x files:1 dirs:1 (latest-1..10,hourly-1,daily-1,weekly-1,monthly-1,annual-1) pins:dbr2
+      + 11 identical snapshots until 2026-09-25 10:15:22 CDT
+    agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/hosta-retention
+      2026-09-25 10:15:18 CDT kf53e30f096caf6a98ec50d4aafcdbfd4 262.1 KB drwxr-xr-x files:1 dirs:1 (latest-1..10,hourly-1,daily-1,weekly-1,monthly-1,annual-1)
+      + 9 identical snapshots until 2026-09-25 10:15:20 CDT
+    exit=0
+$ kopia [agent-a@hosta] snapshot delete c02a3ebb819d7c17a4856adb97a7b99c --delete
+    Deleting snapshot c02a3ebb819d7c17a4856adb97a7b99c of agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a at 2026-09-25 10:15:28 CDT...
+    error deleting c02a3ebb819d7c17a4856adb97a7b99c: error deleting manifest: access denied
+    exit=1
+$ kopia [agent-a@hosta] snapshot delete fd437befe3aec792437b820b0ccf5ef0 --delete
+    error loading snapshot fd437befe3aec792437b820b0ccf5ef0: unable to find manifest entries: access denied
+    exit=1
+$ kopia [agent-a@hosta] policy set /home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a --keep-latest=1
+    Setting policy for agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a
+     - setting "number of latest backups to keep" to 1.
+    can't save policy for agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a: error writing policy manifest: access denied
+    exit=1
+$ kopia [agent-a@hosta] maintenance run --full
+    operation supported only on direct repository
+    exit=1
+$ kopia [agent-a@hosta] server acl list
+    exit=0
+
+### maint@dbr2: list all, delete agent-a snapshot, try maintenance
+$ kopia [maint@dbr2] snapshot list --all
+    agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a
+      2026-09-25 10:15:28 CDT k84ace7300daf239709266594ffc18a7c 50 MB drwxr-xr-x files:1 dirs:1 (latest-1,hourly-1,daily-1,weekly-1,monthly-1,annual-1)
+    agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/hosta-pinned
+      2026-09-25 10:15:20 CDT ke4e78106071353077bcaef67153b3805 262.1 KB drwxr-xr-x files:1 dirs:1 (latest-1..10,hourly-1,daily-1,weekly-1,monthly-1,annual-1) pins:dbr2
+      + 11 identical snapshots until 2026-09-25 10:15:22 CDT
+    agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/hosta-retention
+      2026-09-25 10:15:18 CDT kf53e30f096caf6a98ec50d4aafcdbfd4 262.1 KB drwxr-xr-x files:1 dirs:1 (latest-1..10,hourly-1,daily-1,weekly-1,monthly-1,annual-1)
+      + 9 identical snapshots until 2026-09-25 10:15:20 CDT
+    exit=0
+$ kopia [maint@dbr2] snapshot delete c02a3ebb819d7c17a4856adb97a7b99c --delete
+    Deleting snapshot c02a3ebb819d7c17a4856adb97a7b99c of agent-a@hosta:/home/garrettpost/Projects/dbr2/spikes/kopia-library/.work/q2/src/cli-a at 2026-09-25 10:15:28 CDT...
+    exit=0
+$ kopia [maint@dbr2] maintenance run --full
+    operation supported only on direct repository
+    exit=1
+
+### reposerver (direct connection, maintenance owner): GC
+repo bytes on disk before GC: 52634005
+$ kopia [reposerver direct] maintenance info
+    Owner: reposerver@dbr2
+    Quick Cycle:
+      scheduled: true
+      interval: 1h0m0s
+      next run: 2026-09-25 11:15:08 CDT (in 59m33s)
+    Full Cycle:
+      scheduled: true
+      interval: 24h0m0s
+      next run: 2026-09-26 10:15:08 CDT (in 23h59m33s)
+    Log Retention:
+      max count:       10000
+      max age of logs: 720h0m0s
+    Running full maintenance...
+    GC found 13 unused contents (50.3 MB)
+    GC found 0 unused contents that are too recent to delete (0 B)
+    GC found 10 in-use contents (2 MB)
+    GC found 59 in-use system-contents (36 KB)
+    GC undeleted 0 contents (0 B)
+    Compacting an eligible uncompacted epoch...
+    Advancing epoch markers...
+    Attempting to compact a range of epoch indexes ...
+    Cleaning up unneeded epoch markers...
+    Cleaning up old index blobs which have already been compacted...
+    Cleaned up 0 logs.
+    Finished full maintenance.
+repo bytes on disk after GC (safety=none): 8630502

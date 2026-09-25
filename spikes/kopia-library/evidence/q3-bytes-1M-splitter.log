@@ -1,0 +1,16 @@
+10:17:53 generating 2 x 200 MiB datasets ...
+10:17:57 A1 initial full (200 MiB, no compression) up=  200.4 MiB down=  0.48 MiB repo+=  200.1 MiB hashed= 200.0 MiB OnUpload= 200.0 MiB (1.01s)
+10:17:58 A2 unchanged, with previous manifest     up=    0.0 MiB down=  0.01 MiB repo+=    0.0 MiB hashed=   0.0 MiB OnUpload=   0.0 MiB (524ms)
+10:17:58 A3 unchanged, NO previous manifest       up=    0.1 MiB down=  0.03 MiB repo+=    0.0 MiB hashed= 200.0 MiB OnUpload=   0.0 MiB (664ms)
+10:17:59 A4 5% changed (1 MiB in each of 10 files) up=   36.0 MiB down=  0.09 MiB repo+=   35.9 MiB hashed= 100.0 MiB OnUpload=  35.9 MiB (772ms)
+10:18:01 B1 initial full, compressible, zstd policy up=  200.4 MiB down=  0.47 MiB repo+=   26.0 MiB hashed= 200.0 MiB OnUpload= 200.0 MiB (986ms)
+10:18:02 B2 5% changed, zstd policy               up=   35.9 MiB down=  0.10 MiB repo+=   13.1 MiB hashed= 100.0 MiB OnUpload=  35.8 MiB (743ms)
+
+| run | client→server (wire) | server→client | repo growth on server disk | hashed by client | note |
+|---|---:|---:|---:|---:|---|
+| A1 initial full (200 MiB, no compression) | 200.4 MiB | 0.48 MiB | 200.1 MiB | 200.0 MiB |  |
+| A2 unchanged, with previous manifest | 0.0 MiB | 0.01 MiB | 0.0 MiB | 0.0 MiB | hash cache: files skipped by size+mtime |
+| A3 unchanged, NO previous manifest | 0.1 MiB | 0.03 MiB | 0.0 MiB | 200.0 MiB | every file re-read + re-hashed; server existence check |
+| A4 5% changed (1 MiB in each of 10 files) | 36.0 MiB | 0.09 MiB | 35.9 MiB | 100.0 MiB |  |
+| B1 initial full, compressible, zstd policy | 200.4 MiB | 0.47 MiB | 26.0 MiB | 200.0 MiB |  |
+| B2 5% changed, zstd policy | 35.9 MiB | 0.10 MiB | 13.1 MiB | 100.0 MiB |  |
