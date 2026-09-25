@@ -60,6 +60,11 @@ services:
     networks:
       dbr2:
         ipv4_address: ${DBR2_PROXY_IP:-172.31.230.10}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
     depends_on:
       dbr2-server: { condition: service_healthy }
       dbr2-web: { condition: service_started }
@@ -81,6 +86,9 @@ services:
       DBR2_TRUSTED_PROXY_CIDRS: ${DBR2_PROXY_IP:-172.31.230.10}/32
       DBR2_TEMPORAL_ADDRESS: temporal:7233
       DBR2_VALKEY_ADDR: valkey:6379
+      # Platform services shown on the dashboard's Platform status card
+      # (non-critical: a failure reports "degraded").
+      DBR2_READY_HTTP_CHECKS: proxy=http://proxy:8090/healthz,worker=http://dbr2-worker:8082/healthz,reposerver=http://dbr2-reposerver:8081/healthz
       DBR2_API_DOCS_PUBLIC: ${DBR2_API_DOCS_PUBLIC:-false}
       DBR2_MASTER_ADMIN_USERNAME: ${DBR2_MASTER_ADMIN_USERNAME:-dbr2-admin}
       DBR2_ENTRA_TENANT_ID: ${DBR2_ENTRA_TENANT_ID:-}

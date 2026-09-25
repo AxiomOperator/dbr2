@@ -100,6 +100,10 @@ func serve(ctx context.Context) error {
 		}
 	}
 
+	for _, hc := range cfg.HTTPChecks() {
+		checks = append(checks, api.HTTPReadyCheck(hc.Name, hc.URL))
+	}
+
 	go janitor(ctx, pool, log)
 
 	handler := api.NewHandler(&api.Deps{

@@ -73,6 +73,10 @@ type Server struct {
 	DatabaseURL string // DBR2_DATABASE_URL[_FILE]
 	AutoMigrate bool   `env:"DBR2_DB_AUTO_MIGRATE" envDefault:"true"`
 	ValkeyAddr  string `env:"DBR2_VALKEY_ADDR"`
+	// ReadyHTTPChecks adds non-critical readiness checks for other platform
+	// services, as name=url pairs (the URL must return HTTP 200), e.g.
+	// "proxy=http://proxy:8090/healthz,worker=http://dbr2-worker:8082/healthz".
+	ReadyHTTPChecks []string `env:"DBR2_READY_HTTP_CHECKS" envSeparator:","`
 
 	// SecretKey encrypts secrets at rest (e.g. TOTP seeds); 32 bytes, base64.
 	SecretKey []byte // DBR2_SECRET_KEY[_FILE]
@@ -91,7 +95,17 @@ type Server struct {
 	Telemetry Telemetry
 
 	trustedProxies []netip.Prefix
+	httpChecks     []HTTPCheck
 }
+
+// HTTPCheck is a named readiness probe URL.
+type HTTPCheck struct {
+	Name string
+	URL  string
+}
+
+// HTTPChecks returns the parsed DBR2_READY_HTTP_CHECKS entries.
+func (s *Server) HTTPChecks() []HTTPCheck { return s.httpChecks }
 
 // TrustedProxies returns the parsed proxy CIDRs.
 func (s *Server) TrustedProxies() []netip.Prefix { return s.trustedProxies }
@@ -142,6 +156,18 @@ func (c *Server) validate() error {
 			return fmt.Errorf("config: DBR2_TRUSTED_PROXY_CIDRS: %w", err)
 		}
 		c.trustedProxies = append(c.trustedProxies, p)
+	}
+	for _, raw := range c.ReadyHTTPChecks {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		name, u, ok := strings.Cut(raw, "=")
+		pu, err := url.Parse(u)
+		if !ok || name == "" || err != nil || (pu.Scheme != "http" && pu.Scheme != "https") || pu.Host == "" {
+			return fmt.Errorf("config: DBR2_READY_HTTP_CHECKS entry %q must be name=http(s)://host/path", raw)
+		}
+		c.httpChecks = append(c.httpChecks, HTTPCheck{Name: strings.TrimSpace(name), URL: u})
 	}
 	if !strings.HasPrefix(c.WebLoginPath, "/") {
 		return errors.New("config: DBR2_WEB_LOGIN_PATH must start with /")

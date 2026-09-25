@@ -299,6 +299,17 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-25 — Enhancement — Platform status card shows every platform service
+- **Notes:**
+  - Owner request: the Caddy edge proxy is a system the platform relies on, so it must appear on the dashboard's "Platform status" card. Applied the same rule to dbr2-worker and dbr2-reposerver, which were missing too.
+  - Added `DBR2_READY_HTTP_CHECKS` (non-critical HTTP readiness probes), a Caddy internal health endpoint (`:8090`, not published) and a proxy container HEALTHCHECK. Compose wires proxy, worker and reposerver. The reposerver check reflects storage health, so a stalled NFS mount shows up on the card.
+  - Verified on the dev stack:
+    - all six checks `ok`;
+    - stopping the worker → `worker: unavailable`, overall `degraded` (HTTP 200);
+    - restart → `ok`.
+  - Unit tests cover config parsing and degraded readiness.
+- **Files:** `internal/config`, `internal/api` (readycheck, ops_system), `cmd/server`, `api/openapi.yaml`, `deployments/docker-compose/{Caddyfile,compose.yaml}`, the server/api/deployment changelogs, `docs/stack_info/final_stack.md`, `docs/roadmap.md`
+
 ### 2026-09-25 — Fix — Easier retrieval of the dev master admin password
 - **Notes:**
   - The owner ran `sudo docker compose cp dbr2-server:… | tar -xO` from the repo root and got "no configuration file provided". Two causes:

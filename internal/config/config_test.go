@@ -54,6 +54,26 @@ func TestLoadServerRejectsBadKeyAndHalfEntra(t *testing.T) {
 	}
 }
 
+func TestReadyHTTPChecks(t *testing.T) {
+	t.Setenv("DBR2_DATABASE_URL", "postgres://x")
+	t.Setenv("DBR2_SECRET_KEY", testKey)
+	t.Setenv("DBR2_READY_HTTP_CHECKS", "proxy=http://proxy:8090/healthz, worker=http://dbr2-worker:8082/healthz")
+	c, err := LoadServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := c.HTTPChecks()
+	if len(got) != 2 || got[0].Name != "proxy" || got[1].URL != "http://dbr2-worker:8082/healthz" {
+		t.Fatalf("checks = %+v", got)
+	}
+	for _, bad := range []string{"proxy", "=http://x/", "proxy=ftp://x/", "proxy=not a url"} {
+		t.Setenv("DBR2_READY_HTTP_CHECKS", bad)
+		if _, err := LoadServer(); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}
+
 func TestSecretRejectsBothForms(t *testing.T) {
 	t.Setenv("DBR2_X", "a")
 	t.Setenv("DBR2_X_FILE", "/nope")

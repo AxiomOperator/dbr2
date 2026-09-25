@@ -1089,7 +1089,7 @@ paths:
         - System
   /api/v1/health/ready:
     get:
-      description: Checks PostgreSQL (critical), Temporal and Valkey. Returns 503 when a critical dependency is unavailable; `degraded` when only a non-critical one is.
+      description: "Checks PostgreSQL (critical), Temporal, Valkey and the platform services configured in `DBR2_READY_HTTP_CHECKS` (in Compose: the Caddy edge proxy, dbr2-worker and dbr2-reposerver, whose check also reflects Repository storage health). Returns 503 when a critical dependency is unavailable; `degraded` when only a non-critical one is."
       operationId: get-health-ready
       responses:
         "200":

@@ -47,8 +47,10 @@ func registerSystem(a huma.API, d *Deps) {
 
 	huma.Register(a, public(op("get-health-ready", http.MethodGet, "/api/v1/health/ready", "System",
 		"Readiness probe",
-		"Checks PostgreSQL (critical), Temporal and Valkey. Returns 503 when a critical dependency is unavailable; "+
-			"`degraded` when only a non-critical one is.", "", http.StatusServiceUnavailable)),
+		"Checks PostgreSQL (critical), Temporal, Valkey and the platform services configured in "+
+			"`DBR2_READY_HTTP_CHECKS` (in Compose: the Caddy edge proxy, dbr2-worker and dbr2-reposerver, "+
+			"whose check also reflects Repository storage health). Returns 503 when a critical dependency is "+
+			"unavailable; `degraded` when only a non-critical one is.", "", http.StatusServiceUnavailable)),
 		func(ctx context.Context, _ *struct{}) (*statusOutput, error) {
 			out := &statusOutput{Status: http.StatusOK, Body: StatusBody{Status: "ok", Checks: map[string]string{}}}
 			for _, c := range d.Ready {
