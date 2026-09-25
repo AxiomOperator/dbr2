@@ -299,6 +299,13 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-25 — Fix — CI failures after the Phase 2 & 3 push
+- **Notes:**
+  - **gofmt:** five new Go files were unformatted. `make fmt-check` only checked *tracked* files, so files created before the commit were never checked locally. `fmt-check` and `fmt` now include untracked files.
+  - **Flaky exactly-once assertion** in `workflows/hosts`. On the slower CI runner the Temporal dev server took about 15 s to start, so the agent's periodic inventory push (first fired 10 s after start) also called the fake runtime and was counted as a second execution. The command itself still ran once; the test was measuring the wrong thing.
+  - **Fix:** `Agent.FirstInventoryDelay` is now configurable, and the integration tests disable the periodic push.
+- **Files:** `Makefile`, `internal/agent/agent.go`, `workflows/hosts/integration_test.go`, `internal/gateway/integration_test.go`, `cmd/agent/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-25 — Feature — Phase 2 (agents, enrollment, gateway) and Phase 3 (discovery) complete
 - **Notes:**
   - **Agent:** `dbr2-agent` supports `enroll`, `run`, `status` and `version`.

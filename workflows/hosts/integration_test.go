@@ -103,6 +103,9 @@ func TestDiscoverHostThroughGatewayWithResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	ag.MaxBackoff = 200 * time.Millisecond
+	// Keep the periodic inventory push out of the execution count: the dev
+	// server can take >10 s to start on CI runners.
+	ag.FirstInventoryDelay = time.Hour
 	actx, stop := context.WithCancel(ctx)
 	defer stop()
 	go func() { _ = ag.Run(actx) }()

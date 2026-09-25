@@ -163,6 +163,7 @@ func TestEnrollApproveDispatchResumeLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	ag.MaxBackoff = 300 * time.Millisecond
+	ag.FirstInventoryDelay = time.Hour
 	actx, stop := context.WithCancel(ctx)
 	defer stop()
 	go func() { _ = ag.Run(actx) }()

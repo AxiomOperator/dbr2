@@ -5,6 +5,7 @@ All notable changes to the `agent` component. Format: [Keep a Changelog](https:/
 ## [Unreleased]
 
 ### Added
+- `Agent.FirstInventoryDelay` (default 10 s) controls when the first periodic inventory push happens.
 - `dbr2-agent enroll` (CA fingerprint pinning, local key + CSR, config written 0600), `run` (outbound mTLS session with backoff honouring the gateway's `retry_after`, heartbeat echo, health reports, periodic inventory push, certificate renewal at 2/3 lifetime with a fresh key), `status` (offline), exit code 3 when not enrolled.
 - Durable command journal (`journal.jsonl`, fsync per state change): a `command_id` executes at most once; results survive disconnects and restarts and are replayed until acknowledged.
 - `DockerRuntime` discovery through the Moby Go SDK: host facts, containers (labels, env, mounts, networks, ports, writable-layer changes), volumes, networks, images with digests and platform, original Compose and `.env` files of hand-deployed projects. The agent keeps running when Docker is unavailable.

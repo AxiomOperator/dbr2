@@ -49,6 +49,10 @@ type Agent struct {
 	// MaxBackoff caps every reconnect wait, including the gateway's
 	// retry_after (tests); zero = no cap.
 	MaxBackoff time.Duration
+	// FirstInventoryDelay is the delay before the first periodic inventory
+	// push after start; zero = 10 s. Tests set it high to keep periodic
+	// discovery out of command-execution counts.
+	FirstInventoryDelay time.Duration
 }
 
 type outbound struct {
@@ -412,7 +416,11 @@ func (a *Agent) discover(ctx context.Context, changes bool) ([]byte, error) {
 func (a *Agent) periodic(ctx context.Context) {
 	t := time.NewTicker(a.cfg.DiscoveryInterval)
 	defer t.Stop()
-	first := time.After(10 * time.Second)
+	delay := a.FirstInventoryDelay
+	if delay == 0 {
+		delay = 10 * time.Second
+	}
+	first := time.After(delay)
 	for {
 		select {
 		case <-ctx.Done():
