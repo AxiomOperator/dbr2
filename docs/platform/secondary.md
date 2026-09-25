@@ -1,11 +1,15 @@
-Yes. The biggest additions I’d make are around **recovery assurance, security, portability, and operational awareness**. Those are the areas that distinguish a production backup platform from a convenient archive tool.
+# DBR² — Extended Platform Features
+
+> Aligned with `../stack_info/final_stack.md`, which wins on any conflict.
+
+The biggest additions are around **recovery assurance, security, portability, and operational awareness**. Those are the areas that distinguish a production backup platform from a convenient archive tool.
 
 The most important feature I would add is **full application protection state**. The platform should be able to answer, at a glance: “If this Docker host disappeared right now, can I actually recover this application?” That means tracking more than whether a backup job succeeded.
 
 A protected application should have a state like:
 
 ```text
-Planix
+Inventory
 ─────────────────────────────────
 Protection Status       HEALTHY
 
@@ -30,28 +34,28 @@ That becomes the center of the product.
 **Point-in-time file recovery** should be built in early. Don't make every restore an entire application restore. Let the administrator browse:
 
 ```text
-Planix
+Inventory
 └── Sep 24, 2026 02:00
     └── uploads
         └── customers
             └── contract.pdf
 ```
 
-and restore/download one file or directory. Tools such as Kopia already support browsing or mounting snapshots and selective restore, so this is another reason I like the idea of using a mature repository engine underneath your Docker-aware orchestration layer. ([Kopia][1])
+and restore/download one file or directory. Kopia, DBR²'s repository engine, already supports browsing or mounting snapshots and selective restore, so DBR² builds this feature on Kopia rather than implementing it. ([Kopia][1])
 
 **Configuration diffing** would be extremely useful. For each backup, show:
 
 ```diff
 Backup: Sep 23 → Sep 24
 
-+ image: planix-api:2.8.1
-- image: planix-api:2.8.0
++ image: inventory-api:2.8.1
+- image: inventory-api:2.8.0
 
 + API_TIMEOUT=60
 - API_TIMEOUT=30
 
 + volume:
-    planix-documents:/documents
+    inventory-documents:/documents
 ```
 
 That makes the platform useful even outside disaster recovery. It effectively becomes configuration history for Docker applications.
@@ -94,7 +98,7 @@ Recovery Dependencies
 
 ✓ Docker images available
 ✓ Internal PostgreSQL protected
-⚠ External NFS server: 192.1.1.55
+⚠ External NFS server: 10.0.0.55
 ⚠ SMTP server: smtp.example.org
 ✕ External Docker network "proxy" not managed by stack
 ```
@@ -118,12 +122,12 @@ Priority 1
 └── MinIO
 
 Priority 2
-├── Planix API
-├── Planix Workers
+├── Inventory API
+├── Inventory Workers
 └── Authentication
 
 Priority 3
-├── Planix Web
+├── Inventory Web
 └── Reporting
 
 Priority 4
@@ -199,7 +203,7 @@ Support:
 Immutable repositories
 S3 Object Lock
 WORM retention
-Separate repository credentials
+Separate repository credentials (per-agent Kopia identities via dbr2-reposerver; ADR-0002)
 Backup deletion protection
 MFA for destructive actions
 Delayed deletion
@@ -207,7 +211,7 @@ Delayed deletion
 
 Kopia, for example, currently supports S3-compatible destinations and can take advantage of object locking where the underlying service supports it. ([Kopia][3])
 
-I would also implement **dual authorization for destructive repository operations** as an optional policy:
+DBR² implements **dual authorization for destructive repository operations** as an optional policy. It uses the same approval mechanism as production restores (`restore.production`; see final_stack Authorization):
 
 ```text
 Delete Backup
@@ -232,7 +236,7 @@ Export Application
 produces:
 
 ```text
-planix-recovery.bundle
+inventory-recovery.tar.zst.age
 ```
 
 which contains:
@@ -250,10 +254,12 @@ Restore utility
 Documentation
 ```
 
-Then on a machine with no access to the backup server:
+The bundle is Zstandard-compressed and optionally age-encrypted (`inventory-recovery.tar.zst.age`), following the final stack.
+
+Then, on a machine with no access to the DBR² server, the bundle is restored with the DBR² CLI:
 
 ```bash
-docker-recover planix-recovery.bundle
+dbr2 recover inventory-recovery.tar.zst.age
 ```
 
 That is extremely attractive for isolated environments.
@@ -399,7 +405,7 @@ and pause backups if the host is overloaded.
 Before a backup runs:
 
 ```text
-Planix
+Inventory
 
 Last backup:
 92 GB
@@ -414,7 +420,7 @@ Repository available:
 4.8 TB
 ```
 
-A mature deduplicating engine can make this much more efficient; Kopia currently provides content-defined chunking, incremental snapshots, deduplication, compression and encrypted repositories. ([Kopia][1])
+DBR² gets this efficiency from Kopia, which provides content-defined chunking, incremental snapshots, deduplication, compression and encrypted repositories. ([Kopia][1])
 
 ## Restore sandbox
 
@@ -429,13 +435,13 @@ Restore As Test Instance
 Instead of restoring:
 
 ```text
-planix
+inventory
 ```
 
 restore:
 
 ```text
-restore-test-planix-20260924
+restore-test-inventory-20260924
 ```
 
 with:
@@ -493,42 +499,50 @@ Exclude
 Protect
 ```
 
-Ideally secrets are encrypted independently of ordinary metadata.
+Secrets are protected in the repository by Kopia repository encryption and in exports by age. DBR² does not design its own cryptography. Displaying secrets requires the `secrets.read` permission.
 
 ## RBAC
 
-For enterprise use:
+RBAC follows the final stack. Roles are native to DBR².
 
 ```text
 Administrator
 Backup Administrator
 Restore Operator
+Application Operator
 Auditor
 Read Only
 ```
 
-Permissions should be granular:
+Granular permissions:
 
 ```text
 host.read
 host.manage
 
+application.read
+application.manage
+
 backup.read
-backup.create
+backup.execute
 backup.delete
 
+restore.read
 restore.execute
 restore.production
 
 repository.read
 repository.manage
 
-secrets.read
-
+policy.read
 policy.manage
+
+audit.read
+
+secrets.read
 ```
 
-I'd also support OIDC/SAML eventually.
+Authentication uses OIDC/OAuth2. DBR² acts as an OIDC client for Entra ID, Keycloak, Zitadel, Authentik, Okta, Google and generic OIDC providers, and keeps a local master admin account (username and password) for lockout protection. Entra ID is the v1.0 identity provider. SAML is not part of the final stack. If authorization becomes more complex, OPA or OpenFGA can be integrated later.
 
 ## Audit logging
 
@@ -536,9 +550,9 @@ Every meaningful action:
 
 ```text
 2026-09-24 21:31:12
-Garrett
+jdoe
 Started manual backup
-Application: Planix
+Application: Inventory
 
 2026-09-24 21:44:51
 Backup Worker
@@ -610,14 +624,14 @@ Storage reconciliation
 Encryption key rotation
 ```
 
-Kopia explicitly implements repository verification and maintenance concepts, which are worth preserving if you leverage it as an underlying repository system. ([Kopia][1])
+Kopia implements repository verification and maintenance. DBR² exposes and schedules these operations as Temporal workflows (repository verification, retention processing) rather than reimplementing them. ([Kopia][1])
 
 ## Multi-repository protection
 
 An application should be able to write the same protection set to multiple targets:
 
 ```text
-Planix
+Inventory
 
 Primary:
 Local NAS
@@ -666,7 +680,7 @@ Corrupt objects         0
 
 ## API-first design
 
-Everything the UI can do should be accessible through the API:
+Everything the UI can do is accessible through the REST API. Huma generates OpenAPI from the Go handlers, and that OpenAPI document is the formal external contract:
 
 ```text
 POST /api/v1/backups
@@ -688,22 +702,22 @@ Webhooks
 
 can all come later without redesigning the product.
 
-I'd also create a CLI from the start:
+The `dbr2` CLI exists from the start and is built on the same OpenAPI contract:
 
 ```bash
-dbk host list
-dbk app list
+dbr2 host list
+dbr2 app list
 
-dbk backup planix
+dbr2 backup inventory
 
-dbk restore planix \
-  --snapshot latest \
+dbr2 restore inventory \
+  --recovery-point latest \
   --host docker02
 
-dbk verify planix
+dbr2 verify inventory
 
-dbk export planix \
-  --snapshot latest
+dbr2 export inventory \
+  --recovery-point latest
 ```
 
 ## One more important concept: application ownership
@@ -711,7 +725,7 @@ dbk export planix \
 You could tag applications:
 
 ```text
-Application: Planix
+Application: Inventory
 
 Owner:
 Infrastructure
@@ -737,7 +751,7 @@ Then your dashboard can tell you:
 ```text
 RPO VIOLATIONS
 
-Planix
+Inventory
 Required: 1 hour
 Latest recovery point: 3h 12m
 ```
@@ -753,14 +767,14 @@ Last Backup: Failed
 The platform I'd ultimately aim for would sit at the intersection of **Docker application inventory + backup + disaster recovery + migration + recovery validation**:
 
 ```text
-                         Docker Backup Platform
+                                 DBR²
 
                                   │
           ┌───────────────────────┼────────────────────────┐
           │                       │                        │
       DISCOVER                PROTECT                  RECOVER
           │                       │                        │
-    Hosts / Stacks          Snapshots                 Full restore
+    Hosts / Stacks          Recovery points           Full restore
     Containers              Databases                 File restore
     Volumes                 Config                    DB restore
     Dependencies            Secrets                   Bare-host DR
@@ -776,10 +790,10 @@ The platform I'd ultimately aim for would sit at the intersection of **Docker ap
                          RPO/RTO monitoring
 ```
 
-That is where I think this gets genuinely interesting. There are already mature engines for the raw storage problem—Kopia, for example, already provides incremental content-addressable snapshots, deduplication, encryption, compression, repository maintenance and multiple storage backends. ([Kopia][1]) **The valuable software you would be building is the Docker intelligence above that layer:** understanding what constitutes an application, how to protect it consistently, what it depends on, and how to reliably reconstruct it somewhere else.
+Kopia already solves the raw storage problem: incremental content-addressable snapshots, deduplication, encryption, compression, repository maintenance and multiple storage backends. ([Kopia][1]) **DBR²'s value is the Docker intelligence above that layer:** understanding what constitutes an application, how to protect it consistently, what it depends on, and how to reliably reconstruct it somewhere else.
 
 I would actually make **“Can I recover this application?”** the fundamental design question for every feature we add.
 
-[1]: https://kopia.io/docs/features/?utm_source=chatgpt.com "Features | Kopia"
-[2]: https://docs.docker.com/reference/compose-file/volumes/?utm_source=chatgpt.com "Define and manage volumes in Docker Compose | Docker Docs"
-[3]: https://kopia.io/docs/repositories/?utm_source=chatgpt.com "Repositories | Kopia"
+[1]: https://kopia.io/docs/features/ "Features | Kopia"
+[2]: https://docs.docker.com/reference/compose-file/volumes/ "Define and manage volumes in Docker Compose | Docker Docs"
+[3]: https://kopia.io/docs/repositories/ "Repositories | Kopia"

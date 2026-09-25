@@ -11,9 +11,10 @@
 | DBR² Console | `dbr2-web` (web container) | Next.js administrative console |
 | DBR² Server | `dbr2-server` | Go control plane (Chi + Huma, OpenAPI) |
 | DBR² Worker | `dbr2-worker` | Go Temporal workers running backup, restore, verify and retention workflows |
-| DBR² Agent | `dbr2-agent` | Go data-plane service on each protected Docker host (gRPC + mTLS) |
+| DBR² Agent | `dbr2-agent` | Native Go data-plane service on each protected Docker host (gRPC + mTLS via the Agent Gateway) |
+| DBR² Repository Server | `dbr2-reposerver` | Kopia Repository Server, one per Repository; the only holder of repository and storage credentials (ADR-0002) |
 | DBR² CLI | `dbr2` | Go CLI against the REST/OpenAPI API |
-| DBR² Repository | — | Repository abstraction, initially backed by Kopia |
+| DBR² Repository | — | A Kopia-backed store of recovery points (terminology: ADR-0012) |
 | DBR² Recovery Engine | — | Restore workflows (worker) plus restore execution (agent) |
 
 ## Binaries and release artifacts
@@ -22,6 +23,7 @@
 dbr2-server
 dbr2-worker
 dbr2-agent
+dbr2-reposerver
 dbr2            (CLI)
 dbr2-web        (web container)
 ```
