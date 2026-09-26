@@ -35,6 +35,7 @@ type Agent struct {
 	DockerVersion       *string
 	HealthError         *string
 	RegistrationTokenID *uuid.UUID
+	OfflineAlertedAt    *time.Time
 }
 
 type AgentCertificate struct {
@@ -117,6 +118,7 @@ type Application struct {
 	MissingSince     *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	PolicyID         *uuid.UUID
 }
 
 type ApplicationBackupSetting struct {
@@ -130,6 +132,7 @@ type ApplicationBackupSetting struct {
 	ExcludedComponents []string
 	UpdatedBy          *uuid.UUID
 	UpdatedAt          time.Time
+	DatabaseStrategy   string
 }
 
 type AuditEvent struct {
@@ -151,6 +154,18 @@ type AuditEvent struct {
 	AfterState   json.RawMessage
 	RequestID    *string
 	TraceID      *string
+}
+
+type EscrowDrill struct {
+	ID           uuid.UUID
+	OrgID        uuid.UUID
+	Package      []byte
+	CodeHash     []byte
+	RecipientIds []uuid.UUID
+	CreatedBy    *uuid.UUID
+	CreatedAt    time.Time
+	CompletedAt  *time.Time
+	CompletedBy  *uuid.UUID
 }
 
 type EscrowRecipient struct {
@@ -193,6 +208,35 @@ type LocalCredential struct {
 	TotpPendingSecretEnc []byte
 	TotpEnabled          bool
 	TotpLastStep         int64
+}
+
+type NotificationChannel struct {
+	ID             uuid.UUID
+	OrgID          uuid.UUID
+	Name           string
+	Kind           string
+	Enabled        bool
+	Config         json.RawMessage
+	SecretEnc      []byte
+	Events         []string
+	MinSeverity    string
+	CreatedBy      *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	LastDeliveryAt *time.Time
+	LastError      *string
+}
+
+type NotificationDelivery struct {
+	ID             int64
+	NotificationID int64
+	ChannelID      uuid.UUID
+	State          string
+	Attempts       int32
+	NextAttemptAt  time.Time
+	LastError      *string
+	SentAt         *time.Time
+	CreatedAt      time.Time
 }
 
 type NotificationOutbox struct {
@@ -244,6 +288,68 @@ type PkiAuthority struct {
 	CreatedAt   time.Time
 }
 
+type PlatformBackup struct {
+	ID           string
+	OrgID        uuid.UUID
+	State        string
+	Trigger      string
+	RequestedBy  *uuid.UUID
+	WorkflowID   *string
+	RunID        *string
+	StartedAt    time.Time
+	FinishedAt   *time.Time
+	SizeBytes    int64
+	Sha256       *string
+	FileName     *string
+	SnapshotID   *string
+	RepositoryID *uuid.UUID
+	BundlePath   *string
+	Error        *string
+	Manifest     json.RawMessage
+}
+
+type PlatformSetting struct {
+	OrgID     uuid.UUID
+	Key       string
+	Value     json.RawMessage
+	SecretEnc []byte
+	UpdatedBy *uuid.UUID
+	UpdatedAt time.Time
+}
+
+type ProtectionPolicy struct {
+	ID              uuid.UUID
+	OrgID           uuid.UUID
+	Name            string
+	Description     string
+	Schedule        string
+	Timezone        string
+	Enabled         bool
+	ConsistencyMode *string
+	RepositoryID    *uuid.UUID
+	KeepLast        int32
+	KeepHourly      int32
+	KeepDaily       int32
+	KeepWeekly      int32
+	KeepMonthly     int32
+	KeepYearly      int32
+	CreatedBy       *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type RecoveryContract struct {
+	ApplicationID      uuid.UUID
+	MaxRpoMinutes      *int32
+	RequiredComponents []string
+	State              string
+	StateReasons       []string
+	EvaluatedAt        *time.Time
+	ViolatedSince      *time.Time
+	UpdatedBy          *uuid.UUID
+	UpdatedAt          time.Time
+}
+
 type RecoveryPoint struct {
 	ID                  string
 	OrgID               uuid.UUID
@@ -270,6 +376,12 @@ type RecoveryPoint struct {
 	CreatedAt           time.Time
 	CommittedAt         *time.Time
 	UpdatedAt           time.Time
+	DeleteAfter         *time.Time
+	DeleteReason        *string
+	DeleteRequestedBy   *uuid.UUID
+	DeletedAt           *time.Time
+	VerifiedAt          *time.Time
+	VerificationDetails json.RawMessage
 }
 
 type Repository struct {
@@ -296,6 +408,10 @@ type Repository struct {
 	CreatedBy          *uuid.UUID
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	DeleteAfter        *time.Time
+	DeleteReason       *string
+	LastVerifiedAt     *time.Time
+	IsSystem           bool
 }
 
 type RestoreRun struct {

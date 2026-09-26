@@ -207,7 +207,7 @@ function inventoryFor(agentId) {
 // ---------------------------------------------------------------------------
 
 /** Set by mock-live.mjs: computes `protection` (it needs recovery points and restores). */
-const hooks = { protection: null };
+const hooks = { protection: null, policyOf: null };
 
 const hostname = (id) => agents.find((a) => a.id === id)?.hostname ?? "unknown";
 
@@ -507,6 +507,7 @@ function summary(a) {
     criticality: a.criticality,
     last_seen_at: a.last_seen_at,
     missing_since: a.missing_since,
+    policy_id: hooks.policyOf ? hooks.policyOf(a.id) : null,
     ...(hooks.protection ? { protection: hooks.protection(a) } : {}),
   };
 }
@@ -912,5 +913,9 @@ export const fleetData = {
   /** @param {(app: object) => object} fn */
   setProtection: (fn) => {
     hooks.protection = fn;
+  },
+  /** @param {(appId: string) => string | null} fn */
+  setPolicyOf: (fn) => {
+    hooks.policyOf = fn;
   },
 };

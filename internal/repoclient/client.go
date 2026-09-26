@@ -136,3 +136,58 @@ func (c *Client) GrantRead(ctx context.Context, user, sourceUser, sourceHost str
 func (c *Client) RevokeRead(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/acl/read-grants/"+url.PathEscape(id), nil, nil)
 }
+
+// StateContentType is the media type of a reposerver state archive.
+const StateContentType = "application/x-tar"
+
+// StateExport returns the reposerver's state archive (GET /v1/state-export):
+// a tar with the repository password, the TLS certificate and key, the
+// control password and the Kopia repository config. It is secret material:
+// the caller must encrypt it before it leaves the process (ADR-0008).
+func (c *Client) StateExport(ctx context.Context) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/v1/state-export", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", StateContentType)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode/100 != 2 {
+		defer resp.Body.Close()
+		return nil, errorFrom(resp)
+	}
+	return resp.Body, nil
+}
+
+// StateImport restores a state archive produced by StateExport on an
+// uninitialized reposerver (POST /v1/state-import; platform recovery).
+func (c *Client) StateImport(ctx context.Context, r io.Reader) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/v1/state-import", r)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", StateContentType)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return errorFrom(resp)
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	return nil
+}
+
+func errorFrom(resp *http.Response) error {
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	e := &Error{StatusCode: resp.StatusCode}
+	if json.Unmarshal(b, e) != nil || (e.Code == "" && e.Message == "") {
+		e.Message = strings.TrimSpace(string(b))
+	}
+	return e
+}

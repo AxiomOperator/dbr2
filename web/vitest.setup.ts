@@ -12,6 +12,13 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom lacks pointer capture and scrollIntoView, which Radix Select calls when it opens.
+if (typeof Element !== "undefined") {
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.releasePointerCapture ??= () => {};
+  Element.prototype.scrollIntoView ??= () => {};
+}
+
 afterEach(() => {
   cleanup();
 });

@@ -15,6 +15,7 @@ import {
 import { DeleteApplicationButton } from "@/components/applications/delete-application-dialog";
 import { GroupContainersDialog } from "@/components/applications/group-containers-dialog";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
+import { CONTRACT_STATE_LABEL, ContractStateBadge } from "@/components/policies/policy-badges";
 import { PROTECTION_STATUS_LABEL, ProtectionCell } from "@/components/protection/protection-badges";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,7 +44,9 @@ import {
   type ApplicationSummary,
   type ProtectionStatus,
 } from "@/lib/api/fleet-schemas";
-import { useApplications } from "@/lib/api/hooks";
+import { useApplications, useContracts } from "@/lib/api/hooks";
+import { CONTRACT_STATES, type ContractState } from "@/lib/api/policy-schemas";
+import { PERMISSION_POLICY_READ } from "@/lib/api/protection-schemas";
 import { formatDateTime, formatRelative } from "@/lib/format";
 
 const EMPTY: ApplicationSummary[] = [];
@@ -52,7 +55,10 @@ const features = tableFeatures({});
 const col = createColumnHelper<typeof features, ApplicationSummary>();
 
 
-function buildColumns(canManage: boolean) {
+/** Contract state per application id (applications without one are absent). */
+export type ContractStates = Map<string, ContractState>;
+
+function buildColumns(canManage: boolean, contracts: ContractStates | null) {
   const base = [
     col.accessor("name", {
       header: "Application",
@@ -78,6 +84,15 @@ function buildColumns(canManage: boolean) {
       header: "Protection",
       cell: ({ row }) => <ProtectionCell protection={row.original.protection} />,
     }),
+    ...(contracts
+      ? [
+          col.display({
+            id: "contract",
+            header: "Contract",
+            cell: ({ row }) => <ContractStateBadge state={contracts.get(row.original.id) ?? "none"} />,
+          }),
+        ]
+      : []),
     col.accessor("kind", { header: "Kind", cell: (info) => <KindBadge kind={info.getValue()} /> }),
     col.accessor("source", {
       header: "Definition",
@@ -179,15 +194,25 @@ export interface ApplicationFilters {
   kind: ApplicationKind | typeof ALL;
   status: ProtectionStatus | typeof ALL;
   unprotectedOnly: boolean;
+  /** Recovery Contract state ("none" = applications without a contract). */
+  contract?: ContractState | "none" | typeof ALL;
 }
 
-export function filterApplications(apps: ApplicationSummary[], f: ApplicationFilters): ApplicationSummary[] {
+const CONTRACT_FILTERS = [...CONTRACT_STATES, "none"] as const;
+
+export function filterApplications(
+  apps: ApplicationSummary[],
+  f: ApplicationFilters,
+  contracts: ContractStates | null = null,
+): ApplicationSummary[] {
+  const contract = f.contract ?? ALL;
   return apps.filter(
     (a) =>
       (f.host === ALL || a.host_id === f.host) &&
       (f.kind === ALL || a.kind === f.kind) &&
       (f.status === ALL || a.protection?.status === f.status) &&
-      (!f.unprotectedOnly || a.unprotected_high > 0),
+      (!f.unprotectedOnly || a.unprotected_high > 0) &&
+      (contract === ALL || !contracts || (contracts.get(a.id) ?? "none") === contract),
   );
 }
 
@@ -197,6 +222,7 @@ function useFilters(): [ApplicationFilters, (next: Partial<ApplicationFilters>) 
   const pathname = usePathname();
   const kindParam = params.get("kind");
   const statusParam = params.get("status");
+  const contractParam = params.get("contract");
   const filters: ApplicationFilters = {
     host: params.get("host") || ALL,
     kind: (APPLICATION_KINDS as readonly string[]).includes(kindParam ?? "")
@@ -206,6 +232,9 @@ function useFilters(): [ApplicationFilters, (next: Partial<ApplicationFilters>) 
       ? (statusParam as ProtectionStatus)
       : ALL,
     unprotectedOnly: params.get("unprotected") === "1",
+    contract: (CONTRACT_FILTERS as readonly string[]).includes(contractParam ?? "")
+      ? (contractParam as ApplicationFilters["contract"])
+      : ALL,
   };
   const update = (next: Partial<ApplicationFilters>) => {
     const merged = { ...filters, ...next };
@@ -214,6 +243,7 @@ function useFilters(): [ApplicationFilters, (next: Partial<ApplicationFilters>) 
     if (merged.kind !== ALL) qs.set("kind", merged.kind);
     if (merged.status !== ALL) qs.set("status", merged.status);
     if (merged.unprotectedOnly) qs.set("unprotected", "1");
+    if (merged.contract && merged.contract !== ALL) qs.set("contract", merged.contract);
     const s = qs.toString();
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   };
@@ -222,11 +252,18 @@ function useFilters(): [ApplicationFilters, (next: Partial<ApplicationFilters>) 
 
 function ApplicationsTable({ canManage }: { canManage: boolean }) {
   const id = useId();
+  const me = useCurrentUser();
+  const canContracts = hasPermission(me, PERMISSION_POLICY_READ);
   const apps = useApplications();
+  const contractList = useContracts({ enabled: canContracts });
+  const contracts = useMemo<ContractStates | null>(
+    () => (canContracts && contractList.data ? new Map(contractList.data.map((c) => [c.application_id, c.state])) : null),
+    [canContracts, contractList.data],
+  );
   const [filters, setFilters] = useFilters();
   const all = apps.data ?? EMPTY;
-  const data = useMemo(() => filterApplications(all, filters), [all, filters]);
-  const columns = useMemo(() => buildColumns(canManage), [canManage]);
+  const data = useMemo(() => filterApplications(all, filters, contracts), [all, filters, contracts]);
+  const columns = useMemo(() => buildColumns(canManage, contracts), [canManage, contracts]);
   const table = useTable({ features, columns, data, getRowId: (row) => row.id });
 
   const hosts = useMemo(() => {
@@ -298,6 +335,27 @@ function ApplicationsTable({ canManage }: { canManage: boolean }) {
             </SelectContent>
           </Select>
         </div>
+        {canContracts && (
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-contract`}>Contract</Label>
+            <Select
+              value={filters.contract ?? ALL}
+              onValueChange={(v) => setFilters({ contract: v as ApplicationFilters["contract"] })}
+            >
+              <SelectTrigger id={`${id}-contract`} className="min-w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any contract</SelectItem>
+                {CONTRACT_FILTERS.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {CONTRACT_STATE_LABEL[st]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="flex h-8 items-center gap-2">
           <Checkbox
             id={`${id}-unprotected`}

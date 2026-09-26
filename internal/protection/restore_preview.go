@@ -195,20 +195,31 @@ func computePreview(in previewInput, selected []manifest.Component) *Preview {
 		name := strings.TrimPrefix(c.Name, "/")
 		return manual[name] || ourNames[name]
 	}
+	// Containers are stopped only when files are swapped; database dumps
+	// load into the running database.
+	swapsFiles := false
+	for _, c := range selected {
+		if c.Kind != manifest.KindDatabase {
+			swapsFiles = true
+		}
+	}
 	existing := map[string]inventory.Container{}
 	running := false
 	for _, c := range inv.Containers {
 		name := strings.TrimPrefix(c.Name, "/")
 		existing[name] = c
 		if belongs(c) {
-			p.StopContainers = append(p.StopContainers, PreviewContainer{ID: c.ID, Name: name, State: c.State})
-			if c.State == "running" || c.State == "paused" || c.State == "restarting" {
-				p.stopIDs = append(p.stopIDs, c.ID)
-				running = true
+			live := c.State == "running" || c.State == "paused" || c.State == "restarting"
+			running = running || live
+			if swapsFiles {
+				p.StopContainers = append(p.StopContainers, PreviewContainer{ID: c.ID, Name: name, State: c.State})
+				if live {
+					p.stopIDs = append(p.stopIDs, c.ID)
+				}
 			}
 		}
 	}
-	if len(p.StopContainers) > 0 || in.targetAppID != "" {
+	if running || len(p.StopContainers) > 0 || in.targetAppID != "" {
 		p.Mode = "in_place"
 	}
 

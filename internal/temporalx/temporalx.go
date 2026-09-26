@@ -106,6 +106,23 @@ func StartRepositoryOperation(ctx context.Context, c client.Client, taskQueue, r
 	return run, err
 }
 
+// PlatformWorkflowID returns the workflow ID of a platform-wide operation
+// (e.g. "platform/protection").
+func PlatformWorkflowID(operation string) string { return "platform/" + operation }
+
+// StartPlatformOperation starts a platform-wide operation with workflow ID
+// platform/<operation> (one run at a time).
+func StartPlatformOperation(ctx context.Context, c client.Client, taskQueue, operation string, wf any, args ...any) (client.WorkflowRun, error) {
+	opts := ApplicationStartOptions("", taskQueue)
+	opts.ID = PlatformWorkflowID(operation)
+	run, err := c.ExecuteWorkflow(ctx, opts, wf, args...)
+	var started *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &started) {
+		return nil, &ErrOperationInProgress{WorkflowID: opts.ID, RunningRunID: started.RunId}
+	}
+	return run, err
+}
+
 // IsApplicationWorkflowID reports whether id is in the application namespace.
 func IsApplicationWorkflowID(id string) bool { return strings.HasPrefix(id, ApplicationIDPrefix) }
 

@@ -9,6 +9,17 @@ import { apiRequest } from "./client";
 import {
   zAddEscrowRecipientBody,
   zAddGroupMappingBody,
+  zAssignPolicyBody,
+  zCompleteEscrowDrillBody,
+  zCreateNotificationChannelBody,
+  zCreatePolicyBody,
+  zDeleteRecoveryPointBody,
+  zDeleteRepositoryBody,
+  zPutContractBody,
+  zUpdateNotificationChannelBody,
+  zUpdatePolicyBody,
+  zUpdateSmtpSettingsBody,
+  zVerifyRepositoryBody,
   zChangePasswordBody,
   zConfirmRepositoryEscrowBody,
   zConfirmTotpBody,
@@ -70,6 +81,16 @@ import {
 import {
   AddEscrowRecipientRequestSchema,
   AlertListSchema,
+  CompleteDrillRequestSchema,
+  DrillListSchema,
+  DrillSchema,
+  EscrowHealthSchema,
+  PlatformBackupListSchema,
+  RegeneratedEscrowSchema,
+  VerifyRepositoryRequestSchema,
+  deleteRequestSchema,
+  type DeleteRequest,
+  type VerifyRepositoryRequestInput,
   BackupSettingsSchema,
   ConfirmEscrowRequestSchema,
   CreateRepositoryRequestSchema,
@@ -92,7 +113,7 @@ import {
   type CreateRepositoryRequest,
   type JobState,
   type JobType,
-  type RecoveryPointState,
+  type RecoveryPointFilterState,
   type StartBackupRequest,
   type UpdateBackupSettingsRequest,
   type UpdateHostSettingsRequest,
@@ -108,6 +129,29 @@ import {
   type SetRolesRequest,
   type SetStatusRequest,
 } from "./users-schemas";
+import {
+  AssignPolicyRequestSchema,
+  ContractListSchema,
+  ContractRequestSchema,
+  ContractSchema,
+  CreateChannelRequestSchema,
+  DeliveryListSchema,
+  NotificationChannelListSchema,
+  NotificationChannelSchema,
+  PolicyDetailSchema,
+  PolicyListSchema,
+  PolicyRequestSchema,
+  PolicySchema,
+  SmtpRequestSchema,
+  SmtpSettingsSchema,
+  TestResultSchema,
+  UpdateChannelRequestSchema,
+  type ContractRequest,
+  type CreateChannelRequest,
+  type PolicyRequest,
+  type SmtpRequest,
+  type UpdateChannelRequest,
+} from "./policy-schemas";
 import {
   PreviewSchema,
   RestoreBodySchema,
@@ -295,7 +339,7 @@ export const api = {
     }),
 
   recoveryPoints: async (
-    params: { applicationId?: string | null; state?: RecoveryPointState | null; limit?: number },
+    params: { applicationId?: string | null; state?: RecoveryPointFilterState | null; limit?: number },
     signal?: AbortSignal,
   ) =>
     (
@@ -425,6 +469,153 @@ export const api = {
       method: "POST",
       body: zRemoveGroupMappingBody.parse(GroupMappingRequestSchema.parse(req)),
     }),
+
+  // --- Phase 7: policies, contracts, deletion, notifications ---------------
+
+  policies: async (signal?: AbortSignal) => (await apiRequest("/policies", { schema: PolicyListSchema, signal })).items,
+
+  policy: (id: string, signal?: AbortSignal) =>
+    apiRequest(`/policies/${seg(id)}`, { schema: PolicyDetailSchema, signal }),
+
+  /** 400 with the server's message for an invalid schedule, timezone or retention. */
+  createPolicy: (req: PolicyRequest) =>
+    apiRequest("/policies", {
+      method: "POST",
+      body: zCreatePolicyBody.parse(PolicyRequestSchema.parse(req)),
+      schema: PolicySchema,
+    }),
+
+  updatePolicy: (id: string, req: PolicyRequest) =>
+    apiRequest(`/policies/${seg(id)}`, {
+      method: "PUT",
+      body: zUpdatePolicyBody.parse(PolicyRequestSchema.parse(req)),
+      schema: PolicySchema,
+    }),
+
+  /** Assigned applications are no longer scheduled; their recovery points are kept. */
+  deletePolicy: (id: string) => apiRequest(`/policies/${seg(id)}`, { method: "DELETE" }),
+
+  /** `policyId: null` removes the assignment. */
+  assignPolicy: (applicationId: string, policyId: string | null) =>
+    apiRequest(`/applications/${seg(applicationId)}/policy`, {
+      method: "PUT",
+      body: zAssignPolicyBody.parse(AssignPolicyRequestSchema.parse({ policy_id: policyId })),
+    }),
+
+  contracts: async (signal?: AbortSignal) =>
+    (await apiRequest("/contracts", { schema: ContractListSchema, signal })).items,
+
+  /** 404 when the application has no contract. */
+  contract: (applicationId: string, signal?: AbortSignal) =>
+    apiRequest(`/applications/${seg(applicationId)}/contract`, { schema: ContractSchema, signal }),
+
+  putContract: (applicationId: string, req: ContractRequest) =>
+    apiRequest(`/applications/${seg(applicationId)}/contract`, {
+      method: "PUT",
+      body: zPutContractBody.parse(ContractRequestSchema.parse(req)),
+      schema: ContractSchema,
+    }),
+
+  deleteContract: (applicationId: string) =>
+    apiRequest(`/applications/${seg(applicationId)}/contract`, { method: "DELETE" }),
+
+  /** Schedules deletion after the grace period; `name` is the application name to type. */
+  deleteRecoveryPoint: (id: string, name: string, req: DeleteRequest) =>
+    apiRequest(`/recovery-points/${seg(id)}/delete`, {
+      method: "POST",
+      body: zDeleteRecoveryPointBody.parse(deleteRequestSchema(name).parse(req)),
+      schema: RecoveryPointSchema,
+    }),
+
+  undeleteRecoveryPoint: (id: string) =>
+    apiRequest(`/recovery-points/${seg(id)}/undelete`, { method: "POST", schema: RecoveryPointSchema }),
+
+  /** Retires the Repository after the grace period; `name` is the Repository name to type. */
+  deleteRepository: (id: string, name: string, req: DeleteRequest) =>
+    apiRequest(`/repositories/${seg(id)}/delete`, {
+      method: "POST",
+      body: zDeleteRepositoryBody.parse(deleteRequestSchema(name).parse(req)),
+      schema: RepositorySchema,
+    }),
+
+  undeleteRepository: (id: string) =>
+    apiRequest(`/repositories/${seg(id)}/undelete`, { method: "POST", schema: RepositorySchema }),
+
+  notificationChannels: async (signal?: AbortSignal) =>
+    (await apiRequest("/notification-channels", { schema: NotificationChannelListSchema, signal })).items,
+
+  createNotificationChannel: (req: CreateChannelRequest) =>
+    apiRequest("/notification-channels", {
+      method: "POST",
+      body: zCreateNotificationChannelBody.parse(CreateChannelRequestSchema.parse(req)),
+      schema: NotificationChannelSchema,
+    }),
+
+  /** Omit `secret` to keep the stored one, "" to remove it. */
+  updateNotificationChannel: (id: string, req: UpdateChannelRequest) =>
+    apiRequest(`/notification-channels/${seg(id)}`, {
+      method: "PUT",
+      body: zUpdateNotificationChannelBody.parse(UpdateChannelRequestSchema.parse(req)),
+      schema: NotificationChannelSchema,
+    }),
+
+  deleteNotificationChannel: (id: string) => apiRequest(`/notification-channels/${seg(id)}`, { method: "DELETE" }),
+
+  /** A failed delivery is reported in the body (`delivered: false`). */
+  testNotificationChannel: (id: string) =>
+    apiRequest(`/notification-channels/${seg(id)}/test`, { method: "POST", schema: TestResultSchema }),
+
+  notificationDeliveries: async (id: string, signal?: AbortSignal) =>
+    (await apiRequest(`/notification-channels/${seg(id)}/deliveries`, { schema: DeliveryListSchema, query: { limit: 50 }, signal }))
+      .items,
+
+  smtpSettings: (signal?: AbortSignal) => apiRequest("/settings/smtp", { schema: SmtpSettingsSchema, signal }),
+
+  /** Omit `password` to keep the stored one, "" to remove it. */
+  updateSmtpSettings: (req: SmtpRequest) =>
+    apiRequest("/settings/smtp", {
+      method: "PUT",
+      body: zUpdateSmtpSettingsBody.parse(SmtpRequestSchema.parse(req)),
+      schema: SmtpSettingsSchema,
+    }),
+
+  // --- Phase 9: verification, escrow health, platform protection ------------
+
+  /** 202: verifies the least recently verified recovery points (or one). */
+  verifyRepository: (id: string, req: VerifyRepositoryRequestInput = {}) =>
+    apiRequest(`/repositories/${seg(id)}/verify`, {
+      method: "POST",
+      body: zVerifyRepositoryBody.parse(VerifyRepositoryRequestSchema.parse(req)),
+      schema: WorkflowResponseSchema,
+    }),
+
+  escrowHealth: (signal?: AbortSignal) => apiRequest("/escrow/health", { schema: EscrowHealthSchema, signal }),
+
+  /** Re-seals the password to the current recipients; escrow must be confirmed again. */
+  regenerateEscrow: (id: string) =>
+    apiRequest(`/repositories/${seg(id)}/escrow/regenerate`, { method: "POST", schema: RegeneratedEscrowSchema }),
+
+  escrowDrills: async (signal?: AbortSignal) =>
+    (await apiRequest("/escrow/drills", { schema: DrillListSchema, signal })).items,
+
+  /** The drill package is only returned here. */
+  startEscrowDrill: () => apiRequest("/escrow/drills", { method: "POST", schema: DrillSchema }),
+
+  completeEscrowDrill: (id: string, code: string) =>
+    apiRequest(`/escrow/drills/${seg(id)}/complete`, {
+      method: "POST",
+      body: zCompleteEscrowDrillBody.parse(CompleteDrillRequestSchema.parse({ confirmation_code: code })),
+      schema: DrillSchema,
+    }),
+
+  platformBackups: async (signal?: AbortSignal) =>
+    (await apiRequest("/platform/backups", { schema: PlatformBackupListSchema, query: { limit: 50 }, signal })).items,
+
+  /** 202; 409 while a run is in progress. */
+  startPlatformBackup: () => apiRequest("/platform/backups", { method: "POST", schema: WorkflowResponseSchema }),
+
+  designateSystemRepository: (id: string) =>
+    apiRequest(`/repositories/${seg(id)}/system`, { method: "PUT", schema: RepositorySchema }),
 };
 
 /** TanStack Query keys, centralised so invalidation stays consistent. */
@@ -475,4 +666,14 @@ export const queryKeys = {
   users: ["users"] as const,
   roles: ["roles"] as const,
   groupMappings: ["group-mappings"] as const,
+  policies: ["policies"] as const,
+  policy: (id: string) => ["policies", id] as const,
+  contractsAll: ["contracts"] as const,
+  contract: (applicationId: string) => ["contracts", applicationId] as const,
+  notificationChannels: ["notification-channels"] as const,
+  notificationDeliveries: (id: string) => ["notification-channels", id, "deliveries"] as const,
+  smtpSettings: ["settings", "smtp"] as const,
+  escrowHealth: ["escrow", "health"] as const,
+  escrowDrills: ["escrow", "drills"] as const,
+  platformBackups: ["platform-backups"] as const,
 };

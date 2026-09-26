@@ -61,6 +61,32 @@ service PlatformService {
   rpc RevokeRestoreAccess(RevokeRestoreAccessRequest) returns (RevokeRestoreAccessResponse);
   // UpdateRestore records progress (step) and the final outcome.
   rpc UpdateRestore(UpdateRestoreRequest) returns (UpdateRestoreResponse);
+  // ListRetentionCandidates returns recovery points to delete now: those
+  // outside their policy's retention and manual deletions whose grace
+  // period has passed (ADR-0014). Never the latest committed recovery point
+  // of an application, never one used by an active restore.
+  rpc ListRetentionCandidates(ListRetentionCandidatesRequest) returns (ListRetentionCandidatesResponse);
+  // BeginRecoveryPointDeletion marks a recovery point deleting (the worker
+  // then deletes the manifest first, then the components, as maint@dbr2).
+  rpc BeginRecoveryPointDeletion(BeginRecoveryPointDeletionRequest) returns (BeginRecoveryPointDeletionResponse);
+  // FinishRecoveryPointDeletion records the outcome.
+  rpc FinishRecoveryPointDeletion(FinishRecoveryPointDeletionRequest) returns (FinishRecoveryPointDeletionResponse);
+  // ListVerificationCandidates returns committed recovery points of a
+  // Repository to verify, least recently verified first.
+  rpc ListVerificationCandidates(ListVerificationCandidatesRequest) returns (ListVerificationCandidatesResponse);
+  // SetVerification records a recovery point's verification result.
+  rpc SetVerification(SetVerificationRequest) returns (SetVerificationResponse);
+  // BeginPlatformBackup records a running Platform Protection run (ADR-0008)
+  // and returns its ID and the System Repository (if one is designated).
+  rpc BeginPlatformBackup(BeginPlatformBackupRequest) returns (BeginPlatformBackupResponse);
+  // ExportPlatform streams the age-encrypted Platform Recovery Bundle
+  // (tar -> zstd -> age to every escrow recipient) in ~1 MiB chunks. The
+  // bundle is encrypted inside dbr2-server; plaintext never leaves it. The
+  // last message carries the summary (plaintext manifest, no secrets).
+  rpc ExportPlatform(ExportPlatformRequest) returns (stream ExportPlatformResponse);
+  // RecordPlatformBackup stores the outcome of a platform backup (audit
+  // event, and an alert when it is partial or failed).
+  rpc RecordPlatformBackup(RecordPlatformBackupRequest) returns (RecordPlatformBackupResponse);
 }
 
 message PrepareRestoreRequest {
@@ -174,6 +200,9 @@ message PrepareBackupResponse {
   string hostname = 14;
   // Seconds to wait for the backup window to open (0 = open now).
   uint32 wait_for_window_seconds = 15;
+  // Recovery Contract to evaluate at capture time (JSON:
+  // {"max_rpo_minutes":N,"required_components":[...]}); empty = none.
+  bytes contract_json = 16;
 }
 
 message EnsureAgentAccessRequest {
@@ -244,3 +273,116 @@ message RecordEventRequest {
 }
 
 message RecordEventResponse {}
+
+message ListRetentionCandidatesRequest {}
+
+message RetentionCandidate {
+  string recovery_point_id = 1;
+  string repository_id = 2;
+  string application_id = 3;
+  // retention | manual
+  string reason = 4;
+}
+
+message ListRetentionCandidatesResponse {
+  repeated RetentionCandidate candidates = 1;
+}
+
+message BeginRecoveryPointDeletionRequest {
+  string recovery_point_id = 1;
+}
+
+message BeginRecoveryPointDeletionResponse {
+  string repository_id = 1;
+  string application_id = 2;
+  // False when the recovery point is no longer eligible (e.g. undeleted).
+  bool proceed = 3;
+}
+
+message FinishRecoveryPointDeletionRequest {
+  string recovery_point_id = 1;
+  string reason = 2;
+  string error = 3;
+  int32 snapshots_deleted = 4;
+}
+
+message FinishRecoveryPointDeletionResponse {}
+
+message ListVerificationCandidatesRequest {
+  string repository_id = 1;
+  uint32 limit = 2;
+  // Only this recovery point (on-demand verification of one).
+  string recovery_point_id = 3;
+}
+
+message VerificationCandidate {
+  string recovery_point_id = 1;
+  bytes manifest_json = 2;
+}
+
+message ListVerificationCandidatesResponse {
+  repeated VerificationCandidate candidates = 1;
+}
+
+message SetVerificationRequest {
+  string recovery_point_id = 1;
+  bool ok = 2;
+  // JSON: per-component results (files, bytes read, errors).
+  bytes details_json = 3;
+}
+
+message SetVerificationResponse {}
+
+message BeginPlatformBackupRequest {
+  string workflow_id = 1;
+  string run_id = 2;
+  // scheduled | manual
+  string trigger = 3;
+  string requested_by = 4;
+}
+
+message BeginPlatformBackupResponse {
+  string backup_id = 1;
+  // The System Repository; unset when none is designated.
+  Repository system_repository = 2;
+}
+
+message ExportPlatformRequest {
+  string backup_id = 1;
+}
+
+message ExportPlatformResponse {
+  // Encrypted bundle bytes (append in order).
+  bytes data = 1;
+  // Set on the final message only.
+  ExportPlatformSummary summary = 2;
+}
+
+message ExportPlatformSummary {
+  // manifest.json of the bundle (plaintext; no secrets).
+  bytes manifest_json = 1;
+  // Repositories whose reposerver state could not be exported.
+  repeated string missing_repository_ids = 2;
+}
+
+message RecordPlatformBackupRequest {
+  string backup_id = 1;
+  // succeeded | partial | failed (the server downgrades succeeded to partial
+  // when reposerver state was missing from the bundle).
+  string state = 2;
+  int64 size_bytes = 3;
+  // SHA-256 (hex) of the encrypted bundle.
+  string sha256 = 4;
+  string file_name = 5;
+  // Kopia snapshot in the System Repository ("" = not written there).
+  string snapshot_id = 6;
+  string repository_id = 7;
+  // Path of the copy in the bundle directory ("" = not written there).
+  string bundle_path = 8;
+  string error = 9;
+}
+
+message RecordPlatformBackupResponse {
+  // Final state stored.
+  string state = 1;
+}

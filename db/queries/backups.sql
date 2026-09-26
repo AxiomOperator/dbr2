@@ -63,13 +63,13 @@ SELECT * FROM application_backup_settings WHERE application_id = $1;
 
 -- name: UpsertApplicationBackupSettings :one
 INSERT INTO application_backup_settings (application_id, repository_id, consistency_mode, max_quiesce_seconds,
-    pre_hooks, post_hooks, optional_components, excluded_components, updated_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    pre_hooks, post_hooks, optional_components, excluded_components, updated_by, database_strategy)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (application_id) DO UPDATE SET repository_id = EXCLUDED.repository_id,
     consistency_mode = EXCLUDED.consistency_mode, max_quiesce_seconds = EXCLUDED.max_quiesce_seconds,
     pre_hooks = EXCLUDED.pre_hooks, post_hooks = EXCLUDED.post_hooks,
     optional_components = EXCLUDED.optional_components, excluded_components = EXCLUDED.excluded_components,
-    updated_by = EXCLUDED.updated_by, updated_at = now()
+    database_strategy = EXCLUDED.database_strategy, updated_by = EXCLUDED.updated_by, updated_at = now()
 RETURNING *;
 
 -- name: GetHostSettings :one

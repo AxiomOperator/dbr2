@@ -33,8 +33,9 @@ type RepositoryDTO struct {
 	Name              string         `json:"name"`
 	Description       string         `json:"description"`
 	Backend           string         `json:"backend" enum:"nfs,filesystem"`
-	Status            string         `json:"status" enum:"awaiting_escrow,ready,unavailable,retired"`
+	Status            string         `json:"status" enum:"awaiting_escrow,ready,unavailable,pending_deletion,retired"`
 	IsDefault         bool           `json:"is_default"`
+	IsSystem          bool           `json:"is_system" doc:"The System Repository that receives Platform Recovery Bundles (ADR-0008)."`
 	ServerURL         string         `json:"server_url"`
 	InternalServerURL string         `json:"internal_server_url"`
 	ManagementURL     string         `json:"management_url"`
@@ -45,6 +46,9 @@ type RepositoryDTO struct {
 	EscrowGeneratedAt *time.Time     `json:"escrow_generated_at"`
 	EscrowConfirmedAt *time.Time     `json:"escrow_confirmed_at"`
 	LastReindexAt     *time.Time     `json:"last_reindex_at"`
+	LastVerifiedAt    *time.Time     `json:"last_verified_at"`
+	DeleteAfter       *time.Time     `json:"delete_after" doc:"Set while the Repository is pending deletion (grace period)."`
+	DeleteReason      *string        `json:"delete_reason"`
 	CreatedAt         time.Time      `json:"created_at"`
 	Live              *LiveDTO       `json:"live" doc:"Live reposerver status; null when unreachable (see live_error)."`
 	LiveError         string         `json:"live_error,omitempty"`
@@ -77,6 +81,7 @@ func repositoryDTO(v protection.RepositoryView) RepositoryDTO {
 		ServerURL: r.ServerUrl, InternalServerURL: r.InternalServerUrl, ManagementURL: r.ManagementUrl, CertSHA256: r.CertSha256, KopiaRepositoryID: r.KopiaRepositoryID,
 		Splitter: r.Splitter, EscrowRecipients: len(r.EscrowRecipientIds), EscrowGeneratedAt: r.EscrowGeneratedAt,
 		EscrowConfirmedAt: r.EscrowConfirmedAt, LastReindexAt: r.LastReindexAt, CreatedAt: r.CreatedAt, LiveError: v.LiveError,
+		LastVerifiedAt: r.LastVerifiedAt, DeleteAfter: r.DeleteAfter, IsSystem: r.IsSystem, DeleteReason: r.DeleteReason,
 		UsageByHost: []HostUsageDTO{}}
 	for _, u := range v.Usage {
 		d.UsageByHost = append(d.UsageByHost, HostUsageDTO{HostID: u.AgentID.String(), Hostname: u.Hostname, Applications: u.Applications, LatestBytes: u.LatestBytes})
@@ -106,6 +111,7 @@ type BackupSettingsDTO struct {
 	PostHooks          []HookDTO  `json:"post_hooks"`
 	OptionalComponents []string   `json:"optional_components" doc:"Best-effort components (e.g. volume:cache); their failure makes the recovery point Partial."`
 	ExcludedComponents []string   `json:"excluded_components"`
+	DatabaseStrategy   string     `json:"database_strategy,omitempty" enum:"logical,volume,both" doc:"Detected PostgreSQL/Redis containers: logical (dumps only; their data volumes are skipped), volume (no dumps) or both (default)."`
 	UpdatedAt          *time.Time `json:"updated_at,omitempty" readOnly:"true"`
 }
 
@@ -128,7 +134,7 @@ func hooksIn(hs []HookDTO) []protection.HookSpec {
 func settingsDTO(b protection.BackupSettings) BackupSettingsDTO {
 	d := BackupSettingsDTO{ConsistencyMode: b.ConsistencyMode, EffectiveMode: b.EffectiveMode(), MaxQuiesceSeconds: b.MaxQuiesceSeconds,
 		PreHooks: hooksDTO(b.PreHooks), PostHooks: hooksDTO(b.PostHooks), OptionalComponents: nonNilStrings(b.OptionalComponents),
-		ExcludedComponents: nonNilStrings(b.ExcludedComponents), UpdatedAt: b.UpdatedAt}
+		ExcludedComponents: nonNilStrings(b.ExcludedComponents), UpdatedAt: b.UpdatedAt, DatabaseStrategy: b.DatabaseStrategy}
 	if b.RepositoryID != nil {
 		s := b.RepositoryID.String()
 		d.RepositoryID = &s
@@ -159,7 +165,7 @@ type RecoveryPointDTO struct {
 	HostID              string          `json:"host_id" format:"uuid"`
 	Hostname            string          `json:"hostname"`
 	RepositoryID        string          `json:"repository_id" format:"uuid"`
-	State               string          `json:"state" enum:"pending,committed,failed,missing,deleting"`
+	State               string          `json:"state" enum:"pending,committed,failed,missing,deleting,deleted"`
 	Status              *string         `json:"status" enum:"complete,partial"`
 	Verification        string          `json:"verification" enum:"unverified,verified,verification_failed"`
 	ConsistencyMode     string          `json:"consistency_mode" enum:"live,quiesced,offline"`
@@ -173,6 +179,11 @@ type RecoveryPointDTO struct {
 	CreatedAt           time.Time       `json:"created_at"`
 	CommittedAt         *time.Time      `json:"committed_at"`
 	Manifest            json.RawMessage `json:"manifest,omitempty" doc:"Recovery manifest (schema_version 1); detail view only."`
+	VerifiedAt          *time.Time      `json:"verified_at"`
+	VerificationDetails json.RawMessage `json:"verification_details,omitempty" doc:"Per-component verification results (detail view)."`
+	DeleteAfter         *time.Time      `json:"delete_after" doc:"Scheduled deletion time (grace period); null when not scheduled."`
+	DeleteReason        *string         `json:"delete_reason"`
+	DeletedAt           *time.Time      `json:"deleted_at"`
 }
 
 func rpDTO(r store.RecoveryPoint, withManifest bool) RecoveryPointDTO {
@@ -181,8 +192,10 @@ func rpDTO(r store.RecoveryPoint, withManifest bool) RecoveryPointDTO {
 		ConsistencyMode: r.ConsistencyMode, ConsistencyPoint: r.ConsistencyPoint, CrashConsistentOnly: r.CrashConsistentOnly,
 		Trigger: r.Trigger, WorkflowID: r.WorkflowID, SizeBytes: r.SizeBytes, ComponentCount: r.ComponentCount, Error: r.Error,
 		CreatedAt: r.CreatedAt, CommittedAt: r.CommittedAt}
+	d.VerifiedAt, d.DeleteAfter, d.DeleteReason, d.DeletedAt = r.VerifiedAt, r.DeleteAfter, r.DeleteReason, r.DeletedAt
 	if withManifest {
 		d.Manifest = r.Manifest
+		d.VerificationDetails = r.VerificationDetails
 	}
 	return d
 }
@@ -469,7 +482,7 @@ func registerProtection(a huma.API, d *Deps) {
 			}
 			b := protection.BackupSettings{ConsistencyMode: in.Body.ConsistencyMode, MaxQuiesceSeconds: in.Body.MaxQuiesceSeconds,
 				PreHooks: hooksIn(in.Body.PreHooks), PostHooks: hooksIn(in.Body.PostHooks), OptionalComponents: in.Body.OptionalComponents,
-				ExcludedComponents: in.Body.ExcludedComponents}
+				ExcludedComponents: in.Body.ExcludedComponents, DatabaseStrategy: in.Body.DatabaseStrategy}
 			if in.Body.RepositoryID != nil {
 				r, err := uuid.Parse(*in.Body.RepositoryID)
 				if err != nil {
@@ -520,7 +533,7 @@ func registerProtection(a huma.API, d *Deps) {
 		"List recovery points", "The recovery-point index, newest first. A recovery point exists if and only if its manifest exists in the Repository (ADR-0004).", rbac.BackupRead),
 		func(ctx context.Context, in *struct {
 			ApplicationID string `query:"application_id" format:"uuid"`
-			State         string `query:"state" enum:"pending,committed,failed,missing,deleting"`
+			State         string `query:"state" enum:"pending,committed,failed,missing,deleting,deleted"`
 			Limit         int32  `query:"limit" minimum:"1" maximum:"500" default:"100"`
 		}) (*struct {
 			Body struct {

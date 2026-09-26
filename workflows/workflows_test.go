@@ -14,6 +14,7 @@ import (
 	"github.com/AxiomOperator/dbr2/workflows/backup"
 	"github.com/AxiomOperator/dbr2/workflows/diag"
 	"github.com/AxiomOperator/dbr2/workflows/hosts"
+	"github.com/AxiomOperator/dbr2/workflows/platform"
 	"github.com/AxiomOperator/dbr2/workflows/restore"
 )
 
@@ -80,5 +81,5 @@ func TestRegisterAllOnOneWorker(t *testing.T) {
 			t.Fatalf("registration panicked: %v", r)
 		}
 	}()
-	workflows.Register(env, &diag.Activities{}, &hosts.Activities{}, &backup.Activities{}, &restore.Activities{})
+	workflows.Register(env, &diag.Activities{}, &hosts.Activities{}, &backup.Activities{}, &restore.Activities{}, &platform.Activities{})
 }

@@ -42,6 +42,16 @@ services:
       dockerfile: deployments/docker/Dockerfile.services
       args: { CMD: worker, BUILD: "0" }
       network: host
+    # Runs as the host user so it can write the platform bundle directory
+    # (pre-created by `make dev-up`); its Kopia client state is disposable.
+    user: "${DBR2_DEV_UID:-1000}:${DBR2_DEV_GID:-1000}"
+    environment:
+      DBR2_WORKER_STATE_DIR: /tmp/dbr2-worker
+    volumes: !override
+      - type: bind
+        source: ../../.dev/platform-bundles
+        target: /var/lib/dbr2/platform-bundles
+        bind: { create_host_path: true, selinux: Z }
 
   dbr2-reposerver:
     image: dbr2-reposerver:dev

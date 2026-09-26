@@ -126,6 +126,7 @@
         "parent": { "type": "string", "description": "fsmeta components: the filesystem component they describe." },
         "capture_method": { "enum": ["live", "snapshot"] },
         "file_name": { "type": "string", "description": "Single-stream components: the file name inside the snapshot." },
+        "validation": { "type": "string", "description": "Check performed on the captured data (database dumps)." },
         "database": {
           "type": "object",
           "required": ["engine", "format"],

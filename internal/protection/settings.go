@@ -20,6 +20,13 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/store"
 )
 
+// Database strategies (Phase 8).
+const (
+	StrategyLogical = "logical"
+	StrategyVolume  = "volume"
+	StrategyBoth    = "both"
+)
+
 // DefaultMaxQuiesce is the owner-set default maximum quiesce (ADR-0005).
 const DefaultMaxQuiesce = time.Hour
 
@@ -41,7 +48,11 @@ type BackupSettings struct {
 	PostHooks          []HookSpec
 	OptionalComponents []string
 	ExcludedComponents []string
-	UpdatedAt          *time.Time
+	// DatabaseStrategy for detected databases (Phase 8): logical (dumps
+	// only; their data volumes are skipped), volume (no dumps) or both
+	// (default; the volume copy may be crash-consistent).
+	DatabaseStrategy string
+	UpdatedAt        *time.Time
 }
 
 // EffectiveMode applies the minimal-downtime default: Quiesced when hooks
@@ -67,13 +78,14 @@ func (s *Service) GetBackupSettings(ctx context.Context, appID uuid.UUID) (Backu
 func (s *Service) backupSettings(ctx context.Context, q *store.Queries, appID uuid.UUID) (BackupSettings, error) {
 	row, err := q.GetApplicationBackupSettings(ctx, appID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return BackupSettings{MaxQuiesceSeconds: int32(DefaultMaxQuiesce / time.Second)}, nil
+		return BackupSettings{MaxQuiesceSeconds: int32(DefaultMaxQuiesce / time.Second), DatabaseStrategy: StrategyBoth}, nil
 	}
 	if err != nil {
 		return BackupSettings{}, err
 	}
 	b := BackupSettings{RepositoryID: row.RepositoryID, ConsistencyMode: row.ConsistencyMode, MaxQuiesceSeconds: row.MaxQuiesceSeconds,
-		OptionalComponents: row.OptionalComponents, ExcludedComponents: row.ExcludedComponents, UpdatedAt: &row.UpdatedAt}
+		OptionalComponents: row.OptionalComponents, ExcludedComponents: row.ExcludedComponents, UpdatedAt: &row.UpdatedAt,
+		DatabaseStrategy: row.DatabaseStrategy}
 	_ = json.Unmarshal(row.PreHooks, &b.PreHooks)
 	_ = json.Unmarshal(row.PostHooks, &b.PostHooks)
 	return b, nil
@@ -102,6 +114,12 @@ func (s *Service) PutBackupSettings(ctx context.Context, p *auth.Principal, appI
 	if b.MaxQuiesceSeconds == 0 {
 		b.MaxQuiesceSeconds = int32(DefaultMaxQuiesce / time.Second)
 	}
+	if b.DatabaseStrategy == "" {
+		b.DatabaseStrategy = StrategyBoth
+	}
+	if b.DatabaseStrategy != StrategyBoth && b.DatabaseStrategy != StrategyLogical && b.DatabaseStrategy != StrategyVolume {
+		return BackupSettings{}, fmt.Errorf("%w: database_strategy must be logical, volume or both", ErrInvalid)
+	}
 	if b.MaxQuiesceSeconds < 60 || b.MaxQuiesceSeconds > 86400 {
 		return BackupSettings{}, fmt.Errorf("%w: max_quiesce_seconds must be 60–86400", ErrInvalid)
 	}
@@ -124,7 +142,7 @@ func (s *Service) PutBackupSettings(ctx context.Context, p *auth.Principal, appI
 		if _, err := q.UpsertApplicationBackupSettings(ctx, store.UpsertApplicationBackupSettingsParams{ApplicationID: appID,
 			RepositoryID: b.RepositoryID, ConsistencyMode: b.ConsistencyMode, MaxQuiesceSeconds: b.MaxQuiesceSeconds,
 			PreHooks: pre, PostHooks: post, OptionalComponents: nonNilS(b.OptionalComponents), ExcludedComponents: nonNilS(b.ExcludedComponents),
-			UpdatedBy: &p.UserID}); err != nil {
+			UpdatedBy: &p.UserID, DatabaseStrategy: b.DatabaseStrategy}); err != nil {
 			return err
 		}
 		if out, err = s.backupSettings(ctx, q, appID); err != nil {

@@ -16,7 +16,7 @@ import (
 const createManualApplication = `-- name: CreateManualApplication :one
 INSERT INTO applications (org_id, agent_id, key, kind, name, manual_containers)
 VALUES ($1, $2, $3, 'manual', $4, $5)
-RETURNING id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at
+RETURNING id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at, policy_id
 `
 
 type CreateManualApplicationParams struct {
@@ -53,6 +53,7 @@ func (q *Queries) CreateManualApplication(ctx context.Context, arg CreateManualA
 		&i.MissingSince,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PolicyID,
 	)
 	return i, err
 }
@@ -90,7 +91,7 @@ func (q *Queries) DeleteManualApplication(ctx context.Context, arg DeleteManualA
 }
 
 const getApplication = `-- name: GetApplication :one
-SELECT a.id, a.org_id, a.agent_id, a.key, a.kind, a.name, a.display_name, a.owner, a.environment, a.criticality, a.manual_containers, a.first_seen_at, a.last_seen_at, a.missing_since, a.created_at, a.updated_at, g.hostname FROM applications a JOIN agents g ON g.id = a.agent_id
+SELECT a.id, a.org_id, a.agent_id, a.key, a.kind, a.name, a.display_name, a.owner, a.environment, a.criticality, a.manual_containers, a.first_seen_at, a.last_seen_at, a.missing_since, a.created_at, a.updated_at, a.policy_id, g.hostname FROM applications a JOIN agents g ON g.id = a.agent_id
 WHERE a.id = $1 AND a.org_id = $2
 `
 
@@ -116,6 +117,7 @@ type GetApplicationRow struct {
 	MissingSince     *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	PolicyID         *uuid.UUID
 	Hostname         string
 }
 
@@ -139,6 +141,7 @@ func (q *Queries) GetApplication(ctx context.Context, arg GetApplicationParams) 
 		&i.MissingSince,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PolicyID,
 		&i.Hostname,
 	)
 	return i, err
@@ -163,7 +166,7 @@ func (q *Queries) GetInventorySnapshot(ctx context.Context, agentID uuid.UUID) (
 }
 
 const listAgentApplications = `-- name: ListAgentApplications :many
-SELECT id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at FROM applications WHERE agent_id = $1
+SELECT id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at, policy_id FROM applications WHERE agent_id = $1
 `
 
 func (q *Queries) ListAgentApplications(ctx context.Context, agentID uuid.UUID) ([]Application, error) {
@@ -192,6 +195,7 @@ func (q *Queries) ListAgentApplications(ctx context.Context, agentID uuid.UUID) 
 			&i.MissingSince,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PolicyID,
 		); err != nil {
 			return nil, err
 		}
@@ -204,7 +208,7 @@ func (q *Queries) ListAgentApplications(ctx context.Context, agentID uuid.UUID) 
 }
 
 const listApplications = `-- name: ListApplications :many
-SELECT a.id, a.org_id, a.agent_id, a.key, a.kind, a.name, a.display_name, a.owner, a.environment, a.criticality, a.manual_containers, a.first_seen_at, a.last_seen_at, a.missing_since, a.created_at, a.updated_at, g.hostname FROM applications a JOIN agents g ON g.id = a.agent_id
+SELECT a.id, a.org_id, a.agent_id, a.key, a.kind, a.name, a.display_name, a.owner, a.environment, a.criticality, a.manual_containers, a.first_seen_at, a.last_seen_at, a.missing_since, a.created_at, a.updated_at, a.policy_id, g.hostname FROM applications a JOIN agents g ON g.id = a.agent_id
 WHERE a.org_id = $1 ORDER BY lower(coalesce(a.display_name, a.name)), g.hostname
 `
 
@@ -225,6 +229,7 @@ type ListApplicationsRow struct {
 	MissingSince     *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	PolicyID         *uuid.UUID
 	Hostname         string
 }
 
@@ -254,6 +259,7 @@ func (q *Queries) ListApplications(ctx context.Context, orgID uuid.UUID) ([]List
 			&i.MissingSince,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PolicyID,
 			&i.Hostname,
 		); err != nil {
 			return nil, err
@@ -292,7 +298,7 @@ func (q *Queries) MarkApplicationsMissing(ctx context.Context, arg MarkApplicati
 const updateApplicationMetadata = `-- name: UpdateApplicationMetadata :one
 UPDATE applications SET display_name = $3, owner = $4, environment = $5, criticality = $6, updated_at = now()
 WHERE id = $1 AND org_id = $2
-RETURNING id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at
+RETURNING id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at, policy_id
 `
 
 type UpdateApplicationMetadataParams struct {
@@ -331,6 +337,7 @@ func (q *Queries) UpdateApplicationMetadata(ctx context.Context, arg UpdateAppli
 		&i.MissingSince,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PolicyID,
 	)
 	return i, err
 }
@@ -338,7 +345,7 @@ func (q *Queries) UpdateApplicationMetadata(ctx context.Context, arg UpdateAppli
 const updateManualApplication = `-- name: UpdateManualApplication :one
 UPDATE applications SET name = $3, manual_containers = $4, updated_at = now()
 WHERE id = $1 AND org_id = $2 AND kind = 'manual'
-RETURNING id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at
+RETURNING id, org_id, agent_id, key, kind, name, display_name, owner, environment, criticality, manual_containers, first_seen_at, last_seen_at, missing_since, created_at, updated_at, policy_id
 `
 
 type UpdateManualApplicationParams struct {
@@ -373,6 +380,7 @@ func (q *Queries) UpdateManualApplication(ctx context.Context, arg UpdateManualA
 		&i.MissingSince,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PolicyID,
 	)
 	return i, err
 }

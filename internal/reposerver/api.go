@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/kopia/kopia/repo/splitter"
@@ -25,6 +26,14 @@ type Backend interface {
 	DeleteUser(ctx context.Context, username string) error
 	AddReadGrant(ctx context.Context, user, srcUser, srcHost string) (string, error)
 	DeleteReadGrant(ctx context.Context, id string) error
+	// RepositoryPassword returns the repository password (Phase 9: escrow
+	// packages are rebuilt when the recipient set changes).
+	RepositoryPassword(ctx context.Context) (string, error)
+	// ExportState returns the state archive (platform self-backup).
+	ExportState(ctx context.Context) ([]byte, error)
+	// ImportState restores a state archive into an uninitialized
+	// reposerver (platform recovery).
+	ImportState(ctx context.Context, archive []byte) (Status, error)
 }
 
 // Validation limits of the management API.
@@ -67,6 +76,9 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/users/{username}", a.deleteUser)
 	mux.HandleFunc("POST /v1/acl/read-grants", a.addGrant)
 	mux.HandleFunc("DELETE /v1/acl/read-grants/{id}", a.deleteGrant)
+	mux.HandleFunc("GET /v1/repository-password", a.repositoryPassword)
+	mux.HandleFunc("GET /v1/state-export", a.stateExport)
+	mux.HandleFunc("POST /v1/state-import", a.stateImport)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		writeProblem(w, http.StatusNotFound, "not_found", "Not found", "")
 	})
@@ -112,6 +124,10 @@ func (a *API) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeProblem(w, http.StatusUnprocessableEntity, "storage_not_ready", "Repository storage not ready", err.Error())
 	case errors.Is(err, ErrInvalidPassword):
 		writeProblem(w, http.StatusUnprocessableEntity, "invalid_password", "Invalid repository password", err.Error())
+	case errors.Is(err, ErrStatePresent):
+		writeProblem(w, http.StatusConflict, "state_present", "Reposerver state present", err.Error())
+	case errors.Is(err, ErrInvalidState):
+		writeProblem(w, http.StatusBadRequest, "invalid_state", "Invalid state archive", err.Error())
 	case errors.Is(err, ErrNotFound):
 		writeProblem(w, http.StatusNotFound, "not_found", "Not found", "")
 	default:
@@ -245,4 +261,49 @@ func (a *API) deleteGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) repositoryPassword(w http.ResponseWriter, r *http.Request) {
+	pw, err := a.Backend.RepositoryPassword(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"password": pw})
+}
+
+func (a *API) stateExport(w http.ResponseWriter, r *http.Request) {
+	b, err := a.Backend.ExportState(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-tar")
+	w.Header().Set("Content-Disposition", `attachment; filename="dbr2-reposerver-state.tar"`)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Length", strconv.Itoa(len(b)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
+}
+
+func (a *API) stateImport(w http.ResponseWriter, r *http.Request) {
+	b, err := io.ReadAll(io.LimitReader(r.Body, MaxStateArchive+1))
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_request", "Invalid request body", err.Error())
+		return
+	}
+	if len(b) > MaxStateArchive {
+		writeProblem(w, http.StatusRequestEntityTooLarge, "too_large", "State archive too large", "")
+		return
+	}
+	if len(b) == 0 {
+		invalid(w, "the body must be a state archive (application/x-tar)")
+		return
+	}
+	st, err := a.Backend.ImportState(r.Context(), b)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
 }

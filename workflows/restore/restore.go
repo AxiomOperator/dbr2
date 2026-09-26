@@ -158,10 +158,12 @@ func RestoreWorkflow(ctx workflow.Context, in Input) (res Result, err error) {
 			a.FinalizeRestore, target, in.RestoreID, agentv1.FinalizeAction_FINALIZE_ACTION_ROLLBACK, restart).Get(c, nil)
 	})
 
-	step("restore-data")
-	if err := workflow.ExecuteActivity(long, a.RestoreComponents, target, &agentv1.RestoreComponentsCommand{RepositoryId: plan.Repository.Id,
-		RestoreId: in.RestoreID, Components: plan.Components, PathRemaps: plan.PathRemaps, FreshSession: plan.CrossHost}).Get(ctx, &res.Components); err != nil {
-		return res, fmt.Errorf("restore data: %w", err)
+	if len(plan.Components) > 0 {
+		step("restore-data")
+		if err := workflow.ExecuteActivity(long, a.RestoreComponents, target, &agentv1.RestoreComponentsCommand{RepositoryId: plan.Repository.Id,
+			RestoreId: in.RestoreID, Components: plan.Components, PathRemaps: plan.PathRemaps, FreshSession: plan.CrossHost}).Get(ctx, &res.Components); err != nil {
+			return res, fmt.Errorf("restore data: %w", err)
+		}
 	}
 	var start []string
 	if plan.RecreateContainers && plan.ConfigSnapshotId != "" {

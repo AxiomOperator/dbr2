@@ -40,12 +40,24 @@ type Supervisor struct {
 
 	MinBackoff, MaxBackoff time.Duration
 
+	fp atomic.Pointer[string] // SetFingerprint override
+
 	mu      sync.Mutex
 	started bool
 	done    chan struct{}
 	running atomic.Bool
 	pid     atomic.Int64
 	lastErr atomic.Pointer[string]
+}
+
+// SetFingerprint changes the expected server certificate (state import).
+func (s *Supervisor) SetFingerprint(fp string) { s.fp.Store(&fp) }
+
+func (s *Supervisor) fingerprint() string {
+	if p := s.fp.Load(); p != nil {
+		return *p
+	}
+	return s.Fingerprint
 }
 
 // Running reports whether the Kopia server child is up and accepting
@@ -215,7 +227,7 @@ func (s *Supervisor) handshake() error {
 		InsecureSkipVerify: true, //nolint:gosec // verified by fingerprint below
 		MinVersion:         tls.VersionTLS12,
 		VerifyPeerCertificate: func(raw [][]byte, _ [][]*x509.Certificate) error {
-			if len(raw) == 0 || (s.Fingerprint != "" && Fingerprint(raw[0]) != s.Fingerprint) {
+			if len(raw) == 0 || (s.fingerprint() != "" && Fingerprint(raw[0]) != s.fingerprint()) {
 				return errors.New("kopia server presents an unexpected certificate")
 			}
 			return nil

@@ -11,6 +11,7 @@ import {
   ContainerIcon,
   CpuIcon,
   DatabaseIcon,
+  FileCheckIcon,
   FlaskConicalIcon,
   HardDriveIcon,
   InfoIcon,
@@ -19,6 +20,7 @@ import {
   LogOutIcon,
   MenuIcon,
   ScrollTextIcon,
+  ServerCogIcon,
   ServerIcon,
   SettingsIcon,
   ShieldIcon,
@@ -51,6 +53,7 @@ import { useAlerts } from "@/lib/api/hooks";
 import {
   PERMISSION_BACKUP_READ,
   PERMISSION_POLICY_READ,
+  PERMISSION_REPOSITORY_MANAGE,
   PERMISSION_REPOSITORY_READ,
 } from "@/lib/api/protection-schemas";
 import { PERMISSION_RESTORE_READ } from "@/lib/api/restore-schemas";
@@ -105,6 +108,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Protection",
     items: [
       { href: "/policies", label: "Policies", icon: ShieldCheckIcon, match: ["/policies"], permission: PERMISSION_POLICY_READ },
+      { href: "/contracts", label: "Contracts", icon: FileCheckIcon, match: ["/contracts"], permission: PERMISSION_POLICY_READ },
       { href: "/jobs", label: "Jobs", icon: ListChecksIcon, match: ["/jobs"], permission: PERMISSION_BACKUP_READ },
       {
         href: "/recovery-points",
@@ -156,6 +160,13 @@ export const NAV_GROUPS: NavGroup[] = [
         match: ["/notifications"],
         permission: PERMISSION_BACKUP_READ,
         badge: "alerts",
+      },
+      {
+        href: "/platform",
+        label: "Platform protection",
+        icon: ServerCogIcon,
+        match: ["/platform"],
+        permission: PERMISSION_REPOSITORY_MANAGE,
       },
       { href: "/audit", label: "Audit Log", icon: ScrollTextIcon, match: ["/audit"], permission: PERMISSION_AUDIT_READ },
       { href: "/settings/security", label: "Settings", icon: SettingsIcon, match: ["/settings"] },

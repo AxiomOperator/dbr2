@@ -82,10 +82,21 @@ test("the new pages render for the admin", async ({ page }) => {
   await expect(page.getByRole("table", { name: "Group mappings" })).toBeVisible();
 
   await mainNav(page).getByRole("link", { name: "Policies" }).click();
-  await expect(page.getByText(/Not available yet: arrives in Phase 7/)).toBeVisible();
+  await expect(page.getByRole("table", { name: "Policies" })).toContainText("Nightly production");
+
+  await mainNav(page).getByRole("link", { name: "Contracts" }).click();
+  await expect(page.getByRole("table", { name: "Recovery Contracts" }).getByRole("row").filter({ hasText: "redis-cache" })).toHaveAttribute(
+    "data-state",
+    "violated",
+  );
+
+  await mainNav(page).getByRole("link", { name: "Platform protection" }).click();
+  await expect(page.getByTestId("system-repository")).toContainText("nas01-backups");
+  await expect(page.getByRole("table", { name: "Platform backups" }).getByRole("row").filter({ hasText: "Partial" }).first()).toBeVisible();
+  await expect(page.getByText("docs/operations/platform-recovery.md")).toBeVisible();
 
   await mainNav(page).getByRole("link", { name: "Restore Testing" }).click();
-  await expect(page.getByText(/Not available yet: arrives in Phase 9/)).toBeVisible();
+  await expect(page.getByText(/Not available yet: arrives in a later release/)).toBeVisible();
 
   // The old Alerts URL redirects to Notifications.
   await page.goto("/alerts");

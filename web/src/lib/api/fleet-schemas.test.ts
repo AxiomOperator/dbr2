@@ -93,6 +93,7 @@ describe("application schemas", () => {
     const d = ApplicationDetailSchema.parse({
       ...APP_SUMMARY,
       missing_since: "2026-09-25T18:00:00Z",
+      policy_id: null,
       analysis: null,
       containers_detail: [],
       collected_at: null,

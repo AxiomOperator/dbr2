@@ -142,17 +142,25 @@ var GatewayControlService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	PlatformService_PrepareBackup_FullMethodName       = "/control.v1.PlatformService/PrepareBackup"
-	PlatformService_EnsureAgentAccess_FullMethodName   = "/control.v1.PlatformService/EnsureAgentAccess"
-	PlatformService_CompleteBackup_FullMethodName      = "/control.v1.PlatformService/CompleteBackup"
-	PlatformService_GetRepository_FullMethodName       = "/control.v1.PlatformService/GetRepository"
-	PlatformService_ListRepositories_FullMethodName    = "/control.v1.PlatformService/ListRepositories"
-	PlatformService_IndexRecoveryPoints_FullMethodName = "/control.v1.PlatformService/IndexRecoveryPoints"
-	PlatformService_RecordEvent_FullMethodName         = "/control.v1.PlatformService/RecordEvent"
-	PlatformService_PrepareRestore_FullMethodName      = "/control.v1.PlatformService/PrepareRestore"
-	PlatformService_GrantRestoreAccess_FullMethodName  = "/control.v1.PlatformService/GrantRestoreAccess"
-	PlatformService_RevokeRestoreAccess_FullMethodName = "/control.v1.PlatformService/RevokeRestoreAccess"
-	PlatformService_UpdateRestore_FullMethodName       = "/control.v1.PlatformService/UpdateRestore"
+	PlatformService_PrepareBackup_FullMethodName               = "/control.v1.PlatformService/PrepareBackup"
+	PlatformService_EnsureAgentAccess_FullMethodName           = "/control.v1.PlatformService/EnsureAgentAccess"
+	PlatformService_CompleteBackup_FullMethodName              = "/control.v1.PlatformService/CompleteBackup"
+	PlatformService_GetRepository_FullMethodName               = "/control.v1.PlatformService/GetRepository"
+	PlatformService_ListRepositories_FullMethodName            = "/control.v1.PlatformService/ListRepositories"
+	PlatformService_IndexRecoveryPoints_FullMethodName         = "/control.v1.PlatformService/IndexRecoveryPoints"
+	PlatformService_RecordEvent_FullMethodName                 = "/control.v1.PlatformService/RecordEvent"
+	PlatformService_PrepareRestore_FullMethodName              = "/control.v1.PlatformService/PrepareRestore"
+	PlatformService_GrantRestoreAccess_FullMethodName          = "/control.v1.PlatformService/GrantRestoreAccess"
+	PlatformService_RevokeRestoreAccess_FullMethodName         = "/control.v1.PlatformService/RevokeRestoreAccess"
+	PlatformService_UpdateRestore_FullMethodName               = "/control.v1.PlatformService/UpdateRestore"
+	PlatformService_ListRetentionCandidates_FullMethodName     = "/control.v1.PlatformService/ListRetentionCandidates"
+	PlatformService_BeginRecoveryPointDeletion_FullMethodName  = "/control.v1.PlatformService/BeginRecoveryPointDeletion"
+	PlatformService_FinishRecoveryPointDeletion_FullMethodName = "/control.v1.PlatformService/FinishRecoveryPointDeletion"
+	PlatformService_ListVerificationCandidates_FullMethodName  = "/control.v1.PlatformService/ListVerificationCandidates"
+	PlatformService_SetVerification_FullMethodName             = "/control.v1.PlatformService/SetVerification"
+	PlatformService_BeginPlatformBackup_FullMethodName         = "/control.v1.PlatformService/BeginPlatformBackup"
+	PlatformService_ExportPlatform_FullMethodName              = "/control.v1.PlatformService/ExportPlatform"
+	PlatformService_RecordPlatformBackup_FullMethodName        = "/control.v1.PlatformService/RecordPlatformBackup"
 )
 
 // PlatformServiceClient is the client API for PlatformService service.
@@ -188,6 +196,32 @@ type PlatformServiceClient interface {
 	RevokeRestoreAccess(ctx context.Context, in *RevokeRestoreAccessRequest, opts ...grpc.CallOption) (*RevokeRestoreAccessResponse, error)
 	// UpdateRestore records progress (step) and the final outcome.
 	UpdateRestore(ctx context.Context, in *UpdateRestoreRequest, opts ...grpc.CallOption) (*UpdateRestoreResponse, error)
+	// ListRetentionCandidates returns recovery points to delete now: those
+	// outside their policy's retention and manual deletions whose grace
+	// period has passed (ADR-0014). Never the latest committed recovery point
+	// of an application, never one used by an active restore.
+	ListRetentionCandidates(ctx context.Context, in *ListRetentionCandidatesRequest, opts ...grpc.CallOption) (*ListRetentionCandidatesResponse, error)
+	// BeginRecoveryPointDeletion marks a recovery point deleting (the worker
+	// then deletes the manifest first, then the components, as maint@dbr2).
+	BeginRecoveryPointDeletion(ctx context.Context, in *BeginRecoveryPointDeletionRequest, opts ...grpc.CallOption) (*BeginRecoveryPointDeletionResponse, error)
+	// FinishRecoveryPointDeletion records the outcome.
+	FinishRecoveryPointDeletion(ctx context.Context, in *FinishRecoveryPointDeletionRequest, opts ...grpc.CallOption) (*FinishRecoveryPointDeletionResponse, error)
+	// ListVerificationCandidates returns committed recovery points of a
+	// Repository to verify, least recently verified first.
+	ListVerificationCandidates(ctx context.Context, in *ListVerificationCandidatesRequest, opts ...grpc.CallOption) (*ListVerificationCandidatesResponse, error)
+	// SetVerification records a recovery point's verification result.
+	SetVerification(ctx context.Context, in *SetVerificationRequest, opts ...grpc.CallOption) (*SetVerificationResponse, error)
+	// BeginPlatformBackup records a running Platform Protection run (ADR-0008)
+	// and returns its ID and the System Repository (if one is designated).
+	BeginPlatformBackup(ctx context.Context, in *BeginPlatformBackupRequest, opts ...grpc.CallOption) (*BeginPlatformBackupResponse, error)
+	// ExportPlatform streams the age-encrypted Platform Recovery Bundle
+	// (tar -> zstd -> age to every escrow recipient) in ~1 MiB chunks. The
+	// bundle is encrypted inside dbr2-server; plaintext never leaves it. The
+	// last message carries the summary (plaintext manifest, no secrets).
+	ExportPlatform(ctx context.Context, in *ExportPlatformRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExportPlatformResponse], error)
+	// RecordPlatformBackup stores the outcome of a platform backup (audit
+	// event, and an alert when it is partial or failed).
+	RecordPlatformBackup(ctx context.Context, in *RecordPlatformBackupRequest, opts ...grpc.CallOption) (*RecordPlatformBackupResponse, error)
 }
 
 type platformServiceClient struct {
@@ -308,6 +342,95 @@ func (c *platformServiceClient) UpdateRestore(ctx context.Context, in *UpdateRes
 	return out, nil
 }
 
+func (c *platformServiceClient) ListRetentionCandidates(ctx context.Context, in *ListRetentionCandidatesRequest, opts ...grpc.CallOption) (*ListRetentionCandidatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRetentionCandidatesResponse)
+	err := c.cc.Invoke(ctx, PlatformService_ListRetentionCandidates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) BeginRecoveryPointDeletion(ctx context.Context, in *BeginRecoveryPointDeletionRequest, opts ...grpc.CallOption) (*BeginRecoveryPointDeletionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginRecoveryPointDeletionResponse)
+	err := c.cc.Invoke(ctx, PlatformService_BeginRecoveryPointDeletion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) FinishRecoveryPointDeletion(ctx context.Context, in *FinishRecoveryPointDeletionRequest, opts ...grpc.CallOption) (*FinishRecoveryPointDeletionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FinishRecoveryPointDeletionResponse)
+	err := c.cc.Invoke(ctx, PlatformService_FinishRecoveryPointDeletion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) ListVerificationCandidates(ctx context.Context, in *ListVerificationCandidatesRequest, opts ...grpc.CallOption) (*ListVerificationCandidatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVerificationCandidatesResponse)
+	err := c.cc.Invoke(ctx, PlatformService_ListVerificationCandidates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) SetVerification(ctx context.Context, in *SetVerificationRequest, opts ...grpc.CallOption) (*SetVerificationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetVerificationResponse)
+	err := c.cc.Invoke(ctx, PlatformService_SetVerification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) BeginPlatformBackup(ctx context.Context, in *BeginPlatformBackupRequest, opts ...grpc.CallOption) (*BeginPlatformBackupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginPlatformBackupResponse)
+	err := c.cc.Invoke(ctx, PlatformService_BeginPlatformBackup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) ExportPlatform(ctx context.Context, in *ExportPlatformRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExportPlatformResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PlatformService_ServiceDesc.Streams[0], PlatformService_ExportPlatform_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ExportPlatformRequest, ExportPlatformResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PlatformService_ExportPlatformClient = grpc.ServerStreamingClient[ExportPlatformResponse]
+
+func (c *platformServiceClient) RecordPlatformBackup(ctx context.Context, in *RecordPlatformBackupRequest, opts ...grpc.CallOption) (*RecordPlatformBackupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordPlatformBackupResponse)
+	err := c.cc.Invoke(ctx, PlatformService_RecordPlatformBackup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlatformServiceServer is the server API for PlatformService service.
 // All implementations must embed UnimplementedPlatformServiceServer
 // for forward compatibility.
@@ -341,6 +464,32 @@ type PlatformServiceServer interface {
 	RevokeRestoreAccess(context.Context, *RevokeRestoreAccessRequest) (*RevokeRestoreAccessResponse, error)
 	// UpdateRestore records progress (step) and the final outcome.
 	UpdateRestore(context.Context, *UpdateRestoreRequest) (*UpdateRestoreResponse, error)
+	// ListRetentionCandidates returns recovery points to delete now: those
+	// outside their policy's retention and manual deletions whose grace
+	// period has passed (ADR-0014). Never the latest committed recovery point
+	// of an application, never one used by an active restore.
+	ListRetentionCandidates(context.Context, *ListRetentionCandidatesRequest) (*ListRetentionCandidatesResponse, error)
+	// BeginRecoveryPointDeletion marks a recovery point deleting (the worker
+	// then deletes the manifest first, then the components, as maint@dbr2).
+	BeginRecoveryPointDeletion(context.Context, *BeginRecoveryPointDeletionRequest) (*BeginRecoveryPointDeletionResponse, error)
+	// FinishRecoveryPointDeletion records the outcome.
+	FinishRecoveryPointDeletion(context.Context, *FinishRecoveryPointDeletionRequest) (*FinishRecoveryPointDeletionResponse, error)
+	// ListVerificationCandidates returns committed recovery points of a
+	// Repository to verify, least recently verified first.
+	ListVerificationCandidates(context.Context, *ListVerificationCandidatesRequest) (*ListVerificationCandidatesResponse, error)
+	// SetVerification records a recovery point's verification result.
+	SetVerification(context.Context, *SetVerificationRequest) (*SetVerificationResponse, error)
+	// BeginPlatformBackup records a running Platform Protection run (ADR-0008)
+	// and returns its ID and the System Repository (if one is designated).
+	BeginPlatformBackup(context.Context, *BeginPlatformBackupRequest) (*BeginPlatformBackupResponse, error)
+	// ExportPlatform streams the age-encrypted Platform Recovery Bundle
+	// (tar -> zstd -> age to every escrow recipient) in ~1 MiB chunks. The
+	// bundle is encrypted inside dbr2-server; plaintext never leaves it. The
+	// last message carries the summary (plaintext manifest, no secrets).
+	ExportPlatform(*ExportPlatformRequest, grpc.ServerStreamingServer[ExportPlatformResponse]) error
+	// RecordPlatformBackup stores the outcome of a platform backup (audit
+	// event, and an alert when it is partial or failed).
+	RecordPlatformBackup(context.Context, *RecordPlatformBackupRequest) (*RecordPlatformBackupResponse, error)
 	mustEmbedUnimplementedPlatformServiceServer()
 }
 
@@ -383,6 +532,30 @@ func (UnimplementedPlatformServiceServer) RevokeRestoreAccess(context.Context, *
 }
 func (UnimplementedPlatformServiceServer) UpdateRestore(context.Context, *UpdateRestoreRequest) (*UpdateRestoreResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRestore not implemented")
+}
+func (UnimplementedPlatformServiceServer) ListRetentionCandidates(context.Context, *ListRetentionCandidatesRequest) (*ListRetentionCandidatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRetentionCandidates not implemented")
+}
+func (UnimplementedPlatformServiceServer) BeginRecoveryPointDeletion(context.Context, *BeginRecoveryPointDeletionRequest) (*BeginRecoveryPointDeletionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BeginRecoveryPointDeletion not implemented")
+}
+func (UnimplementedPlatformServiceServer) FinishRecoveryPointDeletion(context.Context, *FinishRecoveryPointDeletionRequest) (*FinishRecoveryPointDeletionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FinishRecoveryPointDeletion not implemented")
+}
+func (UnimplementedPlatformServiceServer) ListVerificationCandidates(context.Context, *ListVerificationCandidatesRequest) (*ListVerificationCandidatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListVerificationCandidates not implemented")
+}
+func (UnimplementedPlatformServiceServer) SetVerification(context.Context, *SetVerificationRequest) (*SetVerificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetVerification not implemented")
+}
+func (UnimplementedPlatformServiceServer) BeginPlatformBackup(context.Context, *BeginPlatformBackupRequest) (*BeginPlatformBackupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BeginPlatformBackup not implemented")
+}
+func (UnimplementedPlatformServiceServer) ExportPlatform(*ExportPlatformRequest, grpc.ServerStreamingServer[ExportPlatformResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ExportPlatform not implemented")
+}
+func (UnimplementedPlatformServiceServer) RecordPlatformBackup(context.Context, *RecordPlatformBackupRequest) (*RecordPlatformBackupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecordPlatformBackup not implemented")
 }
 func (UnimplementedPlatformServiceServer) mustEmbedUnimplementedPlatformServiceServer() {}
 func (UnimplementedPlatformServiceServer) testEmbeddedByValue()                         {}
@@ -603,6 +776,143 @@ func _PlatformService_UpdateRestore_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlatformService_ListRetentionCandidates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRetentionCandidatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).ListRetentionCandidates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_ListRetentionCandidates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).ListRetentionCandidates(ctx, req.(*ListRetentionCandidatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_BeginRecoveryPointDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginRecoveryPointDeletionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).BeginRecoveryPointDeletion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_BeginRecoveryPointDeletion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).BeginRecoveryPointDeletion(ctx, req.(*BeginRecoveryPointDeletionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_FinishRecoveryPointDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FinishRecoveryPointDeletionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).FinishRecoveryPointDeletion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_FinishRecoveryPointDeletion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).FinishRecoveryPointDeletion(ctx, req.(*FinishRecoveryPointDeletionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_ListVerificationCandidates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVerificationCandidatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).ListVerificationCandidates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_ListVerificationCandidates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).ListVerificationCandidates(ctx, req.(*ListVerificationCandidatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_SetVerification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetVerificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).SetVerification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_SetVerification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).SetVerification(ctx, req.(*SetVerificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_BeginPlatformBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginPlatformBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).BeginPlatformBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_BeginPlatformBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).BeginPlatformBackup(ctx, req.(*BeginPlatformBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_ExportPlatform_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExportPlatformRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PlatformServiceServer).ExportPlatform(m, &grpc.GenericServerStream[ExportPlatformRequest, ExportPlatformResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PlatformService_ExportPlatformServer = grpc.ServerStreamingServer[ExportPlatformResponse]
+
+func _PlatformService_RecordPlatformBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordPlatformBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).RecordPlatformBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_RecordPlatformBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).RecordPlatformBackup(ctx, req.(*RecordPlatformBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlatformService_ServiceDesc is the grpc.ServiceDesc for PlatformService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -654,7 +964,41 @@ var PlatformService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "UpdateRestore",
 			Handler:    _PlatformService_UpdateRestore_Handler,
 		},
+		{
+			MethodName: "ListRetentionCandidates",
+			Handler:    _PlatformService_ListRetentionCandidates_Handler,
+		},
+		{
+			MethodName: "BeginRecoveryPointDeletion",
+			Handler:    _PlatformService_BeginRecoveryPointDeletion_Handler,
+		},
+		{
+			MethodName: "FinishRecoveryPointDeletion",
+			Handler:    _PlatformService_FinishRecoveryPointDeletion_Handler,
+		},
+		{
+			MethodName: "ListVerificationCandidates",
+			Handler:    _PlatformService_ListVerificationCandidates_Handler,
+		},
+		{
+			MethodName: "SetVerification",
+			Handler:    _PlatformService_SetVerification_Handler,
+		},
+		{
+			MethodName: "BeginPlatformBackup",
+			Handler:    _PlatformService_BeginPlatformBackup_Handler,
+		},
+		{
+			MethodName: "RecordPlatformBackup",
+			Handler:    _PlatformService_RecordPlatformBackup_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ExportPlatform",
+			Handler:       _PlatformService_ExportPlatform_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "control/v1/control.proto",
 }

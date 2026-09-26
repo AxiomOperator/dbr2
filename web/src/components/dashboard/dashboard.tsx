@@ -6,6 +6,7 @@ import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AlertsCard } from "@/components/backups/alerts";
 import { PlatformStatusCard } from "@/components/dashboard/platform-status-card";
 import { ProtectionOverviewCard } from "@/components/dashboard/protection-overview-card";
+import { ViolatedContractsCard } from "@/components/policies/contracts-view";
 import { RecentRestoresCard } from "@/components/restores/restores-view";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -71,6 +72,7 @@ export function Dashboard() {
         <PlatformStatusCard />
         {hasPermission(me, PERMISSION_APPLICATION_READ) && <ProtectionOverviewCard />}
         {hasPermission(me, PERMISSION_BACKUP_READ) && <AlertsCard />}
+        <ViolatedContractsCard />
         {hasPermission(me, PERMISSION_RESTORE_READ) && <RecentRestoresCard />}
       </div>
     </div>

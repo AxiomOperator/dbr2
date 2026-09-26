@@ -23,6 +23,14 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
    chown 65532:65532 /mnt/dbr2-repo   # the reposerver runs as uid 65532
    ```
 
+   **Platform bundle directory (ADR-0008).** The daily Platform Recovery Bundle is also written outside every Repository: use a **separate NFS export or directory that is not part of any Repository** (never a subdirectory of the Repository mount), owned by the worker's uid:
+
+   ```bash
+   mount -t nfs4 -o hard,timeo=600,retrans=2,noatime nas.example.lan:/export/dbr2-platform /mnt/dbr2-platform
+   chown 65532:65532 /mnt/dbr2-platform && chmod 700 /mnt/dbr2-platform
+   echo DBR2_PLATFORM_BUNDLE_HOST_PATH=/mnt/dbr2-platform >> .env   # default ./platform-bundles
+   ```
+
 2. **Generate the secrets and settings, then review `.env`** (hostname, TLS, Entra ID):
 
    ```bash
@@ -67,7 +75,9 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
 
    Open TCP 51515 from the agent hosts to this host, and configure NAS snapshots on the share (`docs/operations/nas-snapshots.md`).
 
-7. **Back up.** Once a host is approved and discovered, run **Back up now** on an application (or `dbr2 backup --app <name> --wait`). Per-application settings (consistency mode, hooks, maximum quiesce, optional or excluded components) and per-host limits (concurrent jobs, backup window) are in the console.
+7. **Designate the System Repository** (ADR-0008): `PUT /api/v1/repositories/{id}/system` (v1.0: the only Repository). The Platform Protection workflow runs daily (`DBR2_PLATFORM_BACKUP_CRON`, default `15 2 * * *`) and writes the age-encrypted bundle (`dbr2-platform-<UTC timestamp>.tar.zst.age`, encrypted to the escrow recipients) as a pinned snapshot into the System Repository **and** into the bundle directory (newest `DBR2_PLATFORM_BUNDLE_KEEP`, default 14, kept). Run it once now with `POST /api/v1/platform/backups` and check `GET /api/v1/platform/backups`: a `partial` run means one copy is missing (alert raised). Recovery: `docs/operations/platform-recovery.md`.
+
+8. **Back up.** Once a host is approved and discovered, run **Back up now** on an application (or `dbr2 backup --app <name> --wait`). Per-application settings (consistency mode, hooks, maximum quiesce, optional or excluded components) and per-host limits (concurrent jobs, backup window) are in the console.
 
 ## Entra ID
 
@@ -95,11 +105,11 @@ make dev-password  # prints the master admin's initial password (username dbr2-a
 make dev-down      # stops the stack and DELETES its volumes (a new password is generated next time)
 ```
 
-`compose.dev.yaml` mocks the Repository with `.dev/repo`, a bind-mounted local directory. The functional NFS test (`tests/nfs/run.sh`) exercises a real nfs4 mount in containers. No throughput testing is done.
+`compose.dev.yaml` mocks the Repository with `.dev/repo`, a bind-mounted local directory, and the platform bundle directory with `.dev/platform-bundles`. The functional NFS test (`tests/nfs/run.sh`) exercises a real nfs4 mount in containers. No throughput testing is done.
 
 ## Backups of this deployment
 
-Protect `secrets/`, `.env` and the `pgdata` volume. Platform self-backup and key escrow arrive in Phase 9 (ADR-0008). Until then, Veeam's VM backup is the recovery layer.
+DBR² backs itself up (ADR-0008): the Platform Protection workflow exports the platform database, `DBR2_SECRET_KEY`, the internal token, the Entra client secret and every reposerver's state (repository password, TLS key pair) as an age-encrypted Platform Recovery Bundle, stored in the System Repository and in the bundle directory. The Temporal database is not included (recovery starts a fresh Temporal). Veeam's VM-level backup of the Docker host is an additional, independent layer; keep it. Protect `.env` (not in the bundle) and keep the escrow identities offline. Recovery runbook: `docs/operations/platform-recovery.md`.
 
 ## Adding a Docker host (agents)
 

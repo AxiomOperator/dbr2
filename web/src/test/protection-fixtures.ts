@@ -51,6 +51,10 @@ export const REPO_READY = {
   escrow_generated_at: "2026-08-26T10:00:00Z",
   escrow_confirmed_at: "2026-08-26T10:20:00Z",
   last_reindex_at: "2026-09-23T10:00:00Z",
+  last_verified_at: "2026-09-21T03:00:00Z",
+  is_system: true,
+  delete_reason: null,
+  delete_after: null,
   created_at: "2026-08-26T10:00:00Z",
   live: LIVE,
   usage_by_host: [
@@ -169,6 +173,10 @@ export const RP_COMMITTED = {
   error: null,
   created_at: "2026-09-25T08:00:00Z",
   committed_at: "2026-09-25T08:07:00Z",
+  verified_at: "2026-09-25T09:00:00Z",
+  delete_after: null,
+  delete_reason: null,
+  deleted_at: null,
 };
 
 export const RP_PARTIAL = {
@@ -176,6 +184,7 @@ export const RP_PARTIAL = {
   id: RP_PARTIAL_ID,
   status: "partial",
   verification: "unverified",
+  verified_at: null,
   consistency_mode: "live",
   crash_consistent_only: true,
   error: "optional component bind:/srv/shop/uploads failed: permission denied",
@@ -202,6 +211,7 @@ export const BACKUP_SETTINGS = {
   post_hooks: null,
   optional_components: ["bind:/srv/shop/uploads"],
   excluded_components: null,
+  database_strategy: "logical",
   updated_at: "2026-09-20T10:00:00Z",
 };
 

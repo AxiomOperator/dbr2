@@ -385,6 +385,11 @@ components:
           type:
             - string
             - "null"
+        policy_id:
+          description: Assigned Protection Policy (null = none).
+          type:
+            - string
+            - "null"
         protection:
           $ref: "#/components/schemas/Protection"
           description: "Protection status (protected, at_risk, failed, unprotected) with reasons, the latest recovery point and attempt, a running operation, and coverage: each component the application has now and whether the latest recovery point contains it."
@@ -431,6 +436,7 @@ components:
         - criticality
         - last_seen_at
         - missing_since
+        - policy_id
       type: object
     ApplicationSummary:
       additionalProperties: false
@@ -485,6 +491,11 @@ components:
           type:
             - string
             - "null"
+        policy_id:
+          description: Assigned Protection Policy (null = none).
+          type:
+            - string
+            - "null"
         protection:
           $ref: "#/components/schemas/Protection"
           description: "Protection status (protected, at_risk, failed, unprotected) with reasons, the latest recovery point and attempt, a running operation, and coverage: each component the application has now and whether the latest recovery point contains it."
@@ -528,6 +539,18 @@ components:
         - criticality
         - last_seen_at
         - missing_since
+        - policy_id
+      type: object
+    Assign-policyRequest:
+      additionalProperties: false
+      properties:
+        policy_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+      required:
+        - policy_id
       type: object
     AuditEvent:
       additionalProperties: false
@@ -628,6 +651,13 @@ components:
           type:
             - string
             - "null"
+        database_strategy:
+          description: "Detected PostgreSQL/Redis containers: logical (dumps only; their data volumes are skipped), volume (no dumps) or both (default)."
+          enum:
+            - logical
+            - volume
+            - both
+          type: string
         effective_mode:
           readOnly: true
           type: string
@@ -731,6 +761,22 @@ components:
         - path
         - kind
       type: object
+    ChannelConfigDTO:
+      additionalProperties: false
+      properties:
+        to:
+          description: "Email channels: recipient addresses."
+          items:
+            type: string
+          maxItems: 50
+          type:
+            - array
+            - "null"
+        url:
+          description: "Webhook channels: the endpoint. https is required; plain http is accepted only for localhost / loopback addresses. Redirects are not followed."
+          maxLength: 2000
+          type: string
+      type: object
     CodeInputBody:
       additionalProperties: false
       properties:
@@ -760,6 +806,16 @@ components:
         - kind
         - name
         - detail
+      type: object
+    Complete-escrow-drillRequest:
+      additionalProperties: false
+      properties:
+        confirmation_code:
+          maxLength: 40
+          minLength: 16
+          type: string
+      required:
+        - confirmation_code
       type: object
     ComponentCoverage:
       additionalProperties: false
@@ -1011,6 +1067,57 @@ components:
         - name
         - state
       type: object
+    ContractDTO:
+      additionalProperties: false
+      properties:
+        application_id:
+          format: uuid
+          type: string
+        application_name:
+          type: string
+        evaluated_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        max_rpo_minutes:
+          description: Maximum age of the latest recovery point (null = no RPO).
+          format: int32
+          type:
+            - integer
+            - "null"
+        required_components:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        state:
+          enum:
+            - satisfied
+            - violated
+            - unknown
+          type: string
+        state_reasons:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        violated_since:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - application_id
+        - max_rpo_minutes
+        - required_components
+        - state
+        - state_reasons
+        - evaluated_at
+        - violated_since
+      type: object
     Cookie:
       additionalProperties: false
       properties:
@@ -1094,6 +1201,48 @@ components:
           type: string
       required:
         - id
+      type: object
+    Create-notification-channelRequest:
+      additionalProperties: false
+      properties:
+        config:
+          $ref: "#/components/schemas/ChannelConfigDTO"
+        enabled:
+          default: true
+          type: boolean
+        events:
+          description: Event types to deliver (exact or prefix wildcard such as backup.*); empty or omitted = all.
+          items:
+            type: string
+          maxItems: 100
+          type:
+            - array
+            - "null"
+        kind:
+          enum:
+            - email
+            - webhook
+          type: string
+        min_severity:
+          default: warning
+          enum:
+            - info
+            - warning
+            - critical
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        secret:
+          description: "Webhook signing secret (min. 16 characters). Requests then carry X-DBR2-Signature: sha256=<hex HMAC-SHA256(secret, X-DBR2-Timestamp + \".\" + body)>. On update: omit to keep, empty string to remove."
+          maxLength: 500
+          type: string
+          writeOnly: true
+      required:
+        - kind
+        - name
+        - config
       type: object
     Create-registration-tokenRequest:
       additionalProperties: false
@@ -1180,6 +1329,34 @@ components:
         - escrow_package
         - escrow_filename
       type: object
+    Delete-recovery-pointRequest:
+      additionalProperties: false
+      properties:
+        confirmation:
+          description: Type the application (or Repository) name.
+          type: string
+        reason:
+          maxLength: 500
+          minLength: 3
+          type: string
+      required:
+        - confirmation
+        - reason
+      type: object
+    Delete-repositoryRequest:
+      additionalProperties: false
+      properties:
+        confirmation:
+          description: Type the application (or Repository) name.
+          type: string
+        reason:
+          maxLength: 500
+          minLength: 3
+          type: string
+      required:
+        - confirmation
+        - reason
+      type: object
     Dependency:
       additionalProperties: false
       properties:
@@ -1201,6 +1378,32 @@ components:
           type: string
       required:
         - workflow_id
+      type: object
+    DrillDTO:
+      additionalProperties: false
+      properties:
+        completed_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        created_at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        package:
+          description: The drill package (only when it is created).
+          type: string
+        recipients:
+          format: int64
+          type: integer
+      required:
+        - id
+        - created_at
+        - completed_at
+        - recipients
       type: object
     EnvVar:
       additionalProperties: false
@@ -1228,6 +1431,74 @@ components:
           type: string
         value:
           description: The value at the given location
+      type: object
+    EscrowHealth:
+      additionalProperties: false
+      properties:
+        checked_at:
+          format: date-time
+          type: string
+        healthy:
+          type: boolean
+        last_drill_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        problems:
+          items:
+            $ref: "#/components/schemas/EscrowProblem"
+          type:
+            - array
+            - "null"
+        recipients:
+          format: int64
+          type: integer
+      required:
+        - healthy
+        - problems
+        - recipients
+        - last_drill_at
+        - checked_at
+      type: object
+    EscrowPkgOutBody:
+      additionalProperties: false
+      properties:
+        escrow_filename:
+          type: string
+        escrow_package:
+          type: string
+        repository:
+          $ref: "#/components/schemas/RepositoryDTO"
+      required:
+        - repository
+        - escrow_package
+        - escrow_filename
+      type: object
+    EscrowProblem:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+            - too_few_recipients
+            - not_confirmed
+            - recipients_changed
+            - reconfirm_due
+            - drill_due
+          type: string
+        message:
+          type: string
+        repository_id:
+          type: string
+        severity:
+          enum:
+            - critical
+            - warning
+          type: string
+      required:
+        - code
+        - severity
+        - message
       type: object
     EscrowRecipientDTO:
       additionalProperties: false
@@ -1833,6 +2104,30 @@ components:
       required:
         - items
       type: object
+    List-contractsResponse:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ContractDTO"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    List-escrow-drillsResponse:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/DrillDTO"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
     List-escrow-recipientsResponse:
       additionalProperties: false
       properties:
@@ -1851,6 +2146,42 @@ components:
         items:
           items:
             $ref: "#/components/schemas/Job"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    List-notification-channelsResponse:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/NotificationChannelDTO"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    List-notification-deliveriesResponse:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/NotificationDeliveryDTO"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    List-platform-backupsResponse:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/PlatformBackupDTO"
           type:
             - array
             - "null"
@@ -1911,6 +2242,18 @@ components:
         items:
           items:
             $ref: "#/components/schemas/FleetVolumeDTO"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    ListOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/PolicyDTO"
           type:
             - array
             - "null"
@@ -2095,6 +2438,128 @@ components:
         - name
         - driver
       type: object
+    NotificationChannelDTO:
+      additionalProperties: false
+      properties:
+        config:
+          $ref: "#/components/schemas/ChannelConfigDTO"
+        created_at:
+          format: date-time
+          type: string
+        enabled:
+          type: boolean
+        events:
+          description: Subscribed event types (exact, or prefix wildcards such as backup.*); empty = all events.
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        id:
+          format: uuid
+          type: string
+        kind:
+          enum:
+            - email
+            - webhook
+          type: string
+        last_delivery_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        last_error:
+          description: Error of the most recent failed delivery; cleared by the next success.
+          type:
+            - string
+            - "null"
+        min_severity:
+          enum:
+            - info
+            - warning
+            - critical
+          type: string
+        name:
+          type: string
+        secret_set:
+          description: Whether a webhook signing secret is stored (the secret itself is write-only).
+          type: boolean
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - kind
+        - enabled
+        - config
+        - secret_set
+        - events
+        - min_severity
+        - created_at
+        - updated_at
+        - last_delivery_at
+        - last_error
+      type: object
+    NotificationDeliveryDTO:
+      additionalProperties: false
+      properties:
+        attempts:
+          format: int32
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        event_type:
+          type: string
+        id:
+          format: int64
+          type: integer
+        last_error:
+          type:
+            - string
+            - "null"
+        message:
+          type: string
+        next_attempt_at:
+          description: Pending deliveries only.
+          format: date-time
+          type:
+            - string
+            - "null"
+        notification_id:
+          format: int64
+          type: integer
+        sent_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        severity:
+          enum:
+            - info
+            - warning
+            - critical
+          type: string
+        state:
+          enum:
+            - pending
+            - sent
+            - failed
+          type: string
+      required:
+        - id
+        - notification_id
+        - event_type
+        - severity
+        - message
+        - state
+        - attempts
+        - next_attempt_at
+        - last_error
+        - sent_at
+        - created_at
+      type: object
     PasswordInputBody:
       additionalProperties: false
       properties:
@@ -2120,6 +2585,255 @@ components:
       required:
         - from
         - to
+      type: object
+    PlatformBackupDTO:
+      additionalProperties: false
+      properties:
+        bundle_path:
+          description: Copy in the worker's bundle directory (null = not written there).
+          type:
+            - string
+            - "null"
+        error:
+          type:
+            - string
+            - "null"
+        file_name:
+          description: dbr2-platform-<UTC timestamp>.tar.zst.age
+          type:
+            - string
+            - "null"
+        finished_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        manifest:
+          description: The bundle's plaintext manifest.json (versions, row counts, digests, missing reposervers). Never contains secrets.
+        repository_id:
+          description: The System Repository at the time of the run.
+          format: uuid
+          type:
+            - string
+            - "null"
+        sha256:
+          description: SHA-256 (hex) of the encrypted bundle file.
+          type:
+            - string
+            - "null"
+        size_bytes:
+          description: Size of the encrypted bundle.
+          format: int64
+          type: integer
+        snapshot_id:
+          description: Pinned Kopia snapshot in the System Repository (null = not written there).
+          type:
+            - string
+            - "null"
+        started_at:
+          format: date-time
+          type: string
+        state:
+          enum:
+            - running
+            - succeeded
+            - partial
+            - failed
+          type: string
+        trigger:
+          type: string
+        workflow_id:
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - state
+        - trigger
+        - workflow_id
+        - started_at
+        - finished_at
+        - size_bytes
+        - sha256
+        - file_name
+        - snapshot_id
+        - repository_id
+        - bundle_path
+        - error
+      type: object
+    PolicyApplicationDTO:
+      additionalProperties: false
+      properties:
+        host_id:
+          format: uuid
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
+        - host_id
+      type: object
+    PolicyBody:
+      additionalProperties: false
+      properties:
+        consistency_mode:
+          description: Used when the application sets none.
+          enum:
+            - live
+            - quiesced
+            - offline
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        enabled:
+          type: boolean
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        repository_id:
+          description: "Used when the application sets none (default: the default Repository)."
+          format: uuid
+          type: string
+        retention:
+          $ref: "#/components/schemas/RetentionInput"
+        schedule:
+          description: hourly, daily, weekly, monthly or a 5-field cron expression (minute hour day month weekday).
+          type: string
+        timezone:
+          description: IANA timezone for the schedule (default UTC).
+          type: string
+      required:
+        - name
+        - schedule
+        - enabled
+        - retention
+      type: object
+    PolicyDTO:
+      additionalProperties: false
+      properties:
+        applications:
+          format: int32
+          type: integer
+        consistency_mode:
+          type:
+            - string
+            - "null"
+        created_at:
+          format: date-time
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        next_run:
+          format: date-time
+          type:
+            - string
+            - "null"
+        repository_id:
+          type:
+            - string
+            - "null"
+        retention:
+          $ref: "#/components/schemas/RetentionDTO"
+        schedule:
+          description: Cron expression (presets are stored as cron).
+          type: string
+        timezone:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - description
+        - schedule
+        - timezone
+        - enabled
+        - consistency_mode
+        - repository_id
+        - retention
+        - applications
+        - next_run
+        - created_at
+        - updated_at
+      type: object
+    PolicyOutBody:
+      additionalProperties: false
+      properties:
+        applications:
+          format: int32
+          type: integer
+        assigned_applications:
+          items:
+            $ref: "#/components/schemas/PolicyApplicationDTO"
+          type:
+            - array
+            - "null"
+        consistency_mode:
+          type:
+            - string
+            - "null"
+        created_at:
+          format: date-time
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        next_run:
+          format: date-time
+          type:
+            - string
+            - "null"
+        repository_id:
+          type:
+            - string
+            - "null"
+        retention:
+          $ref: "#/components/schemas/RetentionDTO"
+        schedule:
+          description: Cron expression (presets are stored as cron).
+          type: string
+        timezone:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - assigned_applications
+        - id
+        - name
+        - description
+        - schedule
+        - timezone
+        - enabled
+        - consistency_mode
+        - repository_id
+        - retention
+        - applications
+        - next_run
+        - created_at
+        - updated_at
       type: object
     Port:
       additionalProperties: false
@@ -2441,6 +3155,22 @@ components:
         - master_admin
         - oidc
       type: object
+    Put-contractRequest:
+      additionalProperties: false
+      properties:
+        max_rpo_minutes:
+          format: int32
+          minimum: 1
+          type: integer
+        required_components:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - required_components
+      type: object
     ReasonInputBody:
       additionalProperties: false
       properties:
@@ -2484,6 +3214,21 @@ components:
         created_at:
           format: date-time
           type: string
+        delete_after:
+          description: Scheduled deletion time (grace period); null when not scheduled.
+          format: date-time
+          type:
+            - string
+            - "null"
+        delete_reason:
+          type:
+            - string
+            - "null"
+        deleted_at:
+          format: date-time
+          type:
+            - string
+            - "null"
         error:
           type:
             - string
@@ -2510,6 +3255,7 @@ components:
             - failed
             - missing
             - deleting
+            - deleted
           type: string
         status:
           enum:
@@ -2526,6 +3272,13 @@ components:
             - verified
             - verification_failed
           type: string
+        verification_details:
+          description: Per-component verification results (detail view).
+        verified_at:
+          format: date-time
+          type:
+            - string
+            - "null"
         workflow_id:
           type: string
       required:
@@ -2548,6 +3301,10 @@ components:
         - error
         - created_at
         - committed_at
+        - verified_at
+        - delete_after
+        - delete_reason
+        - deleted_at
       type: object
     RegistrationTokenDTO:
       additionalProperties: false
@@ -2603,6 +3360,16 @@ components:
         created_at:
           format: date-time
           type: string
+        delete_after:
+          description: Set while the Repository is pending deletion (grace period).
+          format: date-time
+          type:
+            - string
+            - "null"
+        delete_reason:
+          type:
+            - string
+            - "null"
         description:
           type: string
         escrow_confirmed_at:
@@ -2625,11 +3392,19 @@ components:
           type: string
         is_default:
           type: boolean
+        is_system:
+          description: The System Repository that receives Platform Recovery Bundles (ADR-0008).
+          type: boolean
         kopia_repository_id:
           type:
             - string
             - "null"
         last_reindex_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        last_verified_at:
           format: date-time
           type:
             - string
@@ -2654,6 +3429,7 @@ components:
             - awaiting_escrow
             - ready
             - unavailable
+            - pending_deletion
             - retired
           type: string
         usage_by_host:
@@ -2670,6 +3446,7 @@ components:
         - backend
         - status
         - is_default
+        - is_system
         - server_url
         - internal_server_url
         - management_url
@@ -2680,6 +3457,9 @@ components:
         - escrow_generated_at
         - escrow_confirmed_at
         - last_reindex_at
+        - last_verified_at
+        - delete_after
+        - delete_reason
         - created_at
         - live
         - usage_by_host
@@ -2838,6 +3618,77 @@ components:
         - restore_id
         - state
       type: object
+    RetentionDTO:
+      additionalProperties: false
+      properties:
+        keep_daily:
+          format: int32
+          minimum: 0
+          type: integer
+        keep_hourly:
+          description: Newest per hour, for this many hours.
+          format: int32
+          minimum: 0
+          type: integer
+        keep_last:
+          description: Newest recovery points always kept.
+          format: int32
+          minimum: 1
+          type: integer
+        keep_monthly:
+          format: int32
+          minimum: 0
+          type: integer
+        keep_weekly:
+          format: int32
+          minimum: 0
+          type: integer
+        keep_yearly:
+          format: int32
+          minimum: 0
+          type: integer
+      required:
+        - keep_last
+        - keep_hourly
+        - keep_daily
+        - keep_weekly
+        - keep_monthly
+        - keep_yearly
+      type: object
+    RetentionInput:
+      additionalProperties: false
+      properties:
+        keep_daily:
+          default: 14
+          format: int32
+          minimum: 0
+          type: integer
+        keep_hourly:
+          default: 0
+          format: int32
+          minimum: 0
+          type: integer
+        keep_last:
+          default: 7
+          format: int32
+          minimum: 1
+          type: integer
+        keep_monthly:
+          default: 12
+          format: int32
+          minimum: 0
+          type: integer
+        keep_weekly:
+          default: 8
+          format: int32
+          minimum: 0
+          type: integer
+        keep_yearly:
+          default: 0
+          format: int32
+          minimum: 0
+          type: integer
+      type: object
     Role:
       additionalProperties: false
       properties:
@@ -2888,6 +3739,44 @@ components:
             - "null"
       required:
         - items
+      type: object
+    SMTPSettingsDTO:
+      additionalProperties: false
+      properties:
+        configured:
+          type: boolean
+        from:
+          type: string
+        host:
+          type: string
+        password_set:
+          description: Whether a password is stored (the password itself is write-only).
+          type: boolean
+        port:
+          format: int64
+          type: integer
+        tls:
+          enum:
+            - starttls
+            - tls
+            - none
+          type: string
+        updated_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        username:
+          type: string
+      required:
+        - configured
+        - host
+        - port
+        - username
+        - from
+        - tls
+        - password_set
+        - updated_at
       type: object
     Service:
       additionalProperties: false
@@ -2998,6 +3887,20 @@ components:
       required:
         - status
       type: object
+    Test-notification-channelResponse:
+      additionalProperties: false
+      properties:
+        delivered:
+          type: boolean
+        duration_ms:
+          format: int64
+          type: integer
+        error:
+          type: string
+      required:
+        - delivered
+        - duration_ms
+      type: object
     TmpfsUse:
       additionalProperties: false
       properties:
@@ -3100,6 +4003,78 @@ components:
           maxLength: 200
           type: string
       type: object
+    Update-notification-channelRequest:
+      additionalProperties: false
+      properties:
+        config:
+          $ref: "#/components/schemas/ChannelConfigDTO"
+        enabled:
+          type: boolean
+        events:
+          description: Event types to deliver (exact or prefix wildcard such as backup.*); empty or omitted = all.
+          items:
+            type: string
+          maxItems: 100
+          type:
+            - array
+            - "null"
+        min_severity:
+          default: warning
+          enum:
+            - info
+            - warning
+            - critical
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        secret:
+          description: "Webhook signing secret (min. 16 characters). Requests then carry X-DBR2-Signature: sha256=<hex HMAC-SHA256(secret, X-DBR2-Timestamp + \".\" + body)>. On update: omit to keep, empty string to remove."
+          maxLength: 500
+          type: string
+          writeOnly: true
+      required:
+        - enabled
+        - name
+        - config
+      type: object
+    Update-smtp-settingsRequest:
+      additionalProperties: false
+      properties:
+        from:
+          description: Sender address, e.g. DBR2 <dbr2@example.com>.
+          maxLength: 320
+          minLength: 3
+          type: string
+        host:
+          maxLength: 253
+          minLength: 1
+          type: string
+        password:
+          maxLength: 500
+          type: string
+          writeOnly: true
+        port:
+          format: int64
+          maximum: 65535
+          minimum: 1
+          type: integer
+        tls:
+          enum:
+            - starttls
+            - tls
+            - none
+          type: string
+        username:
+          maxLength: 200
+          type: string
+      required:
+        - host
+        - port
+        - from
+        - tls
+      type: object
     User:
       additionalProperties: false
       properties:
@@ -3153,6 +4128,19 @@ components:
             - "null"
       required:
         - items
+      type: object
+    Verify-repositoryRequest:
+      additionalProperties: false
+      properties:
+        read_percent:
+          description: Default 10.
+          format: double
+          maximum: 100
+          minimum: 0
+          type: number
+        recovery_point_id:
+          description: Verify only this recovery point.
+          type: string
       type: object
     VersionBody:
       additionalProperties: false
@@ -4649,6 +5637,240 @@ paths:
       tags:
         - Applications
       x-dbr2-permission: application.read
+  /api/v1/applications/{id}/contract:
+    delete:
+      description: |-
+
+
+        Requires permission `policy.manage`.
+      operationId: delete-contract
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Remove a Recovery Contract
+      tags:
+        - Policies
+      x-dbr2-permission: policy.manage
+    get:
+      description: |-
+        404 when the application has no contract.
+
+        Requires permission `policy.read`.
+      operationId: get-contract
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContractDTO"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Get a Recovery Contract
+      tags:
+        - Policies
+      x-dbr2-permission: policy.read
+    put:
+      description: |-
+        v1.0 subset: maximum RPO and required components. Evaluated every 5 minutes and after each change; violations raise critical alerts. Each recovery point also records the contract evaluation at capture time in its manifest.
+
+        Requires permission `policy.manage`.
+      operationId: put-contract
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Put-contractRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContractDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Set a Recovery Contract
+      tags:
+        - Policies
+      x-dbr2-permission: policy.manage
+  /api/v1/applications/{id}/policy:
+    put:
+      description: |-
+        `policy_id: null` removes the assignment.
+
+        Requires permission `policy.manage`.
+      operationId: assign-policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Assign-policyRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Assign a policy
+      tags:
+        - Policies
+      x-dbr2-permission: policy.manage
   /api/v1/audit-events:
     get:
       description: |-
@@ -5126,6 +6348,228 @@ paths:
       tags:
         - Hosts
       x-dbr2-permission: host.read
+  /api/v1/contracts:
+    get:
+      description: |-
+        Every contract with its state (satisfied, violated) and reasons (RPO violation reporting).
+
+        Requires permission `policy.read`.
+      operationId: list-contracts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/List-contractsResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List Recovery Contracts
+      tags:
+        - Policies
+      x-dbr2-permission: policy.read
+  /api/v1/escrow/drills:
+    get:
+      description: |-
+
+
+        Requires permission `repository.read`.
+      operationId: list-escrow-drills
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/List-escrow-drillsResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List escrow drills
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.read
+    post:
+      description: |-
+        Creates a drill package (a random secret, no real key) sealed to the escrow recipients. An escrow holder decrypts it with the identity from the safe (`age -d -i identity.txt drill.age`) and enters its confirmation code, proving the identities still work.
+
+        Requires permission `repository.manage`.
+      operationId: start-escrow-drill
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrillDTO"
+          description: Created
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Start an escrow drill
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
+  /api/v1/escrow/drills/{id}/complete:
+    post:
+      description: |-
+
+
+        Requires permission `repository.manage`.
+      operationId: complete-escrow-drill
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Complete-escrow-drillRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrillDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Complete an escrow drill
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
+  /api/v1/escrow/health:
+    get:
+      description: |-
+        Recipients configured, packages confirmed and current (regenerate after recipients change), re-confirmation within 90 days, and an escrow drill within 12 months. Checked hourly; problems raise `escrow.unhealthy` alerts.
+
+        Requires permission `repository.read`.
+      operationId: get-escrow-health
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowHealth"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Escrow health
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.read
   /api/v1/escrow/recipients:
     get:
       description: |-
@@ -5550,6 +6994,397 @@ paths:
       tags:
         - Backups
       x-dbr2-permission: backup.read
+  /api/v1/notification-channels:
+    get:
+      description: |-
+        Email and webhook channels that receive alerts (backup failed, restore finished, agent offline, …). Secrets are never returned.
+
+        Requires permission `policy.read`.
+      operationId: list-notification-channels
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/List-notification-channelsResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List notification channels
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.read
+    post:
+      description: |-
+        Creates an email channel (`config.to`; uses the SMTP settings) or a webhook channel (`config.url`, optional signing `secret`). Notifications whose type matches `events` and whose severity is at least `min_severity` are delivered, with retries (1 m, 5 m, 30 m, 2 h, 6 h; failed after 6 attempts).
+
+        Requires permission `policy.manage`.
+      operationId: create-notification-channel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Create-notification-channelRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannelDTO"
+          description: Created
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Create a notification channel
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.manage
+  /api/v1/notification-channels/{id}:
+    delete:
+      description: |-
+        Deletes the channel and its delivery history. Alerts themselves are kept.
+
+        Requires permission `policy.manage`.
+      operationId: delete-notification-channel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Delete a notification channel
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.manage
+    get:
+      description: |-
+        Secrets are never returned (`secret_set` tells whether one is stored).
+
+        Requires permission `policy.read`.
+      operationId: get-notification-channel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannelDTO"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Get a notification channel
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.read
+    put:
+      description: |-
+        Replaces the channel's settings (its kind cannot change). Omit `secret` to keep the stored secret, send an empty string to remove it.
+
+        Requires permission `policy.manage`.
+      operationId: update-notification-channel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Update-notification-channelRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannelDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Update a notification channel
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.manage
+  /api/v1/notification-channels/{id}/deliveries:
+    get:
+      description: |-
+        Most recent first, with state, attempts and the last error.
+
+        Requires permission `policy.read`.
+      operationId: list-notification-deliveries
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int32
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/List-notification-deliveriesResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List a channel's recent deliveries
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.read
+  /api/v1/notification-channels/{id}/test:
+    post:
+      description: |-
+        Sends a synthetic `notification.test` message (severity info) straight to the channel, ignoring its filters and enabled flag, and returns the outcome. A failed delivery is reported in the body (`delivered: false`), not as an HTTP error. Audited.
+
+        Requires permission `policy.manage`.
+      operationId: test-notification-channel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Test-notification-channelResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Send a test notification
+      tags:
+        - Notifications
+      x-dbr2-permission: policy.manage
   /api/v1/oidc/group-mappings:
     get:
       description: |-
@@ -5685,6 +7520,365 @@ paths:
       tags:
         - Users
       x-dbr2-permission: user.manage
+  /api/v1/platform/backups:
+    get:
+      description: |-
+        Platform Protection runs (ADR-0008), newest first: the age-encrypted Platform Recovery Bundle written to the System Repository and to the bundle directory outside every Repository. Partial means one target failed or a reposerver's state could not be exported.
+
+        Requires permission `repository.manage`.
+      operationId: list-platform-backups
+      parameters:
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int32
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/List-platform-backupsResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List platform backups
+      tags:
+        - Platform protection
+      x-dbr2-permission: repository.manage
+    post:
+      description: |-
+        Starts the Platform Protection workflow (one run at a time: 409 while one runs). The bundle holds the platform database, DBR2_SECRET_KEY, the internal token and every reposerver's state, encrypted to the escrow recipients.
+
+        Requires permission `repository.manage`.
+      operationId: start-platform-backup
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowOutBody"
+          description: Accepted
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Back up the platform now
+      tags:
+        - Platform protection
+      x-dbr2-permission: repository.manage
+  /api/v1/policies:
+    get:
+      description: |-
+        Schedules and retention; applications are assigned to at most one policy.
+
+        Requires permission `policy.read`.
+      operationId: list-policies
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List Protection Policies
+      tags:
+        - Policies
+      x-dbr2-permission: policy.read
+    post:
+      description: |-
+        Assign applications with PUT /applications/{id}/policy; each gets a Temporal schedule (overlapping runs are skipped and recorded).
+
+        Requires permission `policy.manage`.
+      operationId: create-policy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDTO"
+          description: Created
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Create a policy
+      tags:
+        - Policies
+      x-dbr2-permission: policy.manage
+  /api/v1/policies/{id}:
+    delete:
+      description: |-
+        Assigned applications are no longer scheduled; their recovery points are kept.
+
+        Requires permission `policy.manage`.
+      operationId: delete-policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Delete a policy
+      tags:
+        - Policies
+      x-dbr2-permission: policy.manage
+    get:
+      description: |-
+
+
+        Requires permission `policy.read`.
+      operationId: get-policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyOutBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Get a policy
+      tags:
+        - Policies
+      x-dbr2-permission: policy.read
+    put:
+      description: |-
+        Schedules of assigned applications are updated.
+
+        Requires permission `policy.manage`.
+      operationId: update-policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Replace a policy
+      tags:
+        - Policies
+      x-dbr2-permission: policy.manage
   /api/v1/recovery-points:
     get:
       description: |-
@@ -5709,6 +7903,7 @@ paths:
               - failed
               - missing
               - deleting
+              - deleted
             type: string
         - explode: false
           in: query
@@ -5809,6 +8004,79 @@ paths:
       tags:
         - Backups
       x-dbr2-permission: backup.read
+  /api/v1/recovery-points/{id}/delete:
+    post:
+      description: |-
+        Schedules deletion after a 7-day grace period; until then it can be undeleted and still restored. Requires typing the application name and a reason.
+
+        Requires permission `backup.delete`.
+      operationId: delete-recovery-point
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            pattern: ^rp_[0-9A-HJKMNP-TV-Z]{26}$
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Delete-recovery-pointRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryPointDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Delete a recovery point (grace period)
+      tags:
+        - Backups
+      x-dbr2-permission: backup.delete
   /api/v1/recovery-points/{id}/restore-preview:
     post:
       description: |-
@@ -5955,6 +8223,67 @@ paths:
       tags:
         - Restores
       x-dbr2-permission: restore.execute
+  /api/v1/recovery-points/{id}/undelete:
+    post:
+      description: |-
+
+
+        Requires permission `backup.delete`.
+      operationId: undelete-recovery-point
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            pattern: ^rp_[0-9A-HJKMNP-TV-Z]{26}$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryPointDTO"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Cancel a scheduled deletion
+      tags:
+        - Backups
+      x-dbr2-permission: backup.delete
   /api/v1/repositories:
     get:
       description: |-
@@ -6105,6 +8434,79 @@ paths:
       tags:
         - Repositories
       x-dbr2-permission: repository.read
+  /api/v1/repositories/{id}/delete:
+    post:
+      description: |-
+        Stops using the Repository now and retires it after 7 days (undo until then). DBR² never erases the stored data; remove the NAS share yourself afterwards. Requires typing the Repository name and a reason.
+
+        Requires permission `repository.manage`.
+      operationId: delete-repository
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Delete-repositoryRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositoryDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Delete a Repository (grace period)
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
   /api/v1/repositories/{id}/escrow-package:
     get:
       description: |-
@@ -6227,6 +8629,67 @@ paths:
       tags:
         - Repositories
       x-dbr2-permission: repository.manage
+  /api/v1/repositories/{id}/escrow/regenerate:
+    post:
+      description: |-
+        Re-seals the repository password (read from the reposerver, not stored) to the current escrow recipients. The Repository stays usable; enter the new package's confirmation code to confirm escrow again.
+
+        Requires permission `repository.manage`.
+      operationId: regenerate-repository-escrow
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowPkgOutBody"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Regenerate the escrow package
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
   /api/v1/repositories/{id}/reindex:
     post:
       description: |-
@@ -6285,6 +8748,194 @@ paths:
                 $ref: "#/components/schemas/Problem"
           description: Internal Server Error
       summary: Rebuild the recovery-point index
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
+  /api/v1/repositories/{id}/system:
+    put:
+      description: |-
+        Makes this Repository the System Repository that receives the platform self-backup (ADR-0008). At most one Repository is the System Repository; the previous one loses the role. The bundle is also written to a directory outside every Repository, so the System Repository is never the only copy.
+
+        Requires permission `repository.manage`.
+      operationId: designate-system-repository
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositoryDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Designate the System Repository
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
+  /api/v1/repositories/{id}/undelete:
+    post:
+      description: |-
+
+
+        Requires permission `repository.manage`.
+      operationId: undelete-repository
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositoryDTO"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Cancel a Repository deletion
+      tags:
+        - Repositories
+      x-dbr2-permission: repository.manage
+  /api/v1/repositories/{id}/verify:
+    post:
+      description: |-
+        Starts repository/{id}/verify: the least recently verified recovery points are checked (every object present, `read_percent` of files fully read and hash-verified). Results set each recovery point to verified or verification_failed (critical alert). A weekly schedule verifies every Repository.
+
+        Requires permission `repository.manage`.
+      operationId: verify-repository
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Verify-repositoryRequest"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowOutBody"
+          description: Accepted
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Verify a Repository
       tags:
         - Repositories
       x-dbr2-permission: repository.manage
@@ -6505,6 +9156,95 @@ paths:
       tags:
         - Users
       x-dbr2-permission: user.read
+  /api/v1/settings/smtp:
+    get:
+      description: |-
+        The SMTP relay used by email channels. The password is write-only (`password_set`).
+
+        Requires permission `policy.read`.
+      operationId: get-smtp-settings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SMTPSettingsDTO"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Get the SMTP settings
+      tags:
+        - Settings
+      x-dbr2-permission: policy.read
+    put:
+      description: |-
+        Replaces the SMTP relay settings. `tls`: `starttls` (typically port 587), `tls` (implicit TLS, typically 465) or `none` (plain text; allowed only for a relay on localhost). PLAIN authentication is used when `username` is set. Omit `password` to keep the stored password, send an empty string to remove it. The password is sealed at rest and never returned. Audited.
+
+        Requires permission `policy.manage`.
+      operationId: update-smtp-settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Update-smtp-settingsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SMTPSettingsDTO"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Update the SMTP settings
+      tags:
+        - Settings
+      x-dbr2-permission: policy.manage
   /api/v1/tokens:
     get:
       description: Lists the caller's personal API tokens (secrets are never returned).

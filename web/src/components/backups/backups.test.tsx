@@ -135,6 +135,7 @@ describe("backup settings draft", () => {
         post_hooks: [],
         optional_components: ["bind:/srv/shop/uploads"],
         excluded_components: [],
+        database_strategy: "logical",
       },
     });
   });
@@ -266,6 +267,7 @@ describe("BackupSettingsCard", () => {
       post_hooks: [{ container: "fbcad-minio-1", command: ["mc", "admin", "service", "unfreeze", "local"] }],
       optional_components: ["bind:/srv/shop/uploads"],
       excluded_components: ["volume:fbcad_miniodata"],
+      database_strategy: "logical",
     });
     expect(await screen.findByText("Backup settings saved")).toBeInTheDocument();
   });

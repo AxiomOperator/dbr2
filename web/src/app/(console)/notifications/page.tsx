@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Metadata } from "next";
-import { AlertsView } from "@/components/backups/alerts";
+import { Suspense } from "react";
+import { NotificationsView } from "@/components/notifications/notifications-view";
 
 export const metadata: Metadata = { title: "Notifications" };
 
 export default function NotificationsPage() {
-  return <AlertsView />;
+  // The view keeps the selected tab in the URL (useSearchParams), which needs a Suspense boundary.
+  return (
+    <Suspense>
+      <NotificationsView />
+    </Suspense>
+  );
 }

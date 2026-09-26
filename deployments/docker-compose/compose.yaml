@@ -125,7 +125,17 @@ services:
       DBR2_INTERNAL_TOKEN_FILE: /run/secrets/dbr2_internal_token
       DBR2_OTEL_ENABLED: ${DBR2_OTEL_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # Platform self-backup (ADR-0008): daily age-encrypted Platform
+      # Recovery Bundle, kept here and in the System Repository.
+      DBR2_PLATFORM_BUNDLE_DIR: /var/lib/dbr2/platform-bundles
+      DBR2_PLATFORM_BUNDLE_KEEP: ${DBR2_PLATFORM_BUNDLE_KEEP:-14}
+      DBR2_PLATFORM_BACKUP_CRON: ${DBR2_PLATFORM_BACKUP_CRON:-15 2 * * *}
     secrets: [dbr2_internal_token]
+    volumes:
+      # A separate NFS export or directory that is not part of any
+      # Repository (owned by uid 65532, mode 0700). The bundles are
+      # encrypted to the escrow recipients.
+      - ${DBR2_PLATFORM_BUNDLE_HOST_PATH:-./platform-bundles}:/var/lib/dbr2/platform-bundles:Z
     networks: [dbr2]
     depends_on:
       temporal-namespace: { condition: service_completed_successfully }

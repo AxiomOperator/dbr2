@@ -73,6 +73,7 @@ func usage() {
   dbr2 backup --app APP [--mode live|quiesced|offline] [--wait]
   dbr2 recovery-points [--app APP] [--limit N]
   dbr2 admin reindex --repository REPO
+  dbr2 admin restore-platform     (runs on the server host: see dbr2-server admin restore-platform)
   dbr2 restore --rp RP [--target-host ID] [--component NAME]... [--remap FROM=TO]...
                [--preview] [--reason TEXT] [--confirm APP-NAME] [--wait]
   dbr2 restores [--app APP]

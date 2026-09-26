@@ -7,14 +7,21 @@ import { useMemo } from "react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
 import { CreateRepositoryDialog } from "@/components/repositories/create-repository-dialog";
+import { EscrowDrills, EscrowHealthPanel } from "@/components/repositories/escrow-health";
 import { EscrowRecipients } from "@/components/repositories/escrow-recipients";
-import { DownloadEscrowButton, ReindexButton } from "@/components/repositories/repository-actions";
+import {
+  DownloadEscrowButton,
+  ReindexButton,
+  RepositoryUndeleteButton,
+  VerifyButton,
+} from "@/components/repositories/repository-actions";
 import {
   BACKEND_LABEL,
   DefaultBadge,
   Fingerprint,
   RepositoryStatusBadge,
   StorageHealth,
+  SystemBadge,
 } from "@/components/repositories/repository-badges";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -31,7 +38,17 @@ import {
   type Repository,
 } from "@/lib/api/protection-schemas";
 import { REPOSITORIES_REFRESH_MS, useRepositories } from "@/lib/api/hooks";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDate, formatDateTime, formatRelative } from "@/lib/format";
+
+function Ago({ iso, never = "Never" }: { iso: string | null; never?: string }) {
+  return iso ? (
+    <time dateTime={iso} title={formatDateTime(iso)} className="whitespace-nowrap">
+      {formatRelative(iso)}
+    </time>
+  ) : (
+    <span className="text-muted-foreground">{never}</span>
+  );
+}
 
 const EMPTY: Repository[] = [];
 const features = tableFeatures({});
@@ -50,6 +67,7 @@ function buildColumns(canManage: boolean) {
                 {r.name}
               </Link>
               {r.is_default && <DefaultBadge />}
+              {r.is_system && <SystemBadge />}
             </div>
             {r.description && <div className="max-w-48 text-xs whitespace-normal text-muted-foreground">{r.description}</div>}
           </div>
@@ -58,7 +76,16 @@ function buildColumns(canManage: boolean) {
     }),
     col.accessor("status", {
       header: "Status",
-      cell: (info) => <RepositoryStatusBadge status={info.getValue()} />,
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <RepositoryStatusBadge status={row.original.status} />
+          {row.original.status === "pending_deletion" && row.original.delete_after && (
+            <div className="text-xs whitespace-nowrap text-muted-foreground">
+              Retires {formatDate(row.original.delete_after)}
+            </div>
+          )}
+        </div>
+      ),
     }),
     col.accessor("backend", {
       header: "Backend",
@@ -75,16 +102,11 @@ function buildColumns(canManage: boolean) {
     }),
     col.accessor("last_reindex_at", {
       header: "Last reindex",
-      cell: (info) => {
-        const v = info.getValue();
-        return v ? (
-          <time dateTime={v} title={formatDateTime(v)} className="whitespace-nowrap">
-            {formatRelative(v)}
-          </time>
-        ) : (
-          <span className="text-muted-foreground">Never</span>
-        );
-      },
+      cell: (info) => <Ago iso={info.getValue()} />,
+    }),
+    col.accessor("last_verified_at", {
+      header: "Last verified",
+      cell: (info) => <Ago iso={info.getValue()} />,
     }),
   ];
   if (!canManage) return col.columns(base);
@@ -106,7 +128,14 @@ function buildColumns(canManage: boolean) {
                 Confirm escrow
               </Link>
             )}
-            <ReindexButton repo={r} />
+            {r.status === "pending_deletion" ? (
+              <RepositoryUndeleteButton repo={r} />
+            ) : (
+              <>
+                <ReindexButton repo={r} />
+                {r.status === "ready" && <VerifyButton repositoryId={r.id} label={r.name} size="xs" />}
+              </>
+            )}
             <DownloadEscrowButton repo={r} />
           </div>
         );
@@ -170,6 +199,11 @@ function RepositoriesTable({ canManage }: { canManage: boolean }) {
   );
 }
 
+function EscrowHealthSection({ canManage }: { canManage: boolean }) {
+  const repos = useRepositories();
+  return <EscrowHealthPanel repositories={repos.data ?? EMPTY} canManage={canManage} />;
+}
+
 export function RepositoriesView() {
   const me = useCurrentUser();
   const canRead = hasPermission(me, PERMISSION_REPOSITORY_READ);
@@ -189,7 +223,9 @@ export function RepositoriesView() {
       {canRead ? (
         <>
           <RepositoriesTable canManage={canManage} />
+          <EscrowHealthSection canManage={canManage} />
           <EscrowRecipients canManage={canManage} />
+          <EscrowDrills canManage={canManage} />
         </>
       ) : (
         <AccessDenied what="Viewing Repositories" permission={PERMISSION_REPOSITORY_READ} />

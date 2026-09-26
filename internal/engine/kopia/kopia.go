@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -132,7 +133,9 @@ func sourceInfo(s engine.Source) snapshot.SourceInfo {
 	return snapshot.SourceInfo{UserName: s.User, Host: s.Host, Path: s.Path}
 }
 
-func (r *repository) snapshotEntry(ctx context.Context, entry fs.Entry, req engine.SnapshotRequest) (*engine.Snapshot, error) {
+// snapshotEntry uploads entry and saves the manifest. streamErr (optional)
+// is checked before saving: a stream read failure must never be saved.
+func (r *repository) snapshotEntry(ctx context.Context, entry fs.Entry, req engine.SnapshotRequest, streamErr func() error) (*engine.Snapshot, error) {
 	si := sourceInfo(req.Source)
 	var prev []*snapshot.Manifest
 	if req.Incremental {
@@ -170,6 +173,14 @@ func (r *repository) snapshotEntry(ctx context.Context, entry fs.Entry, req engi
 			}
 			if man.IncompleteReason != "" || ctx.Err() != nil {
 				return fmt.Errorf("%w (%s)", engine.ErrCanceled, man.IncompleteReason)
+			}
+			if streamErr != nil {
+				if err := streamErr(); err != nil {
+					return fmt.Errorf("read stream: %w", err)
+				}
+				if ds := man.RootEntry.DirSummary; ds != nil && ds.FatalErrorCount > 0 {
+					return fmt.Errorf("read stream: %d errors", ds.FatalErrorCount)
+				}
 			}
 			man.Tags = labels(req.Tags)
 			man.Pins = req.Pins
@@ -230,12 +241,39 @@ func (r *repository) SnapshotPath(ctx context.Context, dir string, req engine.Sn
 	if err != nil {
 		return nil, err
 	}
-	return r.snapshotEntry(ctx, entry, req)
+	return r.snapshotEntry(ctx, entry, req, nil)
 }
 
 func (r *repository) SnapshotStream(ctx context.Context, fileName string, rd io.Reader, req engine.SnapshotRequest) (*engine.Snapshot, error) {
-	root := virtualfs.NewStaticDirectory("stream", []fs.Entry{virtualfs.StreamingFileFromReader(fileName, io.NopCloser(rd))})
-	return r.snapshotEntry(ctx, root, req)
+	er := &errReader{r: rd}
+	root := virtualfs.NewStaticDirectory("stream", []fs.Entry{virtualfs.StreamingFileFromReader(fileName, io.NopCloser(er))})
+	return r.snapshotEntry(ctx, root, req, er.error)
+}
+
+// errReader remembers the first non-EOF read error: the uploader records a
+// failed streaming file as an entry error instead of failing the upload.
+type errReader struct {
+	r   io.Reader
+	mu  sync.Mutex
+	err error
+}
+
+func (e *errReader) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		e.mu.Lock()
+		if e.err == nil {
+			e.err = err
+		}
+		e.mu.Unlock()
+	}
+	return n, err
+}
+
+func (e *errReader) error() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.err
 }
 
 func (r *repository) List(ctx context.Context, src *engine.Source, tags map[string]string) ([]engine.Snapshot, error) {

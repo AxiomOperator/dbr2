@@ -14,21 +14,30 @@ import { contract } from "./contract";
 import type {
   AddEscrowRecipientRequest as AddEscrowRecipientRequestContract,
   BackupSettingsDtoWritable,
+  CompleteEscrowDrillRequest,
   ConfirmRepositoryEscrowRequest,
   CreateRepositoryRequest as CreateRepositoryRequestContract,
+  DeleteRecoveryPointRequest,
+  DeleteRepositoryRequest,
   HostSettingsDto,
   StartBackupRequest as StartBackupRequestContract,
+  VerifyRepositoryRequest,
 } from "./generated";
 import {
   zAlertDto,
   zBackupSettingsDto,
   zCreatedRepoBody,
+  zDrillDto,
+  zEscrowHealth,
+  zEscrowPkgOutBody,
   zEscrowRecipientDto,
   zGetRepositoryEscrowPackageResponse,
   zHostSettingsDto,
   zListAlertsResponse,
+  zListEscrowDrillsResponse,
   zListEscrowRecipientsResponse,
   zListJobsResponse,
+  zListPlatformBackupsResponse,
   zListRecoveryPointsResponse,
   zListRepositoriesResponse,
   zRecoveryPointDto,
@@ -93,7 +102,7 @@ export type AddEscrowRecipientRequest = z.infer<typeof AddEscrowRecipientRequest
 // Repositories
 // ---------------------------------------------------------------------------
 
-export const REPOSITORY_STATUSES = ["awaiting_escrow", "ready", "unavailable", "retired"] as const;
+export const REPOSITORY_STATUSES = ["awaiting_escrow", "ready", "unavailable", "pending_deletion", "retired"] as const;
 export type RepositoryStatus = (typeof REPOSITORY_STATUSES)[number];
 
 export const REPOSITORY_BACKENDS = ["nfs", "filesystem"] as const;
@@ -217,11 +226,23 @@ export const UpdateBackupSettingsRequestSchema = z.object({
   post_hooks: z.array(HookRequestSchema),
   optional_components: z.array(z.string()),
   excluded_components: z.array(z.string()),
+  database_strategy: z.enum(["logical", "volume", "both"]).optional(),
 }) satisfies z.ZodType<BackupSettingsDtoWritable>;
+
+/** Phase 8: how detected PostgreSQL / Redis containers are captured. */
+export const DATABASE_STRATEGIES = ["both", "logical", "volume"] as const;
+export type DatabaseStrategy = (typeof DATABASE_STRATEGIES)[number];
 export type UpdateBackupSettingsRequest = z.infer<typeof UpdateBackupSettingsRequestSchema>;
 
-export const RECOVERY_POINT_STATES = ["pending", "committed", "failed", "missing", "deleting"] as const;
-export type RecoveryPointState = (typeof RECOVERY_POINT_STATES)[number];
+/** Every recovery point state (`deleted` rows are kept for the audit trail). */
+export const RECOVERY_POINT_ALL_STATES = ["pending", "committed", "failed", "missing", "deleting", "deleted"] as const;
+export type RecoveryPointState = (typeof RECOVERY_POINT_ALL_STATES)[number];
+/** The states the list endpoint filters by (`?state=`). */
+export const RECOVERY_POINT_STATES = ["pending", "committed", "failed", "missing", "deleting"] as const satisfies readonly RecoveryPointState[];
+export type RecoveryPointFilterState = (typeof RECOVERY_POINT_STATES)[number];
+
+export const VERIFICATION_STATES = ["unverified", "verified", "verification_failed"] as const;
+export type VerificationState = (typeof VERIFICATION_STATES)[number];
 
 export const RecoveryPointSchema = contract(zRecoveryPointDto);
 export type RecoveryPoint = z.infer<typeof RecoveryPointSchema>;
@@ -257,6 +278,8 @@ export const ManifestComponentSchema = z.object({
       container: z.string().optional(),
     })
     .optional(),
+  /** The check performed on the captured data (database dumps). */
+  validation: z.string().optional(),
 });
 export type ManifestComponent = z.infer<typeof ManifestComponentSchema>;
 
@@ -300,6 +323,26 @@ export const ManifestTopologySchema = z.object({
 });
 export type ManifestTopology = z.infer<typeof ManifestTopologySchema>;
 
+/** internal/manifest: Contract (details as written by workflows/backup contractAtCapture). */
+export const ManifestContractSchema = z.object({
+  id: z.string().optional(),
+  satisfied: z.boolean(),
+  details: z
+    .object({
+      required_components: list(z.string()),
+      missing_components: list(z.string()),
+      max_rpo_minutes: z.number().nullish().transform((v) => v ?? null),
+    })
+    .partial()
+    .nullish()
+    .transform((v) => ({
+      required_components: v?.required_components ?? [],
+      missing_components: v?.missing_components ?? [],
+      max_rpo_minutes: v?.max_rpo_minutes ?? null,
+    })),
+});
+export type ManifestContract = z.infer<typeof ManifestContractSchema>;
+
 /** The parts of the recovery manifest (schema_version 1) the console shows. */
 export const ManifestSchema = z.object({
   schema_version: z.number(),
@@ -318,6 +361,8 @@ export const ManifestSchema = z.object({
     .partial()
     .optional(),
   producer: z.object({ component: z.string(), version: z.string() }).partial().optional(),
+  /** The Recovery Contract evaluated at capture time (Phase 7; absent without a contract). */
+  contract: ManifestContractSchema.nullish().transform((v) => v ?? null),
 });
 export type Manifest = z.infer<typeof ManifestSchema>;
 
@@ -366,3 +411,97 @@ export type JobType = Job["type"];
 export type JobState = Job["state"];
 export const JOB_TYPES = ["backup", "restore"] as const satisfies readonly JobType[];
 export const JOB_STATES = ["running", "succeeded", "partial", "failed", "rolled_back", "missing"] as const satisfies readonly JobState[];
+
+// ---------------------------------------------------------------------------
+// Phase 7: deletion with a grace period
+// ---------------------------------------------------------------------------
+
+export const PERMISSION_BACKUP_DELETE = "backup.delete";
+
+/** Manual deletions wait this long and can be undone meanwhile. */
+export const DELETION_GRACE_DAYS = 7;
+export const MIN_DELETE_REASON = 3;
+export const MAX_DELETE_REASON = 500;
+
+/**
+ * Typed confirmation for a deletion: `name` must be typed exactly
+ * (case-sensitive, surrounding spaces ignored) and a reason given.
+ */
+export function deleteRequestSchema(name: string) {
+  return z.object({
+    confirmation: z
+      .string()
+      .transform((v) => v.trim())
+      .refine((v) => v === name, { message: `Type ${name} exactly to confirm.` }),
+    reason: z
+      .string()
+      .trim()
+      .min(MIN_DELETE_REASON, `Enter a reason (at least ${MIN_DELETE_REASON} characters).`)
+      .max(MAX_DELETE_REASON, `Use at most ${MAX_DELETE_REASON} characters.`),
+  }) satisfies z.ZodType<DeleteRecoveryPointRequest & DeleteRepositoryRequest, unknown>;
+}
+export type DeleteRequest = z.output<ReturnType<typeof deleteRequestSchema>>;
+
+// ---------------------------------------------------------------------------
+// Phase 9: verification
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_VERIFY_READ_PERCENT = 10;
+
+export const VerifyRepositoryRequestSchema = z.object({
+  recovery_point_id: z.string().optional(),
+  read_percent: z
+    .number({ error: "Enter the share of files to read (0–100 %)." })
+    .min(0, "The read share is 0–100 %.")
+    .max(100, "The read share is 0–100 %.")
+    .optional(),
+}) satisfies z.ZodType<VerifyRepositoryRequest>;
+export type VerifyRepositoryRequestInput = z.infer<typeof VerifyRepositoryRequestSchema>;
+
+/** One component's verification result (workflows/backup ComponentVerification). */
+export const ComponentVerificationSchema = z.object({
+  name: z.string(),
+  snapshot_id: z.string().optional().default(""),
+  files: z.number().optional().default(0),
+  dirs: z.number().optional().default(0),
+  files_read: z.number().optional().default(0),
+  bytes_read: z.number().optional().default(0),
+  errors: list(z.string()),
+});
+export type ComponentVerification = z.infer<typeof ComponentVerificationSchema>;
+
+/** `verification_details` of a recovery point (untyped in the contract). */
+export const VerificationDetailsSchema = z.object({
+  read_percent: z.number().optional(),
+  components: list(ComponentVerificationSchema),
+});
+export type VerificationDetails = z.infer<typeof VerificationDetailsSchema>;
+
+// ---------------------------------------------------------------------------
+// Phase 9: escrow health and drills
+// ---------------------------------------------------------------------------
+
+export const EscrowHealthSchema = contract(zEscrowHealth);
+export type EscrowHealth = z.infer<typeof EscrowHealthSchema>;
+export type EscrowProblem = EscrowHealth["problems"][number];
+
+/** Regenerated escrow package (same shape as a new Repository's). */
+export const RegeneratedEscrowSchema = contract(zEscrowPkgOutBody);
+export type RegeneratedEscrow = z.infer<typeof RegeneratedEscrowSchema>;
+
+export const DrillSchema = contract(zDrillDto);
+export type Drill = z.infer<typeof DrillSchema>;
+export const DrillListSchema = contract(zListEscrowDrillsResponse);
+
+export const CompleteDrillRequestSchema = ConfirmEscrowRequestSchema satisfies z.ZodType<CompleteEscrowDrillRequest, unknown>;
+
+// ---------------------------------------------------------------------------
+// Phase 9: platform self-protection (ADR-0008)
+// ---------------------------------------------------------------------------
+
+export const PlatformBackupListSchema = contract(zListPlatformBackupsResponse);
+export type PlatformBackup = z.infer<typeof PlatformBackupListSchema>["items"][number];
+export type PlatformBackupState = PlatformBackup["state"];
+
+/** Where the platform recovery runbook lives in the repository. */
+export const PLATFORM_RUNBOOK_PATH = "docs/operations/platform-recovery.md";

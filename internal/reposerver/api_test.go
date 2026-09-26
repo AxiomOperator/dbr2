@@ -73,6 +73,34 @@ func (f *fakeBackend) DeleteReadGrant(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakeBackend) RepositoryPassword(context.Context) (string, error) {
+	f.calls = append(f.calls, "password")
+	if !f.initialized {
+		return "", ErrNotInitialized
+	}
+	return "repository-password-0123456789abcdef0123", nil // gitleaks:allow (test fixture)
+}
+
+func (f *fakeBackend) ExportState(context.Context) ([]byte, error) {
+	f.calls = append(f.calls, "export")
+	if !f.initialized {
+		return nil, ErrNotInitialized
+	}
+	return []byte("TAR-BYTES"), nil
+}
+
+func (f *fakeBackend) ImportState(_ context.Context, b []byte) (Status, error) {
+	f.calls = append(f.calls, "import:"+string(b))
+	if f.err != nil {
+		return Status{}, f.err
+	}
+	if f.initialized {
+		return Status{}, ErrAlreadyInitialized
+	}
+	f.initialized = true
+	return Status{RepositoryID: "r1", Initialized: true}, nil
+}
+
 func newTestAPI() (*fakeBackend, http.Handler) {
 	f := &fakeBackend{users: map[string]string{}, grants: map[string]string{}}
 	a := &API{Backend: f, Token: testToken, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
@@ -243,5 +271,59 @@ func TestReadGrants(t *testing.T) {
 	}
 	if rec, _ := do(t, h, "DELETE", "/v1/acl/read-grants/..%2f", "", testToken); rec.Code != 404 {
 		t.Fatalf("bad id: %d", rec.Code)
+	}
+}
+
+func TestRepositoryPasswordAndState(t *testing.T) {
+	f, h := newTestAPI()
+	if rec, m := do(t, h, "GET", "/v1/repository-password", "", testToken); rec.Code != 409 || m["code"] != "not_initialized" {
+		t.Fatalf("password before init: %d %v", rec.Code, m)
+	}
+	if rec, m := do(t, h, "GET", "/v1/state-export", "", testToken); rec.Code != 409 || m["code"] != "not_initialized" {
+		t.Fatalf("export before init: %d %v", rec.Code, m)
+	}
+	for _, p := range []string{"/v1/repository-password", "/v1/state-export"} {
+		if rec, _ := do(t, h, "GET", p, "", "wrong"); rec.Code != 401 {
+			t.Fatalf("%s unauthenticated: %d", p, rec.Code)
+		}
+	}
+	if rec, _ := do(t, h, "POST", "/v1/state-import", "x", ""); rec.Code != 401 {
+		t.Fatalf("import unauthenticated: %d", rec.Code)
+	}
+	if rec, m := do(t, h, "POST", "/v1/state-import", "", testToken); rec.Code != 400 || m["code"] != "invalid_request" {
+		t.Fatalf("empty import: %d %v", rec.Code, m)
+	}
+	if rec, m := do(t, h, "POST", "/v1/state-import", strings.Repeat("x", MaxStateArchive+1), testToken); rec.Code != 413 || m["code"] != "too_large" {
+		t.Fatalf("large import: %d %v", rec.Code, m)
+	}
+	for err, want := range map[error]struct {
+		code int
+		name string
+	}{ErrStatePresent: {409, "state_present"}, ErrInvalidState: {400, "invalid_state"}, ErrStorageNotReady: {422, "storage_not_ready"},
+		ErrInvalidPassword: {422, "invalid_password"}} {
+		f.err = err
+		if rec, m := do(t, h, "POST", "/v1/state-import", "archive", testToken); rec.Code != want.code || m["code"] != want.name {
+			t.Fatalf("%v: %d %v", err, rec.Code, m)
+		}
+	}
+	f.err = nil
+	rec, m := do(t, h, "POST", "/v1/state-import", "archive", testToken)
+	if rec.Code != 200 || m["initialized"] != true || f.calls[len(f.calls)-1] != "import:archive" {
+		t.Fatalf("import: %d %v", rec.Code, m)
+	}
+	if rec, m := do(t, h, "POST", "/v1/state-import", "archive", testToken); rec.Code != 409 || m["code"] != "already_initialized" {
+		t.Fatalf("import again: %d %v", rec.Code, m)
+	}
+	rec, m = do(t, h, "GET", "/v1/repository-password", "", testToken)
+	if rec.Code != 200 || m["password"] != "repository-password-0123456789abcdef0123" || len(m) != 1 || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("password: %d %v", rec.Code, m)
+	}
+	req := httptest.NewRequest("GET", "/v1/state-export", nil)
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 200 || rr.Header().Get("Content-Type") != "application/x-tar" || rr.Body.String() != "TAR-BYTES" ||
+		rr.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("export: %d %q %v", rr.Code, rr.Body.String(), rr.Header())
 	}
 }

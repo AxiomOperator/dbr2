@@ -104,6 +104,29 @@ func (e DirEntry) IsDir() bool { return e.Mode.IsDir() }
 // IsRegular reports whether the entry is a regular file.
 func (e DirEntry) IsRegular() bool { return e.Mode.IsRegular() }
 
+// VerifyOptions tune a snapshot verification.
+type VerifyOptions struct {
+	// ReadPercent (0–100) of the files whose content is fully read and
+	// thus hash-verified. The sample is deterministic (by path); 100 reads
+	// every file. Every other object is checked against the repository
+	// index (and, for direct repository connections, the pack blob list).
+	ReadPercent float64
+	// Parallel is the number of tree walkers (0 = default).
+	Parallel int
+}
+
+// VerifyStats is the outcome of a verification. Objects are counted once:
+// identical files or directories (same object) are verified once.
+type VerifyStats struct {
+	Dirs      int64
+	Files     int64
+	FilesRead int64
+	BytesRead int64
+	// Errors lists every problem found (missing or corrupt objects,
+	// unreadable directories); empty means the snapshot verified.
+	Errors []string
+}
+
 // ErrCanceled is returned when a snapshot was cancelled; nothing is saved.
 var ErrCanceled = errors.New("engine: snapshot canceled; nothing was saved")
 
@@ -114,7 +137,9 @@ var ErrNotFound = errors.New("engine: snapshot not found")
 type Repository interface {
 	// SnapshotPath snapshots a directory tree.
 	SnapshotPath(ctx context.Context, dir string, req SnapshotRequest) (*Snapshot, error)
-	// SnapshotStream snapshots a stream as a single file named fileName.
+	// SnapshotStream snapshots a stream as a single file named fileName. A
+	// read error of r fails the snapshot and nothing is saved, so a reader
+	// can abort (e.g. a failed dump validation) by returning an error.
 	SnapshotStream(ctx context.Context, fileName string, r io.Reader, req SnapshotRequest) (*Snapshot, error)
 	// List returns snapshots matching the source (nil = all visible) and tags.
 	List(ctx context.Context, src *Source, tags map[string]string) ([]Snapshot, error)
@@ -131,6 +156,11 @@ type Repository interface {
 	OpenFile(ctx context.Context, id, relPath string) (io.ReadCloser, error)
 	// ListDir lists the directory at relPath ("" or "." = the root).
 	ListDir(ctx context.Context, id, relPath string) ([]DirEntry, error)
+	// Verify walks the whole snapshot tree, checks that every referenced
+	// object exists and reads opts.ReadPercent of the files. Problems are
+	// reported in VerifyStats.Errors; the error is non-nil only when the
+	// verification could not run (unknown snapshot, cancellation).
+	Verify(ctx context.Context, snapshotID string, opts VerifyOptions) (VerifyStats, error)
 	// Close releases the session.
 	Close(ctx context.Context) error
 }

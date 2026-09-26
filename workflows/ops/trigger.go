@@ -57,6 +57,10 @@ func ScheduledOperationTrigger(ctx workflow.Context, in TriggerInput) (TriggerRe
 	}
 	if isAlreadyStarted(err) {
 		workflow.GetLogger(ctx).Info("scheduled operation skipped: application busy", "workflow_id", id)
+		// Recorded for operators (audit + alert); best effort.
+		actx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{StartToCloseTimeout: time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 3}})
+		_ = workflow.ExecuteActivity(actx, RecordSkipActivity, in.ApplicationID).Get(ctx, nil)
 		return TriggerResult{Outcome: OutcomeSkippedOverlap, WorkflowID: id}, nil
 	}
 	return TriggerResult{}, err
@@ -66,6 +70,10 @@ func isAlreadyStarted(err error) bool {
 	var started *temporal.ChildWorkflowExecutionAlreadyStartedError
 	return errors.As(err, &started)
 }
+
+// RecordSkipActivity is the activity (registered by the backup activities)
+// that records a skipped scheduled run.
+const RecordSkipActivity = "RecordScheduledSkip"
 
 // ScheduleTimeout bounds the trigger itself (not the operation it starts).
 const ScheduleTimeout = 5 * time.Minute

@@ -5,6 +5,7 @@ All notable changes to the `reposerver` component. Format: [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Added
+- Platform self-protection endpoints (Phase 9, ADR-0008) on the management API: `GET /v1/repository-password` (`{"password"}`, to rebuild escrow packages; 409 `not_initialized`), `GET /v1/state-export` (`application/x-tar`, members 0600: `repository-password`, `control-password`, `tls.crt`, `tls.key`, `repository.json`, `kopia/repository.config`; no caches or logs) and `POST /v1/state-import` (platform recovery: only while not initialized and without a repository password in the state dir, else 409 `already_initialized`/`state_present`; archive validated — expected names only, regular files, no traversal, matching repository ID, certificate/key pair — 400 `invalid_state`; storage guard applies and the storage must hold a repository; the Kopia config's storage path is set to this reposerver's; the password is verified with `repository status` and everything rolled back on failure; then served with the imported certificate, so clients keep their pinned fingerprint).
 - Component scaffold (Phase 1).
 - `dbr2-reposerver` storage-safety layer (ADR-0002): mount guard (active mount of the expected type, parsed from `/proc/self/mountinfo`), `.dbr2-repository-id` sentinel, `init`/`check`/`serve`/`healthcheck`/`version` subcommands, stall watchdog reporting a hung `hard` NFS mount on `/healthz`.
 - `DBR2_REPOSERVER_INIT_IF_EMPTY` (development profile only).

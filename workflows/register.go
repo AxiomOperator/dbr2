@@ -10,11 +10,12 @@ import (
 	"github.com/AxiomOperator/dbr2/workflows/diag"
 	"github.com/AxiomOperator/dbr2/workflows/hosts"
 	"github.com/AxiomOperator/dbr2/workflows/ops"
+	"github.com/AxiomOperator/dbr2/workflows/platform"
 	"github.com/AxiomOperator/dbr2/workflows/restore"
 )
 
 // Register adds all workflows and activities to w.
-func Register(w worker.Registry, diagActs *diag.Activities, hostActs *hosts.Activities, backupActs *backup.Activities, restoreActs *restore.Activities) {
+func Register(w worker.Registry, diagActs *diag.Activities, hostActs *hosts.Activities, backupActs *backup.Activities, restoreActs *restore.Activities, platformActs *platform.Activities) {
 	w.RegisterWorkflow(ops.ScheduledOperationTrigger)
 	w.RegisterWorkflow(diag.ApplicationSelfTest)
 	w.RegisterActivity(diagActs)
@@ -24,6 +25,8 @@ func Register(w worker.Registry, diagActs *diag.Activities, hostActs *hosts.Acti
 	}
 	w.RegisterWorkflow(backup.BackupWorkflow)
 	w.RegisterWorkflow(backup.OrphanGC)
+	w.RegisterWorkflow(backup.RetentionWorkflow)
+	w.RegisterWorkflow(backup.VerifyRepositoryWorkflow)
 	w.RegisterWorkflow(backup.Reindex)
 	if backupActs != nil {
 		w.RegisterActivity(backupActs)
@@ -31,5 +34,9 @@ func Register(w worker.Registry, diagActs *diag.Activities, hostActs *hosts.Acti
 	w.RegisterWorkflow(restore.RestoreWorkflow)
 	if restoreActs != nil {
 		w.RegisterActivity(restoreActs)
+	}
+	w.RegisterWorkflow(platform.PlatformProtectionWorkflow)
+	if platformActs != nil {
+		w.RegisterActivity(platformActs)
 	}
 }

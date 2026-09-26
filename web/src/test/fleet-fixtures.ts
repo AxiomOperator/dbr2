@@ -137,6 +137,7 @@ export const APP_SUMMARY = {
   criticality: null,
   last_seen_at: "2026-09-25T17:53:13.545478Z",
   missing_since: null,
+  policy_id: null,
   protection: {
     status: "at_risk",
     reasons: ["1 of 2 components are not in the latest recovery point"],

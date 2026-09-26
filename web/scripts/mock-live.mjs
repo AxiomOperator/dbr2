@@ -32,7 +32,7 @@ function protectionFor(app) {
     .filter((r) => r.application_id === app.id)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const ok = rps.find((r) => r.state === "committed");
-  const attempt = rps.find((r) => r.state !== "missing" && r.state !== "deleting");
+  const attempt = rps.find((r) => r.state !== "missing" && r.state !== "deleting" && r.state !== "deleted");
   const restoring = restoreData.runs.some(
     (r) => (r.application_id === app.id || r.target_application_id === app.id) && (r.state === "requested" || r.state === "running"),
   );
@@ -107,7 +107,8 @@ const BACKUP_JOB_STATE = { pending: "running", failed: "failed", missing: "missi
 const RESTORE_JOB_STATE = { requested: "running", running: "running", succeeded: "succeeded", failed: "failed", rolled_back: "rolled_back" };
 
 function backupJob(r) {
-  const state = r.state === "committed" ? (r.status === "partial" ? "partial" : "succeeded") : (BACKUP_JOB_STATE[r.state] ?? "failed");
+  const captured = r.state === "committed" || r.state === "deleting" || r.state === "deleted";
+  const state = captured ? (r.status === "partial" ? "partial" : "succeeded") : (BACKUP_JOB_STATE[r.state] ?? "failed");
   return {
     id: r.id,
     type: "backup",

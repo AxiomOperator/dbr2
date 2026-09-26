@@ -77,6 +77,10 @@ export const zAlertDto = z.object({
     type: z.string()
 });
 
+export const zAssignPolicyRequest = z.object({
+    policy_id: z.string().nullable()
+});
+
 export const zAuditEvent = z.object({
     actor_display: z.string(),
     actor_kind: z.enum([
@@ -132,6 +136,11 @@ export const zChange = z.object({
     path: z.string()
 });
 
+export const zChannelConfigDto = z.object({
+    to: z.array(z.string()).max(50).nullish(),
+    url: z.string().max(2000).optional()
+});
+
 export const zCodeInputBody = z.object({
     code: z.string().regex(/^[0-9]{6}$/)
 });
@@ -147,6 +156,10 @@ export const zCollision = z.object({
         'dependency'
     ]),
     name: z.string()
+});
+
+export const zCompleteEscrowDrillRequest = z.object({
+    confirmation_code: z.string().min(16).max(40)
 });
 
 export const zComponentCoverage = z.object({
@@ -170,6 +183,21 @@ export const zContainerRef = z.object({
     id: z.string(),
     name: z.string(),
     state: z.string()
+});
+
+export const zContractDto = z.object({
+    application_id: z.string(),
+    application_name: z.string().optional(),
+    evaluated_at: z.iso.datetime({ offset: true }).nullable(),
+    max_rpo_minutes: z.int().min(-2147483648, { error: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).nullable(),
+    required_components: z.array(z.string()).nullable(),
+    state: z.enum([
+        'satisfied',
+        'violated',
+        'unknown'
+    ]),
+    state_reasons: z.array(z.string()).nullable(),
+    violated_since: z.iso.datetime({ offset: true }).nullable()
 });
 
 export const zCookie = z.object({
@@ -199,6 +227,19 @@ export const zCreateApplicationResponse = z.object({
     id: z.string()
 });
 
+export const zCreateNotificationChannelRequest = z.object({
+    config: zChannelConfigDto,
+    enabled: z.boolean().optional().default(true),
+    events: z.array(z.string()).max(100).nullish(),
+    kind: z.enum(['email', 'webhook']),
+    min_severity: z.enum([
+        'info',
+        'warning',
+        'critical'
+    ]).optional().default('warning'),
+    name: z.string().min(1).max(100)
+});
+
 export const zCreateRegistrationTokenRequest = z.object({
     description: z.string().min(1).max(200),
     expires_in_hours: z.int().gte(1).lte(168).optional().default(24)
@@ -214,6 +255,16 @@ export const zCreateRepositoryRequest = z.object({
     server_url: z.string()
 });
 
+export const zDeleteRecoveryPointRequest = z.object({
+    confirmation: z.string(),
+    reason: z.string().min(3).max(500)
+});
+
+export const zDeleteRepositoryRequest = z.object({
+    confirmation: z.string(),
+    reason: z.string().min(3).max(500)
+});
+
 export const zDependency = z.object({
     detail: z.string(),
     kind: z.string(),
@@ -222,6 +273,14 @@ export const zDependency = z.object({
 
 export const zDiscoverAgentResponse = z.object({
     workflow_id: z.string()
+});
+
+export const zDrillDto = z.object({
+    completed_at: z.iso.datetime({ offset: true }).nullable(),
+    created_at: z.iso.datetime({ offset: true }),
+    id: z.string(),
+    package: z.string().optional(),
+    recipients: z.int()
 });
 
 export const zEnvVar = z.object({
@@ -235,6 +294,27 @@ export const zErrorDetail = z.object({
     location: z.string().optional(),
     message: z.string().optional(),
     value: z.unknown().optional()
+});
+
+export const zEscrowProblem = z.object({
+    code: z.enum([
+        'too_few_recipients',
+        'not_confirmed',
+        'recipients_changed',
+        'reconfirm_due',
+        'drill_due'
+    ]),
+    message: z.string(),
+    repository_id: z.string().optional(),
+    severity: z.enum(['critical', 'warning'])
+});
+
+export const zEscrowHealth = z.object({
+    checked_at: z.iso.datetime({ offset: true }),
+    healthy: z.boolean(),
+    last_drill_at: z.iso.datetime({ offset: true }).nullable(),
+    problems: z.array(zEscrowProblem).nullable(),
+    recipients: z.int()
 });
 
 export const zEscrowRecipientDto = z.object({
@@ -317,6 +397,11 @@ export const zBackupSettingsDto = z.object({
         'quiesced',
         'offline'
     ]).nullable(),
+    database_strategy: z.enum([
+        'logical',
+        'volume',
+        'both'
+    ]).optional(),
     effective_mode: z.string().readonly().optional(),
     excluded_components: z.array(z.string()).nullable(),
     max_quiesce_seconds: z.int().gte(60).lte(86400),
@@ -425,6 +510,14 @@ export const zListAlertsResponse = z.object({
     items: z.array(zAlertDto).nullable()
 });
 
+export const zListContractsResponse = z.object({
+    items: z.array(zContractDto).nullable()
+});
+
+export const zListEscrowDrillsResponse = z.object({
+    items: z.array(zDrillDto).nullable()
+});
+
 export const zListEscrowRecipientsResponse = z.object({
     items: z.array(zEscrowRecipientDto).nullable()
 });
@@ -500,6 +593,55 @@ export const zNetworkUse = z.object({
     name: z.string()
 });
 
+export const zNotificationChannelDto = z.object({
+    config: zChannelConfigDto,
+    created_at: z.iso.datetime({ offset: true }),
+    enabled: z.boolean(),
+    events: z.array(z.string()).nullable(),
+    id: z.string(),
+    kind: z.enum(['email', 'webhook']),
+    last_delivery_at: z.iso.datetime({ offset: true }).nullable(),
+    last_error: z.string().nullable(),
+    min_severity: z.enum([
+        'info',
+        'warning',
+        'critical'
+    ]),
+    name: z.string(),
+    secret_set: z.boolean(),
+    updated_at: z.iso.datetime({ offset: true })
+});
+
+export const zListNotificationChannelsResponse = z.object({
+    items: z.array(zNotificationChannelDto).nullable()
+});
+
+export const zNotificationDeliveryDto = z.object({
+    attempts: z.int().min(-2147483648, { error: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    created_at: z.iso.datetime({ offset: true }),
+    event_type: z.string(),
+    id: z.int(),
+    last_error: z.string().nullable(),
+    message: z.string(),
+    next_attempt_at: z.iso.datetime({ offset: true }).nullable(),
+    notification_id: z.int(),
+    sent_at: z.iso.datetime({ offset: true }).nullable(),
+    severity: z.enum([
+        'info',
+        'warning',
+        'critical'
+    ]),
+    state: z.enum([
+        'pending',
+        'sent',
+        'failed'
+    ])
+});
+
+export const zListNotificationDeliveriesResponse = z.object({
+    items: z.array(zNotificationDeliveryDto).nullable()
+});
+
 export const zPasswordInputBody = z.object({
     current_password: z.string().min(1).max(1024),
     new_password: z.string().min(1).max(1024)
@@ -508,6 +650,38 @@ export const zPasswordInputBody = z.object({
 export const zPathRemap = z.object({
     from: z.string(),
     to: z.string()
+});
+
+export const zPlatformBackupDto = z.object({
+    bundle_path: z.string().nullable(),
+    error: z.string().nullable(),
+    file_name: z.string().nullable(),
+    finished_at: z.iso.datetime({ offset: true }).nullable(),
+    id: z.string(),
+    manifest: z.unknown().optional(),
+    repository_id: z.string().nullable(),
+    sha256: z.string().nullable(),
+    size_bytes: z.int(),
+    snapshot_id: z.string().nullable(),
+    started_at: z.iso.datetime({ offset: true }),
+    state: z.enum([
+        'running',
+        'succeeded',
+        'partial',
+        'failed'
+    ]),
+    trigger: z.string(),
+    workflow_id: z.string().nullable()
+});
+
+export const zListPlatformBackupsResponse = z.object({
+    items: z.array(zPlatformBackupDto).nullable()
+});
+
+export const zPolicyApplicationDto = z.object({
+    host_id: z.string(),
+    id: z.string(),
+    name: z.string()
 });
 
 export const zPort = z.object({
@@ -677,6 +851,7 @@ export const zApplicationSummary = z.object({
     missing_since: z.iso.datetime({ offset: true }).nullable(),
     name: z.string(),
     owner: z.string().nullable(),
+    policy_id: z.string().nullable(),
     protection: zProtection.optional(),
     secrets_count: z.int(),
     services: z.int(),
@@ -704,6 +879,11 @@ export const zProvidersOutputBody = z.object({
     oidc: z.array(zProviderInfo).nullable()
 });
 
+export const zPutContractRequest = z.object({
+    max_rpo_minutes: z.int().gte(1).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional(),
+    required_components: z.array(z.string()).nullable()
+});
+
 export const zReasonInputBody = z.object({
     reason: z.string().min(1).max(500)
 });
@@ -721,6 +901,9 @@ export const zRecoveryPointDto = z.object({
     consistency_point: z.iso.datetime({ offset: true }).nullable(),
     crash_consistent_only: z.boolean(),
     created_at: z.iso.datetime({ offset: true }),
+    delete_after: z.iso.datetime({ offset: true }).nullable(),
+    delete_reason: z.string().nullable(),
+    deleted_at: z.iso.datetime({ offset: true }).nullable(),
     error: z.string().nullable(),
     host_id: z.string(),
     hostname: z.string(),
@@ -733,7 +916,8 @@ export const zRecoveryPointDto = z.object({
         'committed',
         'failed',
         'missing',
-        'deleting'
+        'deleting',
+        'deleted'
     ]),
     status: z.enum(['complete', 'partial']).nullable(),
     trigger: z.string(),
@@ -742,6 +926,8 @@ export const zRecoveryPointDto = z.object({
         'verified',
         'verification_failed'
     ]),
+    verification_details: z.unknown().optional(),
+    verified_at: z.iso.datetime({ offset: true }).nullable(),
     workflow_id: z.string()
 });
 
@@ -776,6 +962,8 @@ export const zRepositoryDto = z.object({
     backend: z.enum(['nfs', 'filesystem']),
     cert_sha256: z.string(),
     created_at: z.iso.datetime({ offset: true }),
+    delete_after: z.iso.datetime({ offset: true }).nullable(),
+    delete_reason: z.string().nullable(),
     description: z.string(),
     escrow_confirmed_at: z.iso.datetime({ offset: true }).nullable(),
     escrow_generated_at: z.iso.datetime({ offset: true }).nullable(),
@@ -783,8 +971,10 @@ export const zRepositoryDto = z.object({
     id: z.string(),
     internal_server_url: z.string(),
     is_default: z.boolean(),
+    is_system: z.boolean(),
     kopia_repository_id: z.string().nullable(),
     last_reindex_at: z.iso.datetime({ offset: true }).nullable(),
+    last_verified_at: z.iso.datetime({ offset: true }).nullable(),
     live: zLiveDto.nullable(),
     live_error: z.string().optional(),
     management_url: z.string(),
@@ -795,12 +985,19 @@ export const zRepositoryDto = z.object({
         'awaiting_escrow',
         'ready',
         'unavailable',
+        'pending_deletion',
         'retired'
     ]),
     usage_by_host: z.array(zHostUsageDto).nullable()
 });
 
 export const zCreatedRepoBody = z.object({
+    escrow_filename: z.string(),
+    escrow_package: z.string(),
+    repository: zRepositoryDto
+});
+
+export const zEscrowPkgOutBody = z.object({
     escrow_filename: z.string(),
     escrow_package: z.string(),
     repository: zRepositoryDto
@@ -867,6 +1064,76 @@ export const zRestoreUpdatedEvent = z.object({
     step: z.string().optional()
 });
 
+export const zRetentionDto = z.object({
+    keep_daily: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    keep_hourly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    keep_last: z.int().gte(1).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    keep_monthly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    keep_weekly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    keep_yearly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' })
+});
+
+export const zPolicyDto = z.object({
+    applications: z.int().min(-2147483648, { error: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    consistency_mode: z.string().nullable(),
+    created_at: z.iso.datetime({ offset: true }),
+    description: z.string(),
+    enabled: z.boolean(),
+    id: z.string(),
+    name: z.string(),
+    next_run: z.iso.datetime({ offset: true }).nullable(),
+    repository_id: z.string().nullable(),
+    retention: zRetentionDto,
+    schedule: z.string(),
+    timezone: z.string(),
+    updated_at: z.iso.datetime({ offset: true })
+});
+
+export const zListOutBody = z.object({
+    items: z.array(zPolicyDto).nullable()
+});
+
+export const zPolicyOutBody = z.object({
+    applications: z.int().min(-2147483648, { error: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    assigned_applications: z.array(zPolicyApplicationDto).nullable(),
+    consistency_mode: z.string().nullable(),
+    created_at: z.iso.datetime({ offset: true }),
+    description: z.string(),
+    enabled: z.boolean(),
+    id: z.string(),
+    name: z.string(),
+    next_run: z.iso.datetime({ offset: true }).nullable(),
+    repository_id: z.string().nullable(),
+    retention: zRetentionDto,
+    schedule: z.string(),
+    timezone: z.string(),
+    updated_at: z.iso.datetime({ offset: true })
+});
+
+export const zRetentionInput = z.object({
+    keep_daily: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional().default(14),
+    keep_hourly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional().default(0),
+    keep_last: z.int().gte(1).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional().default(7),
+    keep_monthly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional().default(12),
+    keep_weekly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional().default(8),
+    keep_yearly: z.int().gte(0).max(2147483647, { error: 'Invalid value: Expected int32 to be <= 2147483647' }).optional().default(0)
+});
+
+export const zPolicyBody = z.object({
+    consistency_mode: z.enum([
+        'live',
+        'quiesced',
+        'offline'
+    ]).optional(),
+    description: z.string().max(500).optional(),
+    enabled: z.boolean(),
+    name: z.string().min(1).max(100),
+    repository_id: z.string().optional(),
+    retention: zRetentionInput,
+    schedule: z.string(),
+    timezone: z.string().optional()
+});
+
 export const zRole = z.object({
     description: z.string(),
     display_name: z.string(),
@@ -885,6 +1152,21 @@ export const zRoleAssignment = z.object({
 
 export const zRolesOutputBody = z.object({
     items: z.array(zRole).nullable()
+});
+
+export const zSmtpSettingsDto = z.object({
+    configured: z.boolean(),
+    from: z.string(),
+    host: z.string(),
+    password_set: z.boolean(),
+    port: z.int(),
+    tls: z.enum([
+        'starttls',
+        'tls',
+        'none'
+    ]),
+    updated_at: z.iso.datetime({ offset: true }).nullable(),
+    username: z.string()
 });
 
 export const zService = z.object({
@@ -928,6 +1210,12 @@ export const zStatusBody = z.object({
     ])
 });
 
+export const zTestNotificationChannelResponse = z.object({
+    delivered: z.boolean(),
+    duration_ms: z.int(),
+    error: z.string().optional()
+});
+
 export const zTmpfsUse = z.object({
     container: z.string(),
     destination: z.string()
@@ -967,6 +1255,30 @@ export const zUpdateApplicationRequest = z.object({
     owner: z.string().max(200).optional()
 });
 
+export const zUpdateNotificationChannelRequest = z.object({
+    config: zChannelConfigDto,
+    enabled: z.boolean(),
+    events: z.array(z.string()).max(100).nullish(),
+    min_severity: z.enum([
+        'info',
+        'warning',
+        'critical'
+    ]).optional().default('warning'),
+    name: z.string().min(1).max(100)
+});
+
+export const zUpdateSmtpSettingsRequest = z.object({
+    from: z.string().min(3).max(320),
+    host: z.string().min(1).max(253),
+    port: z.int().gte(1).lte(65535),
+    tls: z.enum([
+        'starttls',
+        'tls',
+        'none'
+    ]),
+    username: z.string().max(200).optional()
+});
+
 export const zUser = z.object({
     disabled: z.boolean(),
     display_name: z.string(),
@@ -980,6 +1292,11 @@ export const zUser = z.object({
 
 export const zUsersOutputBody = z.object({
     items: z.array(zUser).nullable()
+});
+
+export const zVerifyRepositoryRequest = z.object({
+    read_percent: z.number().gte(0).lte(100).optional(),
+    recovery_point_id: z.string().optional()
 });
 
 export const zVersionBody = z.object({
@@ -1069,6 +1386,7 @@ export const zApplicationDetail = z.object({
     missing_since: z.iso.datetime({ offset: true }).nullable(),
     name: z.string(),
     owner: z.string().nullable(),
+    policy_id: z.string().nullable(),
     protection: zProtection.optional(),
     secrets_count: z.int(),
     services: z.int(),
@@ -1091,12 +1409,57 @@ export const zBackupSettingsDtoWritable = z.object({
         'quiesced',
         'offline'
     ]).nullable(),
+    database_strategy: z.enum([
+        'logical',
+        'volume',
+        'both'
+    ]).optional(),
     excluded_components: z.array(z.string()).nullable(),
     max_quiesce_seconds: z.int().gte(60).lte(86400),
     optional_components: z.array(z.string()).nullable(),
     post_hooks: z.array(zHookDto).nullable(),
     pre_hooks: z.array(zHookDto).nullable(),
     repository_id: z.string().nullable()
+});
+
+export const zCreateNotificationChannelRequestWritable = z.object({
+    config: zChannelConfigDto,
+    enabled: z.boolean().optional().default(true),
+    events: z.array(z.string()).max(100).nullish(),
+    kind: z.enum(['email', 'webhook']),
+    min_severity: z.enum([
+        'info',
+        'warning',
+        'critical'
+    ]).optional().default('warning'),
+    name: z.string().min(1).max(100),
+    secret: z.string().max(500).optional()
+});
+
+export const zUpdateNotificationChannelRequestWritable = z.object({
+    config: zChannelConfigDto,
+    enabled: z.boolean(),
+    events: z.array(z.string()).max(100).nullish(),
+    min_severity: z.enum([
+        'info',
+        'warning',
+        'critical'
+    ]).optional().default('warning'),
+    name: z.string().min(1).max(100),
+    secret: z.string().max(500).optional()
+});
+
+export const zUpdateSmtpSettingsRequestWritable = z.object({
+    from: z.string().min(3).max(320),
+    host: z.string().min(1).max(253),
+    password: z.string().max(500).optional(),
+    port: z.int().gte(1).lte(65535),
+    tls: z.enum([
+        'starttls',
+        'tls',
+        'none'
+    ]),
+    username: z.string().max(200).optional()
 });
 
 /**
@@ -1320,6 +1683,46 @@ export const zGetApplicationComposeQuery = z.object({
  */
 export const zGetApplicationComposeResponse = zComposeDto;
 
+export const zDeleteContractPath = z.object({
+    id: z.string()
+});
+
+/**
+ * No Content
+ */
+export const zDeleteContractResponse = z.void();
+
+export const zGetContractPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zGetContractResponse = zContractDto;
+
+export const zPutContractBody = zPutContractRequest;
+
+export const zPutContractPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zPutContractResponse = zContractDto;
+
+export const zAssignPolicyBody = zAssignPolicyRequest;
+
+export const zAssignPolicyPath = z.object({
+    id: z.string()
+});
+
+/**
+ * No Content
+ */
+export const zAssignPolicyResponse = z.void();
+
 export const zListAuditEventsQuery = z.object({
     limit: z.int().gte(1).lte(200).optional().default(50),
     cursor: z.string().optional(),
@@ -1410,6 +1813,37 @@ export const zListContainersQuery = z.object({
  * OK
  */
 export const zListContainersResponse2 = zListContainersResponse;
+
+/**
+ * OK
+ */
+export const zListContractsResponse2 = zListContractsResponse;
+
+/**
+ * OK
+ */
+export const zListEscrowDrillsResponse2 = zListEscrowDrillsResponse;
+
+/**
+ * Created
+ */
+export const zStartEscrowDrillResponse = zDrillDto;
+
+export const zCompleteEscrowDrillBody = zCompleteEscrowDrillRequest;
+
+export const zCompleteEscrowDrillPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zCompleteEscrowDrillResponse = zDrillDto;
+
+/**
+ * OK
+ */
+export const zGetEscrowHealthResponse = zEscrowHealth;
 
 /**
  * OK
@@ -1512,6 +1946,69 @@ export const zListJobsResponse2 = zListJobsResponse;
 /**
  * OK
  */
+export const zListNotificationChannelsResponse2 = zListNotificationChannelsResponse;
+
+export const zCreateNotificationChannelBody = zCreateNotificationChannelRequestWritable;
+
+/**
+ * Created
+ */
+export const zCreateNotificationChannelResponse = zNotificationChannelDto;
+
+export const zDeleteNotificationChannelPath = z.object({
+    id: z.string()
+});
+
+/**
+ * No Content
+ */
+export const zDeleteNotificationChannelResponse = z.void();
+
+export const zGetNotificationChannelPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zGetNotificationChannelResponse = zNotificationChannelDto;
+
+export const zUpdateNotificationChannelBody = zUpdateNotificationChannelRequestWritable;
+
+export const zUpdateNotificationChannelPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zUpdateNotificationChannelResponse = zNotificationChannelDto;
+
+export const zListNotificationDeliveriesPath = z.object({
+    id: z.string()
+});
+
+export const zListNotificationDeliveriesQuery = z.object({
+    limit: z.int().gte(1).lte(500).optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zListNotificationDeliveriesResponse2 = zListNotificationDeliveriesResponse;
+
+export const zTestNotificationChannelPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTestNotificationChannelResponse2 = zTestNotificationChannelResponse;
+
+/**
+ * OK
+ */
 export const zListGroupMappingsResponse = zMappingsOutputBody;
 
 export const zAddGroupMappingBody = zGroupMapping;
@@ -1528,6 +2025,61 @@ export const zRemoveGroupMappingBody = zGroupMapping;
  */
 export const zRemoveGroupMappingResponse = z.void();
 
+export const zListPlatformBackupsQuery = z.object({
+    limit: z.int().gte(1).lte(500).optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zListPlatformBackupsResponse2 = zListPlatformBackupsResponse;
+
+/**
+ * Accepted
+ */
+export const zStartPlatformBackupResponse = zWorkflowOutBody;
+
+/**
+ * OK
+ */
+export const zListPoliciesResponse = zListOutBody;
+
+export const zCreatePolicyBody = zPolicyBody;
+
+/**
+ * Created
+ */
+export const zCreatePolicyResponse = zPolicyDto;
+
+export const zDeletePolicyPath = z.object({
+    id: z.string()
+});
+
+/**
+ * No Content
+ */
+export const zDeletePolicyResponse = z.void();
+
+export const zGetPolicyPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zGetPolicyResponse = zPolicyOutBody;
+
+export const zUpdatePolicyBody = zPolicyBody;
+
+export const zUpdatePolicyPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zUpdatePolicyResponse = zPolicyDto;
+
 export const zListRecoveryPointsQuery = z.object({
     application_id: z.string().optional(),
     state: z.enum([
@@ -1535,7 +2087,8 @@ export const zListRecoveryPointsQuery = z.object({
         'committed',
         'failed',
         'missing',
-        'deleting'
+        'deleting',
+        'deleted'
     ]).optional(),
     limit: z.int().gte(1).lte(500).optional().default(100)
 });
@@ -1553,6 +2106,17 @@ export const zGetRecoveryPointPath = z.object({
  * OK
  */
 export const zGetRecoveryPointResponse = zRecoveryPointDto;
+
+export const zDeleteRecoveryPointBody = zDeleteRecoveryPointRequest;
+
+export const zDeleteRecoveryPointPath = z.object({
+    id: z.string().regex(/^rp_[0-9A-HJKMNP-TV-Z]{26}$/)
+});
+
+/**
+ * OK
+ */
+export const zDeleteRecoveryPointResponse = zRecoveryPointDto;
 
 export const zPreviewRestoreBody = zRestoreBody;
 
@@ -1576,6 +2140,15 @@ export const zStartRestorePath = z.object({
  */
 export const zStartRestoreResponse = zRestoreRunDto;
 
+export const zUndeleteRecoveryPointPath = z.object({
+    id: z.string().regex(/^rp_[0-9A-HJKMNP-TV-Z]{26}$/)
+});
+
+/**
+ * OK
+ */
+export const zUndeleteRecoveryPointResponse = zRecoveryPointDto;
+
 /**
  * OK
  */
@@ -1597,6 +2170,17 @@ export const zGetRepositoryPath = z.object({
  */
 export const zGetRepositoryResponse = zRepositoryDto;
 
+export const zDeleteRepositoryBody = zDeleteRepositoryRequest;
+
+export const zDeleteRepositoryPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zDeleteRepositoryResponse = zRepositoryDto;
+
 export const zGetRepositoryEscrowPackagePath = z.object({
     id: z.string()
 });
@@ -1617,6 +2201,15 @@ export const zConfirmRepositoryEscrowPath = z.object({
  */
 export const zConfirmRepositoryEscrowResponse = zRepositoryDto;
 
+export const zRegenerateRepositoryEscrowPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zRegenerateRepositoryEscrowResponse = zEscrowPkgOutBody;
+
 export const zReindexRepositoryPath = z.object({
     id: z.string()
 });
@@ -1625,6 +2218,35 @@ export const zReindexRepositoryPath = z.object({
  * Accepted
  */
 export const zReindexRepositoryResponse = zWorkflowOutBody;
+
+export const zDesignateSystemRepositoryPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zDesignateSystemRepositoryResponse = zRepositoryDto;
+
+export const zUndeleteRepositoryPath = z.object({
+    id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zUndeleteRepositoryResponse = zRepositoryDto;
+
+export const zVerifyRepositoryBody = zVerifyRepositoryRequest;
+
+export const zVerifyRepositoryPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Accepted
+ */
+export const zVerifyRepositoryResponse = zWorkflowOutBody;
 
 export const zListRestoresQuery = z.object({
     application_id: z.string().optional(),
@@ -1660,6 +2282,18 @@ export const zCancelRestorePath = z.object({
  * OK
  */
 export const zListRolesResponse = zRolesOutputBody;
+
+/**
+ * OK
+ */
+export const zGetSmtpSettingsResponse = zSmtpSettingsDto;
+
+export const zUpdateSmtpSettingsBody = zUpdateSmtpSettingsRequestWritable;
+
+/**
+ * OK
+ */
+export const zUpdateSmtpSettingsResponse = zSmtpSettingsDto;
 
 /**
  * OK

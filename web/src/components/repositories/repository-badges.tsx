@@ -3,9 +3,11 @@
 
 import {
   ArchiveIcon,
+  CalendarClockIcon,
   CircleCheckIcon,
   CircleXIcon,
   KeyRoundIcon,
+  ServerCogIcon,
   StarIcon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -19,6 +21,7 @@ export const REPOSITORY_STATUS_LABEL: Record<RepositoryStatus, string> = {
   awaiting_escrow: "Escrow not confirmed",
   ready: "Ready",
   unavailable: "Unavailable",
+  pending_deletion: "Pending deletion",
   retired: "Retired",
 };
 
@@ -45,6 +48,12 @@ export function RepositoryStatusBadge({ status }: { status: RepositoryStatus }) 
           <CircleXIcon aria-hidden="true" /> {REPOSITORY_STATUS_LABEL.unavailable}
         </Badge>
       );
+    case "pending_deletion":
+      return (
+        <Badge variant="outline" className={AMBER}>
+          <CalendarClockIcon aria-hidden="true" /> {REPOSITORY_STATUS_LABEL.pending_deletion}
+        </Badge>
+      );
     case "retired":
       return (
         <Badge variant="outline">
@@ -58,6 +67,15 @@ export function DefaultBadge() {
   return (
     <Badge variant="outline">
       <StarIcon aria-hidden="true" /> Default
+    </Badge>
+  );
+}
+
+/** The System Repository receives the platform self-backup (ADR-0008). */
+export function SystemBadge() {
+  return (
+    <Badge variant="outline" title="Receives the platform self-backup (Platform Recovery Bundle)">
+      <ServerCogIcon aria-hidden="true" /> System Repository
     </Badge>
   );
 }

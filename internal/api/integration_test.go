@@ -32,6 +32,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/gateway"
 	"github.com/AxiomOperator/dbr2/internal/inventory"
+	"github.com/AxiomOperator/dbr2/internal/protection"
 	"github.com/AxiomOperator/dbr2/internal/store"
 	"github.com/AxiomOperator/dbr2/internal/testutil"
 )
@@ -44,6 +45,7 @@ type env struct {
 	srv    *httptest.Server
 	idp    *testutil.FakeOIDC
 	bus    *events.Bus
+	prot   *protection.Service
 	adminU string
 	adminP string
 }
@@ -87,8 +89,9 @@ func newEnv(t *testing.T, rateLimit int) *env {
 	fl := fleet.New(fleet.Options{OrgID: uuid.MustParse(db.DefaultOrgID), GatewayAddress: "dbr2.example.lan:8443", TaskQueue: "q"}, pool, rec, e.gw, box, nil)
 	e.bus = events.NewBus(log)
 	e.gw.SetEvents(e.bus)
+	e.prot = protection.New(protection.Options{OrgID: uuid.MustParse(db.DefaultOrgID), TaskQueue: "q", Log: log}, pool, rec, fl, e.gw, nil)
 	e.srv.Config.Handler = api.NewHandler(&api.Deps{
-		Auth: svc, Fleet: fl, Events: e.bus, Log: log, WebLoginPath: "/login", PublicURL: e.srv.URL, AllowedOrigins: []string{e.srv.URL},
+		Auth: svc, Fleet: fl, Protection: e.prot, Events: e.bus, Log: log, WebLoginPath: "/login", PublicURL: e.srv.URL, AllowedOrigins: []string{e.srv.URL},
 		Ready: []api.ReadyCheck{{Name: "postgres", Critical: true, Check: pool.Ping}},
 	})
 	return e
@@ -581,4 +584,104 @@ func TestEventStream(t *testing.T) {
 	if ev, _ := next(all); ev != "agent.status" {
 		t.Fatalf("got %s", ev)
 	}
+}
+
+// TestPoliciesContractsAndDeletionGrace covers Phase 7 over the API with a
+// real database: policies (validation, presets, assignment), recovery
+// contracts (evaluation and alert), deletion with a grace period and
+// undelete, and escrow health.
+func TestPoliciesContractsAndDeletionGrace(t *testing.T) {
+	e := newEnv(t, 100)
+	ctx := context.Background()
+	admin := e.browser()
+	admin.expect(200, "POST", "/api/v1/auth/login", map[string]any{"username": "dbr2-admin", "password": e.adminP})
+	q := store.New(e.pool)
+	org := uuid.MustParse(db.DefaultOrgID)
+
+	admin.expect(400, "POST", "/api/v1/policies", map[string]any{"name": "bad", "schedule": "every tuesday", "enabled": true, "retention": map[string]any{"keep_last": 3}})
+	r := admin.expect(201, "POST", "/api/v1/policies", map[string]any{"name": "nightly", "schedule": "daily", "timezone": "America/Chicago",
+		"enabled": true, "retention": map[string]any{"keep_last": 3, "keep_daily": 7}})
+	pid := r.body["id"].(string)
+	if r.body["schedule"] != "0 1 * * *" {
+		t.Fatalf("preset not normalized: %v", r.body["schedule"])
+	}
+	admin.expect(409, "POST", "/api/v1/policies", map[string]any{"name": "nightly", "schedule": "hourly", "enabled": true, "retention": map[string]any{"keep_last": 1}})
+
+	// An application with a committed recovery point in a repository.
+	ag, err := q.CreateAgent(ctx, store.CreateAgentParams{OrgID: org, Hostname: "docker-01", AgentVersion: "0.1.0.3", ProtocolVersion: "0.1.0.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv := inventory.Inventory{SchemaVersion: 1, CollectedAt: time.Now().UTC(), Containers: []inventory.Container{
+		{ID: "a", Name: "shop-web-1", Image: "nginx", State: "running", Labels: map[string]string{inventory.LabelProject: "shop", inventory.LabelService: "web"}}}}
+	data, _ := json.Marshal(inv)
+	if _, err := e.gw.IngestInventory(ctx, ag.ID.String(), data); err != nil {
+		t.Fatal(err)
+	}
+	apps := admin.expect(200, "GET", "/api/v1/applications", nil).body["items"].([]any)
+	appID := apps[0].(map[string]any)["id"].(string)
+	admin.expect(204, "PUT", "/api/v1/applications/"+appID+"/policy", map[string]any{"policy_id": pid})
+	if got := admin.expect(200, "GET", "/api/v1/policies/"+pid, nil).body; got["applications"].(float64) != 1 || got["next_run"] == nil {
+		t.Fatalf("policy detail: %v", got)
+	}
+	repo, err := q.CreateRepository(ctx, store.CreateRepositoryParams{OrgID: org, Name: "primary", Backend: "filesystem",
+		ManagementUrl: "http://x:8091", ServerUrl: "https://x:51515", EscrowPackage: []byte("x"), EscrowConfirmHash: []byte("x"),
+		EscrowRecipientIds: []uuid.UUID{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rpID := "rp_01M3DPAYMGY0YBB76WN3J4EXQ8"
+	if _, err := q.CreateRecoveryPoint(ctx, store.CreateRecoveryPointParams{ID: rpID, OrgID: org, RepositoryID: repo.ID,
+		ApplicationID: uuid.MustParse(appID), ApplicationName: "shop", AgentID: ag.ID, Hostname: "docker-01", ConsistencyMode: "live",
+		Trigger: "manual", WorkflowID: "application/" + appID, RunID: "r1"}); err != nil {
+		t.Fatal(err)
+	}
+	st := "complete"
+	cp := time.Now().Add(-3 * time.Hour)
+	if _, err := q.CommitRecoveryPoint(ctx, store.CommitRecoveryPointParams{ID: rpID, Status: &st, ConsistencyMode: "live", ConsistencyPoint: &cp,
+		Manifest: []byte(`{"components":[{"name":"config","status":"succeeded"}]}`)}); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = e.pool.Exec(ctx, "UPDATE recovery_points SET created_at = $2 WHERE id = $1", rpID, cp)
+
+	// Contract: 60-minute RPO is violated by a 3-hour-old recovery point.
+	c := admin.expect(200, "PUT", "/api/v1/applications/"+appID+"/contract", map[string]any{"max_rpo_minutes": 60, "required_components": []string{"config"}}).body
+	if c["state"] != "violated" || len(c["state_reasons"].([]any)) != 1 {
+		t.Fatalf("contract: %v", c)
+	}
+	var alerts int
+	_ = e.pool.QueryRow(ctx, "SELECT count(*) FROM notification_outbox WHERE event_type = 'contract.violated'").Scan(&alerts)
+	if alerts != 1 {
+		t.Fatalf("violation alerts = %d", alerts)
+	}
+	c = admin.expect(200, "PUT", "/api/v1/applications/"+appID+"/contract", map[string]any{"max_rpo_minutes": 600, "required_components": []string{"config"}}).body
+	if c["state"] != "satisfied" {
+		t.Fatalf("contract after widening: %v", c)
+	}
+
+	// Deletion with grace: typed confirmation and reason required; undo works.
+	admin.expect(400, "POST", "/api/v1/recovery-points/"+rpID+"/delete", map[string]any{"confirmation": "nope", "reason": "cleanup"})
+	d := admin.expect(200, "POST", "/api/v1/recovery-points/"+rpID+"/delete", map[string]any{"confirmation": "shop", "reason": "cleanup"}).body
+	if d["delete_after"] == nil || d["state"] != "committed" {
+		t.Fatalf("scheduled: %v", d)
+	}
+	admin.expect(409, "POST", "/api/v1/recovery-points/"+rpID+"/delete", map[string]any{"confirmation": "shop", "reason": "cleanup"})
+	if u := admin.expect(200, "POST", "/api/v1/recovery-points/"+rpID+"/undelete", nil).body; u["delete_after"] != nil {
+		t.Fatalf("undelete: %v", u)
+	}
+
+	// Repository deletion grace and escrow health.
+	admin.expect(400, "POST", "/api/v1/repositories/"+repo.ID.String()+"/delete", map[string]any{"confirmation": "wrong", "reason": "moving"})
+	if rr := admin.expect(200, "POST", "/api/v1/repositories/"+repo.ID.String()+"/delete", map[string]any{"confirmation": "primary", "reason": "moving"}).body; rr["status"] != "pending_deletion" {
+		t.Fatalf("repo deletion: %v", rr)
+	}
+	if rr := admin.expect(200, "POST", "/api/v1/repositories/"+repo.ID.String()+"/undelete", nil).body; rr["status"] != "awaiting_escrow" {
+		t.Fatalf("repo undelete: %v", rr)
+	}
+	h := admin.expect(200, "GET", "/api/v1/escrow/health", nil).body
+	if h["healthy"] != false || len(h["problems"].([]any)) < 2 {
+		t.Fatalf("escrow health: %v", h)
+	}
+	admin.expect(409, "POST", "/api/v1/escrow/drills", nil) // no recipients yet
+	admin.expect(204, "DELETE", "/api/v1/policies/"+pid, nil)
 }

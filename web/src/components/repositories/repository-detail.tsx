@@ -7,11 +7,17 @@ import type { ReactNode } from "react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { CopyButton } from "@/components/common/copy-button";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
+import { ReconfirmEscrowDialog, RegenerateEscrowDialog } from "@/components/repositories/escrow-health";
 import {
+  canDeleteRepository,
+  DeleteRepositoryButton,
+  DesignateSystemButton,
   DownloadEscrowButton,
   EscrowConfirmForm,
   EscrowInstructions,
   ReindexButton,
+  RepositoryDeletionBanner,
+  VerifyButton,
 } from "@/components/repositories/repository-actions";
 import {
   BACKEND_LABEL,
@@ -19,6 +25,7 @@ import {
   DefaultBadge,
   Fingerprint,
   RepositoryStatusBadge,
+  SystemBadge,
 } from "@/components/repositories/repository-badges";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
@@ -62,6 +69,9 @@ function RepositoryCard({ repo }: { repo: Repository }) {
           </Field>
           <Field label="Backend">{BACKEND_LABEL[repo.backend]}</Field>
           <Field label="Default">{repo.is_default ? "Yes" : "No"}</Field>
+          <Field label="System Repository">
+            {repo.is_system ? "Yes: receives the platform self-backup" : "No"}
+          </Field>
           <Field label="Server URL">{mono(repo.server_url)}</Field>
           <Field label="Internal server URL">
             {repo.internal_server_url ? (
@@ -86,6 +96,12 @@ function RepositoryCard({ repo }: { repo: Repository }) {
               ? `${formatRelative(repo.last_reindex_at)} (${formatDateTime(repo.last_reindex_at)})`
               : "Never"}
           </Field>
+          <Field label="Last verified">
+            {repo.last_verified_at
+              ? `${formatRelative(repo.last_verified_at)} (${formatDateTime(repo.last_verified_at)})`
+              : "Never"}
+          </Field>
+          {repo.delete_after && <Field label="Retired after">{formatDateTime(repo.delete_after)}</Field>}
           <Field label="Created">{formatDateTime(repo.created_at)}</Field>
           <Field label="Repository ID">
             <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -260,6 +276,7 @@ function RepositoryDetailBody({ id }: { id: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryStatusBadge status={r.status} />
             {r.is_default && <DefaultBadge />}
+            {r.is_system && <SystemBadge />}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -270,12 +287,28 @@ function RepositoryDetailBody({ id }: { id: string }) {
           )}
           {canManage && (
             <>
-              <ReindexButton repo={r} size="sm" />
+              {r.status !== "pending_deletion" && r.status !== "retired" && <ReindexButton repo={r} size="sm" />}
+              {r.status === "ready" && <VerifyButton repositoryId={r.id} label={r.name} />}
               {r.status !== "awaiting_escrow" && <DownloadEscrowButton repo={r} size="sm" />}
+              <DesignateSystemButton repo={r} size="sm" />
+              {canDeleteRepository(r) && <DeleteRepositoryButton repo={r} />}
             </>
           )}
         </div>
       </div>
+      <RepositoryDeletionBanner repo={r} canManage={canManage} />
+      {canManage && r.status !== "awaiting_escrow" && r.status !== "retired" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm" aria-label="Key escrow">
+          <span className="text-muted-foreground">
+            Key escrow:{" "}
+            {r.escrow_confirmed_at
+              ? `confirmed ${formatRelative(r.escrow_confirmed_at)}`
+              : "the current package is not confirmed"}
+          </span>
+          <ReconfirmEscrowDialog repo={r} />
+          <RegenerateEscrowDialog repo={r} />
+        </div>
+      )}
       {r.status === "awaiting_escrow" &&
         (canManage ? (
           <EscrowCard repo={r} />

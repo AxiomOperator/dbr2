@@ -8,6 +8,7 @@ All notable changes to the `deployment` component. Format: [Keep a Changelog](ht
 - `compose.dev.yaml` builds with `network: host`: on hosts using systemd-resolved with an IPv6 upstream resolver, the default build network could not resolve DNS and `make dev-up` failed in `go mod download` / `npm ci`.
 
 ### Added
+- dbr2-worker: platform bundle directory bind mount `${DBR2_PLATFORM_BUNDLE_HOST_PATH:-./platform-bundles}:/var/lib/dbr2/platform-bundles` (a separate NFS export or directory that is not part of any Repository; owned by uid 65532) and `DBR2_PLATFORM_BUNDLE_KEEP` / `DBR2_PLATFORM_BACKUP_CRON`; dev compose runs the worker as the host user with `.dev/platform-bundles` (pre-created by `make dev-up`).
 - dbr2-reposerver: state volume, internal token, `DBR2_REPOSERVER_TLS_NAMES`, Kopia server published on `${DBR2_REPOSERVER_PORT:-51515}` (dev: loopback only), `stop_grace_period: 30s`; `make dev-up` pre-creates `.dev/reposerver-state`.
 - Root `.dockerignore`: `.dev`, secrets, `.env`, build output and `node_modules` no longer enter the service build context.
 - README: Repository creation with key escrow and first backup; `docs/operations/nas-snapshots.md` (NFS export, mount options, snapshot schedule, restore and verification).

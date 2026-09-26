@@ -71,10 +71,14 @@ func (s *Service) readyToBackUp(ctx context.Context, app fleet.Application) erro
 	if err != nil {
 		return err
 	}
+	pol := s.policyFor(ctx, s.q, app.Record.PolicyID)
 	var repo store.Repository
-	if set.RepositoryID != nil {
+	switch {
+	case set.RepositoryID != nil:
 		repo, err = s.q.GetRepositoryByID(ctx, *set.RepositoryID)
-	} else {
+	case pol != nil && pol.RepositoryID != nil:
+		repo, err = s.q.GetRepositoryByID(ctx, *pol.RepositoryID)
+	default:
 		repo, err = s.q.GetDefaultRepository(ctx, s.opts.OrgID)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -226,8 +230,25 @@ func buildPlan(app fleet.Application, agent fleet.Agent, set BackupSettings) (*p
 	}
 	add(p, &agentv1.ComponentSpec{Name: "config", Kind: agentv1.ComponentKind_COMPONENT_KIND_CONFIG, Path: x.WorkingDir,
 		Files: files, MetadataJson: metaJSON, ContainerIds: p.containerIDs})
+
+	// Databases (Phase 8): online logical dumps, and per strategy the
+	// database containers' own volumes are skipped (logical) or kept.
+	dbs := detectDatabases(x, inv)
+	dbMounts := map[string]bool{} // volume names / bind sources owned only by database containers
+	if set.DatabaseStrategy != StrategyVolume {
+		for _, d := range dbs {
+			add(p, &agentv1.ComponentSpec{Name: "database:" + d.name, Kind: agentv1.ComponentKind_COMPONENT_KIND_DATABASE,
+				Database: &agentv1.DatabaseSpec{Engine: d.engine, Format: d.format, ContainerId: d.containerID, Service: d.service,
+					User: d.user, IncludeAof: d.engine == EngineRedis}})
+		}
+	}
+	if set.DatabaseStrategy == StrategyLogical {
+		for k := range exclusiveMounts(dbs, inv, p.containerIDs) {
+			dbMounts[k] = true
+		}
+	}
 	for _, v := range x.Volumes {
-		if !v.Protected || v.Mountpoint == "" {
+		if !v.Protected || v.Mountpoint == "" || dbMounts["volume:"+v.Name] {
 			continue
 		}
 		add(p, &agentv1.ComponentSpec{Name: "volume:" + v.Name, Kind: agentv1.ComponentKind_COMPONENT_KIND_VOLUME,
@@ -235,7 +256,7 @@ func buildPlan(app fleet.Application, agent fleet.Agent, set BackupSettings) (*p
 	}
 	seen := map[string]bool{}
 	for _, b := range x.BindMounts {
-		if b.Source == "" || seen[b.Source] || skipBind(b.Source) {
+		if b.Source == "" || seen[b.Source] || skipBind(b.Source) || dbMounts["bind:"+b.Source] {
 			continue
 		}
 		seen[b.Source] = true
@@ -339,4 +360,127 @@ func deref(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// Database engines and dump formats (ADR-0017).
+const (
+	EnginePostgres = "postgresql"
+	EngineRedis    = "redis"
+	FormatPGDump   = "pg_dumpall-sql-zstd"
+	FormatRDB      = "rdb"
+)
+
+type detectedDB struct {
+	name, engine, format, containerID, service, user string
+}
+
+// databaseEngine recognizes PostgreSQL and Redis-compatible images by
+// repository name (postgres, postgis/postgis, timescale/timescaledb,
+// bitnami/postgresql, redis, bitnami/redis, valkey/valkey, redis/redis-stack…).
+func databaseEngine(image string) string {
+	ref := strings.ToLower(image)
+	if i := strings.LastIndex(ref, "@"); i >= 0 {
+		ref = ref[:i]
+	}
+	if i := strings.LastIndex(ref, ":"); i > strings.LastIndex(ref, "/") {
+		ref = ref[:i]
+	}
+	name := ref[strings.LastIndex(ref, "/")+1:]
+	for _, tool := range []string{"exporter", "pgadmin", "pgbouncer", "pgpool", "commander", "insight", "backup", "operator", "sentinel-ui", "-ui"} {
+		if strings.Contains(name, tool) {
+			return "" // tooling around a database, not the database
+		}
+	}
+	switch {
+	case strings.Contains(name, "postgres") || strings.Contains(name, "postgis") || strings.Contains(name, "timescaledb"):
+		return EnginePostgres
+	case strings.HasPrefix(name, "redis") || strings.HasPrefix(name, "valkey") || strings.Contains(name, "keydb"):
+		return EngineRedis
+	}
+	return ""
+}
+
+// detectDatabases finds the application's database containers.
+func detectDatabases(x *inventory.Application, inv *inventory.Inventory) []detectedDB {
+	byID := map[string]inventory.Container{}
+	if inv != nil {
+		for _, c := range inv.Containers {
+			byID[c.ID] = c
+		}
+	}
+	var out []detectedDB
+	for _, svc := range x.Services {
+		for i, ref := range svc.Containers {
+			image := svc.Image
+			c, ok := byID[ref.ID]
+			if ok && c.Image != "" {
+				image = c.Image
+			}
+			engine := databaseEngine(image)
+			if engine == "" {
+				continue
+			}
+			d := detectedDB{name: svc.Name, engine: engine, containerID: strings.TrimPrefix(ref.Name, "/"), service: svc.Name}
+			if len(svc.Containers) > 1 {
+				d.name = fmt.Sprintf("%s-%d", svc.Name, i+1)
+			}
+			if engine == EnginePostgres {
+				d.format = FormatPGDump
+				for _, e := range c.Env {
+					if e.Key == "POSTGRES_USER" && !e.Sensitive && e.Value != "" {
+						d.user = e.Value
+					}
+				}
+			} else {
+				d.format = FormatRDB
+			}
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// exclusiveMounts returns the volumes and bind sources mounted only by
+// database containers ("volume:<name>" / "bind:<source>").
+func exclusiveMounts(dbs []detectedDB, inv *inventory.Inventory, appContainers []string) map[string]bool {
+	if inv == nil || len(dbs) == 0 {
+		return nil
+	}
+	isDB := map[string]bool{}
+	for _, d := range dbs {
+		isDB[d.containerID] = true
+	}
+	inApp := map[string]bool{}
+	for _, id := range appContainers {
+		inApp[id] = true
+	}
+	owners := map[string]map[bool]bool{} // mount → {db?: true}
+	for _, c := range inv.Containers {
+		if !inApp[c.ID] {
+			continue
+		}
+		db := isDB[strings.TrimPrefix(c.Name, "/")]
+		for _, m := range c.Mounts {
+			key := ""
+			switch m.Type {
+			case "volume":
+				key = "volume:" + m.Name
+			case "bind":
+				key = "bind:" + m.Source
+			default:
+				continue
+			}
+			if owners[key] == nil {
+				owners[key] = map[bool]bool{}
+			}
+			owners[key][db] = true
+		}
+	}
+	out := map[string]bool{}
+	for k, o := range owners {
+		if o[true] && !o[false] {
+			out[k] = true
+		}
+	}
+	return out
 }

@@ -479,7 +479,7 @@ func TestSnapshotComponents(t *testing.T) {
 		!fm.Required || fm.Status != manifest.ComponentSucceeded || fm.FileName != fsmeta.FileName || v.FileName != "" {
 		t.Fatalf("fsmeta %+v", fm)
 	}
-	if db.Status != manifest.ComponentSkipped || db.Error != "not supported until Phase 8" {
+	if db.Status != manifest.ComponentFailed || !strings.Contains(db.Error, "no database spec") {
 		t.Fatalf("database %+v", db)
 	}
 

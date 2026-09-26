@@ -7,19 +7,28 @@
 //
 // Seed data:
 //   escrow        two recipients (an age key and an SSH key)
-//   repositories  nas01-backups (ready, default, NFS, healthy),
+//   repositories  nas01-backups (ready, default, System Repository, NFS,
+//                 healthy; its escrow package predates a recipient change),
 //                 lab-scratch (awaiting_escrow; confirmation code
 //                 K7QX-M2DA-PL4W-ZT6R), offsite-nfs (unavailable, reposerver
-//                 unreachable)
-//   recovery pts  shop: committed/complete (quiesced), committed/partial
-//                 (live, crash-consistent, optional bind mount failed),
-//                 failed; mft-pg: committed; monitoring: in progress (commits
+//                 unreachable, escrow confirmed 100 days ago), old-nas02
+//                 (pending_deletion, retired in 2 days)
+//   recovery pts  shop: committed/complete (quiesced, verified, contract
+//                 satisfied), committed/partial (live, crash-consistent,
+//                 optional bind mount failed, contract not satisfied,
+//                 SCHEDULED FOR DELETION in 4 days), failed, deleted (old
+//                 test backup); mft-pg: committed with a PostgreSQL dump,
+//                 verification_failed; monitoring: in progress (commits
 //                 after ~2 min), wiki: missing; redis-cache: failed (no
 //                 success yet); metrics-agent: committed/partial
 //   progress      pending recovery points publish job.progress every 0.7 s and
 //                 backup.updated / alert.created when they commit
 //   alerts        backup failed (critical), partial RP (warning), agent
-//                 auto-resume (critical), reindex finished (info, acknowledged)
+//                 auto-resume (critical), reindex finished (info, acknowledged),
+//                 contract violated, verification failed, escrow unhealthy
+//                 (critical), platform backup partial (warning)
+//   grace period  recovery points / Repositories whose delete_after passed
+//                 become deleted / retired when read
 //   escrow codes  the mock "package" is NOT encrypted: it carries a comment
 //                 line with the confirmation code, for local testing only.
 
@@ -50,6 +59,7 @@ const EDGE = "8b2e61c4-0f3a-4d59-b7e8-6c1a2d3e4f02";
 const NAS01 = "0b6f1d2e-3c4a-4b5d-8e6f-7a8b9c0d1e01";
 const LAB = "0b6f1d2e-3c4a-4b5d-8e6f-7a8b9c0d1e02";
 const OFFSITE = "0b6f1d2e-3c4a-4b5d-8e6f-7a8b9c0d1e03";
+const OLDNAS = "0b6f1d2e-3c4a-4b5d-8e6f-7a8b9c0d1e04";
 
 // ---------------------------------------------------------------------------
 // Escrow
@@ -109,6 +119,10 @@ function repo(over) {
     escrow_generated_at: iso(-30 * DAY),
     escrow_confirmed_at: iso(-30 * DAY + 20 * MIN),
     last_reindex_at: null,
+    last_verified_at: null,
+    delete_after: null,
+    delete_reason: null,
+    is_system: false,
     created_at: iso(-30 * DAY),
     live: {
       initialized: true,
@@ -130,6 +144,10 @@ const repositories = [
     name: "nas01-backups",
     description: "Primary Repository on nas01 (NFS, RAID 6)",
     is_default: true,
+    is_system: true,
+    last_verified_at: iso(-5 * DAY),
+    // Sealed before Grace's key replaced a departed key holder's: regenerate.
+    _recipientIds: ["6a1c2d3e-4f50-4617-8293-a4b5c6d7e801", "6a1c2d3e-4f50-4617-8293-a4b5c6d7e800"],
     server_url: "https://backup.example.lan:51515",
     internal_server_url: "https://dbr2-reposerver:51515",
     last_reindex_at: iso(-2 * DAY),
@@ -169,12 +187,36 @@ const repositories = [
     live: null,
     live_error: "dial tcp 10.20.5.20:8091: connect: connection refused",
     last_reindex_at: iso(-12 * DAY),
-    created_at: iso(-60 * DAY),
-    escrow_generated_at: iso(-60 * DAY),
-    escrow_confirmed_at: iso(-60 * DAY + 30 * MIN),
+    created_at: iso(-120 * DAY),
+    escrow_generated_at: iso(-100 * DAY),
+    escrow_confirmed_at: iso(-100 * DAY + 30 * MIN),
+  }),
+  repo({
+    id: OLDNAS,
+    name: "old-nas02",
+    description: "Previous NAS, replaced by nas01",
+    status: "pending_deletion",
+    server_url: "https://old-nas02.example.lan:51515",
+    delete_after: iso(2 * DAY),
+    delete_reason: "Replaced by nas01; share decommissioned",
+    _deleteReason: "Hardware replaced by nas01; data migrated",
+    created_at: iso(-400 * DAY),
+    live: {
+      initialized: true,
+      server_running: true,
+      kopia_version: "0.22.3",
+      storage_healthy: true,
+      storage_total_bytes: 4 * TiB,
+      storage_free_bytes: Math.round(1.1 * TiB),
+      storage_used_bytes: Math.round(2.9 * TiB),
+    },
   }),
 ];
-for (const r of repositories) r._package = fakePackage(r.name, r._code ?? newCode());
+for (const r of repositories) {
+  r._code = r._code ?? newCode();
+  r._package = fakePackage(r.name, r._code);
+  r._recipientIds = r._recipientIds ?? recipients.map((x) => x.id);
+}
 
 const publicRepo = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith("_")));
 const escrowFilename = (r) => `dbr2-escrow-${r.name}-${r.id.slice(0, 8)}.age`;
@@ -194,6 +236,7 @@ const settings = new Map([
       post_hooks: [],
       optional_components: ["bind:/srv/shop/uploads"],
       excluded_components: [],
+      database_strategy: "both",
       updated_at: iso(-5 * DAY),
     },
   ],
@@ -208,6 +251,7 @@ function defaultSettings() {
     post_hooks: [],
     optional_components: [],
     excluded_components: [],
+    database_strategy: "both",
   };
 }
 
@@ -439,6 +483,13 @@ function appManifest(r, app, plan) {
   };
 }
 
+/** Adds the contract-at-capture evaluation (when the application has a contract). */
+function withContract(manifest) {
+  const c = hooks.contractAtCapture(manifest.application?.id, manifest.components);
+  if (c) manifest.contract = c;
+  return manifest;
+}
+
 function simpleManifest(rp, appName, volume) {
   return {
     schema_version: 1,
@@ -486,9 +537,38 @@ function rp(over) {
     error: null,
     created_at: created,
     committed_at: null,
+    verified_at: null,
+    delete_after: null,
+    delete_reason: null,
+    deleted_at: null,
     ...over,
   };
 }
+
+/** Per-component verification results (workflows/backup ComponentVerification). */
+function verificationOf(manifest, readPercent = 10, errors = {}) {
+  return {
+    read_percent: readPercent,
+    components: (manifest?.components ?? [])
+      .filter((c) => c.status === "succeeded" && c.snapshot_id)
+      .map((c) => {
+        const files = c.files ?? 1;
+        const out = {
+          name: c.name,
+          snapshot_id: c.snapshot_id,
+          files,
+          dirs: c.kind === "volume" || c.kind === "bind_mount" ? Math.max(1, Math.round(files / 40)) : 0,
+          files_read: Math.max(1, Math.round((files * readPercent) / 100)),
+          bytes_read: Math.round(((c.size_bytes ?? 0) * readPercent) / 100),
+        };
+        if (errors[c.name]) out.errors = errors[c.name];
+        return out;
+      }),
+  };
+}
+
+/** Contract evaluation at capture time (workflows/backup contractAtCapture); set by mock-policies.mjs. */
+const hooks = { contractAtCapture: () => undefined };
 
 const recoveryPoints = [];
 {
@@ -500,6 +580,7 @@ const recoveryPoints = [];
     state: "committed",
     status: "complete",
     verification: "verified",
+    verified_at: iso(-5 * DAY + 6 * HOUR),
     consistency_mode: "quiesced",
     crash_consistent_only: false,
     trigger: "schedule",
@@ -509,6 +590,11 @@ const recoveryPoints = [];
     committed_at: iso(-6 * HOUR + 7 * MIN),
   });
   complete._manifest = shopManifest(complete);
+  complete._manifest.contract = {
+    satisfied: true,
+    details: { max_rpo_minutes: 1440, required_components: ["config", "volume:shop_pgdata", "bind:/srv/shop/uploads"], missing_components: [] },
+  };
+  complete._verification = verificationOf(complete._manifest);
   const partial = rp({
     application_id: SHOP,
     application_name: "Web shop",
@@ -523,8 +609,33 @@ const recoveryPoints = [];
     error: "optional component bind:/srv/shop/uploads failed: permission denied",
     created_at: iso(-30 * HOUR),
     committed_at: iso(-30 * HOUR + 5 * MIN),
+    delete_after: iso(4 * DAY),
+    delete_reason: "Superseded by the verified quiesced backup",
   });
   partial._manifest = shopManifest(partial, { partial: true });
+  partial._manifest.contract = {
+    satisfied: false,
+    details: {
+      max_rpo_minutes: 1440,
+      required_components: ["config", "volume:shop_pgdata", "bind:/srv/shop/uploads"],
+      missing_components: ["bind:/srv/shop/uploads"],
+    },
+  };
+  const deleted = rp({
+    application_id: SHOP,
+    application_name: "Web shop",
+    host_id: PROD,
+    hostname: "docker-prod-01",
+    state: "deleted",
+    status: "complete",
+    size_bytes: 11_811_160_064,
+    component_count: 5,
+    created_at: iso(-14 * DAY),
+    committed_at: iso(-14 * DAY + 6 * MIN),
+    delete_after: iso(-3 * DAY),
+    delete_reason: "Test backup before the migration",
+    deleted_at: iso(-3 * DAY + 10 * MIN),
+  });
   const failed = rp({
     application_id: SHOP,
     application_name: "Web shop",
@@ -545,13 +656,35 @@ const recoveryPoints = [];
     hostname: "docker-prod-01",
     state: "committed",
     status: "complete",
-    size_bytes: 1_342_177_280,
-    component_count: 2,
+    verification: "verification_failed",
+    verified_at: iso(-2 * HOUR),
+    size_bytes: 1_342_177_280 + 18_874_368,
+    component_count: 3,
     created_at: iso(-9 * HOUR),
     committed_at: iso(-9 * HOUR + 2 * MIN),
   });
   mft._manifest = simpleManifest(mft, "mft-pg", "3ab8b905bbca892b57bde6f1c10c79e8e86abd14032aa7e854cc8f15bac0eba0");
+  mft._manifest.components.push(
+    comp("database:db", "database", {
+      database: { engine: "postgresql", format: "pg_dumpall-sql-zstd", service: "db", container: "mft-pg-db-1" },
+      validation: "pg_dumpall exit 0; zstd frame verified; 42 CREATE statements",
+      file_name: "db.sql.zst",
+      snapshot_source: "agent@docker-prod-01:database/db",
+      size_bytes: 18_874_368,
+      files: 1,
+      capture_method: "logical-dump",
+    }),
+  );
   mft._manifest.topology = topologyOf(fleetData.apps.find((a) => a.id === MFT));
+  {
+    const vol = mft._manifest.components.find((c) => c.kind === "volume");
+    mft._verification = verificationOf(mft._manifest, 10, {
+      [vol.name]: [
+        `snapshot ${vol.snapshot_id}: object 4f1a9c2e7b3d5a60 is missing`,
+        "file /pg_wal/000000010000000000000003: hash mismatch",
+      ],
+    });
+  }
   const running = rp({
     application_id: MONITORING,
     application_name: "Monitoring stack",
@@ -615,7 +748,7 @@ const recoveryPoints = [];
       }),
     ],
   };
-  recoveryPoints.push(complete, partial, failed, mft, running, missing, redisFailed, metricsPartial);
+  recoveryPoints.push(complete, partial, deleted, failed, mft, running, missing, redisFailed, metricsPartial);
 }
 
 /**
@@ -626,6 +759,16 @@ const recoveryPoints = [];
  */
 function advance() {
   const now = Date.now();
+  // Grace periods: scheduled deletions and retirements that are due.
+  for (const r of recoveryPoints) {
+    if (r.delete_after && Date.parse(r.delete_after) <= now && (r.state === "committed" || r.state === "missing" || r.state === "deleting")) {
+      r.state = "deleted";
+      r.deleted_at = iso();
+    }
+  }
+  for (const r of repositories) {
+    if (r.status === "pending_deletion" && r.delete_after && Date.parse(r.delete_after) <= now) r.status = "retired";
+  }
   for (const r of recoveryPoints) {
     if (r.state !== "pending" || !r._finishAt) continue;
     const app = fleetData.apps.find((a) => a.id === r.application_id);
@@ -645,7 +788,7 @@ function advance() {
       r.status = "complete";
       r.committed_at = iso();
       r.consistency_point = r.consistency_point ?? r.created_at;
-      r._manifest = app ? appManifest(r, app, plan) : simpleManifest(r, r.application_name, "data");
+      r._manifest = withContract(app ? appManifest(r, app, plan) : simpleManifest(r, r.application_name, "data"));
       r.size_bytes = r._manifest.components.reduce((n, c) => n + (c.size_bytes ?? 0), 0);
       r.component_count = r._manifest.components.length;
       publish("job.progress", "backup.read", { ...base, state: "succeeded", progress: { done: plan.length, total: plan.length } });
@@ -741,8 +884,57 @@ const alerts = [
     acknowledged_at: iso(-2 * DAY + HOUR),
   },
 ];
-alerts[0].details = { recovery_point_id: recoveryPoints[2].id };
+alerts[0].details = { recovery_point_id: recoveryPoints.find((r) => r.application_id === SHOP && r.state === "failed").id };
 alerts[1].details = { recovery_point_id: recoveryPoints[1].id };
+{
+  const mft = recoveryPoints.find((r) => r.application_id === MFT);
+  alerts.push(
+    {
+      id: 45,
+      severity: "critical",
+      type: "contract.violated",
+      target_type: "application",
+      target_id: REDIS,
+      message: "Recovery Contract of redis-cache violated: no recovery point exists",
+      details: { reasons: ["no recovery point exists"] },
+      created_at: iso(-4 * HOUR + 5 * MIN),
+      acknowledged_at: null,
+    },
+    {
+      id: 46,
+      severity: "critical",
+      type: "verification.failed",
+      target_type: "recovery_point",
+      target_id: mft.id,
+      message: "Verification of an mft-pg recovery point failed: 2 errors in 1 component",
+      details: { recovery_point_id: mft.id, repository_id: NAS01 },
+      created_at: iso(-2 * HOUR),
+      acknowledged_at: null,
+    },
+    {
+      id: 47,
+      severity: "critical",
+      type: "escrow.unhealthy",
+      target_type: "escrow",
+      target_id: "platform",
+      message: "Escrow needs attention: the escrow recipients changed since the package of Repository nas01-backups was generated; regenerate it",
+      details: {},
+      created_at: iso(-HOUR),
+      acknowledged_at: null,
+    },
+    {
+      id: 48,
+      severity: "warning",
+      type: "platform.backup.partial",
+      target_type: "platform",
+      target_id: "platform",
+      message: "Platform self-backup partial: reposerver offsite-nfs: state export failed",
+      details: {},
+      created_at: iso(-2 * DAY + 4 * MIN),
+      acknowledged_at: null,
+    },
+  );
+}
 
 const hostSettings = new Map([
   [PROD, { max_concurrent_jobs: 2, backup_window_start: 22 * 60, backup_window_end: 5 * 60 + 30, backup_window_timezone: "America/Chicago" }],
@@ -878,6 +1070,7 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
           _code: code,
         });
         r._package = fakePackage(r.name, code);
+        r._recipientIds = recipients.map((x) => x.id);
         repositories.push(r);
         audit("repository.created", "success", req, { actor: user.display_name, target_type: "repository", target_id: r.id });
         console.log(`[mock] escrow confirmation code for ${r.name}: ${code}`);
@@ -914,12 +1107,11 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
         const body = await readJson(req);
         const code = typeof body?.confirmation_code === "string" ? body.confirmation_code : "";
         if (code.length < 16 || code.length > 40) return invalid(res, "confirmation_code must be 16-40 characters", "body.confirmation_code");
-        if (r.status !== "awaiting_escrow") return problem(res, 409, "conflict", "Conflict", "escrow is already confirmed");
         if (normCode(code) !== normCode(r._code)) {
           audit("repository.escrow.confirmed", "failure", req, { actor: user.display_name, target_type: "repository", target_id: r.id });
           return invalid(res, "the confirmation code does not match this Repository's escrow package", "body.confirmation_code");
         }
-        r.status = "ready";
+        if (r.status === "awaiting_escrow") r.status = "ready";
         r.escrow_confirmed_at = iso();
         audit("repository.escrow.confirmed", "success", req, { actor: user.display_name, target_type: "repository", target_id: r.id });
         send(res, 200, publicRepo(r));
@@ -993,11 +1185,14 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
         const b = await readJson(req);
         if (!b || typeof b !== "object") return invalid(res, "body must be a JSON object", "body");
         const extra = Object.keys(b).filter(
-          (k) => !["repository_id", "consistency_mode", "max_quiesce_seconds", "pre_hooks", "post_hooks", "optional_components", "excluded_components"].includes(k),
+          (k) => !["repository_id", "consistency_mode", "max_quiesce_seconds", "pre_hooks", "post_hooks", "optional_components", "excluded_components", "database_strategy"].includes(k),
         );
         if (extra.length) return invalid(res, `unexpected property ${extra[0]}`, `body.${extra[0]}`);
         if (b.consistency_mode !== null && !["live", "quiesced", "offline"].includes(b.consistency_mode)) {
           return invalid(res, "consistency_mode must be live, quiesced or offline", "body.consistency_mode");
+        }
+        if (b.database_strategy !== undefined && !["logical", "volume", "both"].includes(b.database_strategy)) {
+          return invalid(res, "database_strategy must be logical, volume or both", "body.database_strategy");
         }
         if (!Number.isInteger(b.max_quiesce_seconds) || b.max_quiesce_seconds < 60 || b.max_quiesce_seconds > 86400) {
           return invalid(res, "max_quiesce_seconds must be 60–86400", "body.max_quiesce_seconds");
@@ -1019,6 +1214,7 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
           post_hooks: b.post_hooks ?? [],
           optional_components: b.optional_components ?? [],
           excluded_components: b.excluded_components ?? [],
+          database_strategy: b.database_strategy ?? settings.get(m[1])?.database_strategy ?? "both",
           updated_at: iso(),
         });
         audit("backup.settings.updated", "success", req, { actor: user.display_name, target_type: "application", target_id: m[1] });
@@ -1050,7 +1246,11 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
         advance();
         const r = recoveryPoints.find((x) => x.id === m[1]);
         if (!r) return problem(res, 404, "not_found", "Not Found", "recovery point not found");
-        send(res, 200, { ...publicRepo(r), ...(r._manifest ? { manifest: r._manifest } : {}) });
+        send(res, 200, {
+          ...publicRepo(r),
+          ...(r._manifest ? { manifest: r._manifest } : {}),
+          ...(r._verification && r.verification !== "unverified" ? { verification_details: r._verification } : {}),
+        });
       },
     ],
     [
@@ -1117,13 +1317,25 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
   ];
 }
 
-/** Read access to the recovery points for the other mock modules (mock-restore.mjs). */
+/** Read access to the recovery points for the other mock modules (mock-restore.mjs, mock-policies.mjs, mock-platform.mjs). */
 export const protectionData = {
   recoveryPoints,
   repositories,
+  recipients,
   alerts,
   planFor,
   settingsOut,
+  publicRepo,
+  fakePackage,
+  newCode,
+  normCode,
+  escrowFilename,
+  verificationOf,
+  ids: { SHOP, MFT, REDIS, WIKI, NAS01, LAB, OFFSITE, OLDNAS },
+  /** @param {(appId: string, components: object[]) => object | undefined} fn */
+  setContractAtCapture: (fn) => {
+    hooks.contractAtCapture = fn;
+  },
   /** Lets pending recovery points commit (they finish lazily when read). */
   advance,
 };

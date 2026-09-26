@@ -193,38 +193,44 @@ function AlertsTable({ showAcknowledged }: { showAcknowledged: boolean }) {
   );
 }
 
-export function AlertsView() {
+/** The alert list with the "show acknowledged" switch (Notifications → Alerts tab). */
+export function AlertsPanel() {
   const id = useId();
   const me = useCurrentUser();
   const [showAcknowledged, setShowAcknowledged] = useState(false);
-  const canRead = hasPermission(me, PERMISSION_BACKUP_READ);
+  if (!hasPermission(me, PERMISSION_BACKUP_READ)) {
+    return <AccessDenied what="Viewing alerts" permission={PERMISSION_BACKUP_READ} />;
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Alerts raised by DBR²: backup failures, partial recovery points, violated Recovery Contracts, verification
+        failures, escrow and platform self-backup problems, quiesce warnings and agent auto-resumes. New alerts also
+        pop up live while the console is open.
+      </p>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`${id}-all`}
+          checked={showAcknowledged}
+          onCheckedChange={(v) => setShowAcknowledged(v === true)}
+        />
+        <Label htmlFor={`${id}-all`} className="font-normal">
+          Show acknowledged alerts
+        </Label>
+      </div>
+      <AlertsTable showAcknowledged={showAcknowledged} />
+    </div>
+  );
+}
+
+/** Alerts on their own page (the Notifications page adds channels and SMTP as tabs). */
+export function AlertsView() {
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
-        <p className="text-sm text-muted-foreground">
-          Alerts raised by DBR²: backup failures, partial recovery points, quiesce warnings, agent
-          auto-resumes and applications that were not resumed. New alerts also pop up live while the
-          console is open; email and webhook delivery arrives with Phase 7.
-        </p>
       </div>
-      {canRead ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${id}-all`}
-              checked={showAcknowledged}
-              onCheckedChange={(v) => setShowAcknowledged(v === true)}
-            />
-            <Label htmlFor={`${id}-all`} className="font-normal">
-              Show acknowledged alerts
-            </Label>
-          </div>
-          <AlertsTable showAcknowledged={showAcknowledged} />
-        </div>
-      ) : (
-        <AccessDenied what="Viewing alerts" permission={PERMISSION_BACKUP_READ} />
-      )}
+      <AlertsPanel />
     </div>
   );
 }

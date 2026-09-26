@@ -203,10 +203,12 @@ func (j *snapshotJob) component(ctx context.Context, s *agentv1.ComponentSpec) (
 		err = errors.New("component has no name")
 	case !ok:
 		err = fmt.Errorf("unsupported component kind %s", s.Kind)
-	case kind == manifest.KindDatabase || kind == manifest.KindImage:
-		r.Status, r.Error = manifest.ComponentSkipped, "not supported until Phase 8"
+	case kind == manifest.KindImage:
+		r.Status, r.Error = manifest.ComponentSkipped, "image capture is not supported (images are pulled by digest on restore)"
 		r.FinishedUnixMs = time.Now().UnixMilli()
 		return r, nil
+	case kind == manifest.KindDatabase:
+		snap, err = j.database(ctx, s, r)
 	case kind == manifest.KindFSMeta:
 		err = errors.New("fsmeta components are produced by capture_fsmeta on their parent")
 	case kind == manifest.KindConfig:

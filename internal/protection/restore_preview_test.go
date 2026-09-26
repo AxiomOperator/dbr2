@@ -153,3 +153,19 @@ func TestSelectAndRemap(t *testing.T) {
 		}
 	}
 }
+
+func TestDatabaseOnlyRestoreKeepsApplicationRunning(t *testing.T) {
+	m := testManifest()
+	m.Components = append(m.Components, manifest.Component{Name: "database:db", Kind: manifest.KindDatabase, Status: manifest.ComponentSucceeded,
+		SnapshotID: "d", Database: &manifest.DatabaseDump{Engine: "postgresql", Format: "pg_dumpall-sql-zstd", Container: "shop-db-1"}})
+	sel, err := selectComponents(m, []string{"database:db"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv := &inventory.Inventory{Containers: []inventory.Container{ctr("shop-db-1", "shop", "running"), ctr("shop-web-1", "shop", "running", "8080")},
+		Networks: []inventory.Network{{Name: "shop_default", Labels: map[string]string{inventory.LabelProject: "shop"}}, {Name: "proxy"}}}
+	p := computePreview(previewInput{m: m, targetAgentID: src, targetHostname: "h", inv: inv}, sel)
+	if len(p.stopIDs) != 0 || len(p.StopContainers) != 0 || !p.Production || p.Mode != "in_place" || p.Components[0].Action != "load_dump" {
+		t.Fatalf("preview %+v", p)
+	}
+}

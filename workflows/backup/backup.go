@@ -102,8 +102,18 @@ func BackupWorkflow(ctx workflow.Context, in Input) (res Result, err error) {
 		return res, err
 	}
 
+	// Database dumps are online (Phase 8): they run first, outside the
+	// quiesce window; the filesystem components follow.
+	var dbComps, fsComps []*agentv1.ComponentSpec
+	for _, c := range plan.Components {
+		if c.Kind == agentv1.ComponentKind_COMPONENT_KIND_DATABASE {
+			dbComps = append(dbComps, c)
+		} else {
+			fsComps = append(fsComps, c)
+		}
+	}
 	snapIn := SnapshotInput{AgentID: plan.AgentId, RepositoryID: plan.Repository.Id, RecoveryPointID: plan.RecoveryPointId,
-		ApplicationID: in.ApplicationID, Components: plan.Components}
+		ApplicationID: in.ApplicationID, Components: fsComps}
 
 	// Seed pass (ADR-0005): live, never committed; failures only warn.
 	if len(plan.SeedComponents) > 0 {
@@ -113,6 +123,20 @@ func BackupWorkflow(ctx workflow.Context, in Input) (res Result, err error) {
 		sctx := workflow.WithActivityOptions(ctx, withTimeout(agentOpts, 24*time.Hour))
 		if err := workflow.ExecuteActivity(sctx, a.Snapshot, seed).Get(ctx, nil); err != nil {
 			log.Warn("seed pass failed; continuing with the consistent pass", "error", err)
+		}
+	}
+
+	var dbResults []*agentv1.ComponentResult
+	if len(dbComps) > 0 {
+		dbIn := snapIn
+		dbIn.Components = dbComps
+		var r *agentv1.SnapshotComponentsResult
+		if err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, withTimeout(agentOpts, 12*time.Hour)), a.Snapshot, dbIn).Get(ctx, &r); err != nil {
+			return res, fmt.Errorf("database dumps: %w", err)
+		}
+		dbResults = r.GetComponents()
+		if failed := failedRequired(dbResults); len(failed) > 0 {
+			return res, temporal.NewNonRetryableApplicationError("required database dumps failed: "+strings.Join(failed, "; "), ErrRequiredComponentFailed, nil)
 		}
 	}
 
@@ -213,7 +237,7 @@ func BackupWorkflow(ctx workflow.Context, in Input) (res Result, err error) {
 			"the agent dead-man switch resumed the application during capture; consistency is not guaranteed", ErrAutoResumed, nil)
 	}
 
-	results := snap.GetComponents()
+	results := append(dbResults, snap.GetComponents()...)
 	if failed := failedRequired(results); len(failed) > 0 {
 		return res, temporal.NewNonRetryableApplicationError("required components failed: "+strings.Join(failed, "; "), ErrRequiredComponentFailed, nil)
 	}

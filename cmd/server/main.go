@@ -8,6 +8,7 @@
 //	dbr2-server migrate [up|status]              apply / show database migrations
 //	dbr2-server openapi -o api/openapi.yaml      export the OpenAPI document (no DB needed)
 //	dbr2-server admin reset-master-password      reset the master admin (run on the server host)
+//	dbr2-server admin restore-platform           restore a Platform Recovery Bundle (ADR-0008)
 //	dbr2-server version
 package main
 
@@ -82,6 +83,9 @@ func usage() {
   dbr2-server openapi -o <file>              Export the OpenAPI document (.yaml or .json)
   dbr2-server admin reset-master-password    Reset the master admin password (server host only)
       [--password-file <file>] [--disable-totp]
+  dbr2-server admin restore-platform         Restore a Platform Recovery Bundle into a fresh install (ADR-0008)
+      --bundle <file> --identity <age identity file> [--secrets-dir <dir>]
+      [--reposerver-state-dir <dir>] [--import-reposerver] [--database-url <url>] [--force]
   dbr2-server healthcheck                   Probe the local liveness endpoint (Docker HEALTHCHECK)
   dbr2-server version
 `)
@@ -97,8 +101,12 @@ func exportOpenAPI(args []string) error {
 }
 
 func admin(ctx context.Context, args []string) error {
+	if len(args) > 0 && args[0] == "restore-platform" {
+		return restorePlatform(ctx, args[1:])
+	}
 	if len(args) == 0 || args[0] != "reset-master-password" {
-		return errors.New("usage: dbr2-server admin reset-master-password [--password-file f] [--disable-totp]")
+		return errors.New("usage: dbr2-server admin reset-master-password [--password-file f] [--disable-totp]\n" +
+			"       dbr2-server admin restore-platform --bundle FILE --identity FILE [flags]")
 	}
 	fs := flag.NewFlagSet("reset-master-password", flag.ContinueOnError)
 	pwFile := fs.String("password-file", "", "read the new password from this file (default: generate one)")

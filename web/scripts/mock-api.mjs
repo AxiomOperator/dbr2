@@ -5,7 +5,10 @@
 // Phase 2/3 Hosts and Applications endpoints in ./mock-fleet.mjs and the
 // Phase 4 Repositories & backup endpoints in ./mock-protection.mjs and the
 // Phase 5 Restores endpoints in ./mock-restore.mjs and the Phase 6 jobs,
-// containers, volumes, users and protection status in ./mock-live.mjs, with
+// containers, volumes, users and protection status in ./mock-live.mjs, the
+// Phase 7 policies, Recovery Contracts, deletion with a grace period and
+// notifications in ./mock-policies.mjs, and the Phase 9 verification, escrow
+// health / drills and platform self-protection in ./mock-platform.mjs, with
 // Server-Sent Events from ./mock-events.mjs), for
 // developing the console without the Go backend. NOT a security reference
 // implementation.
@@ -27,6 +30,12 @@
 // alert.created / agent.status / inventory.updated while mock backups and
 // restores run ("Back up now" takes MOCK_BACKUP_MS, default 15 s; restores
 // MOCK_RESTORE_MS, default 15 s).
+// Deleting / undeleting recovery points and "Verify now" publish
+// backup.updated; verification failures publish alert.created. Escrow and
+// drill "packages" are NOT encrypted: they end with a MOCK ONLY comment line
+// carrying the confirmation code (also logged). MOCK_VERIFY_MS (default 4 s)
+// and MOCK_PLATFORM_MS (default 6 s) set how long "Verify now" and the
+// platform backup "Run now" take.
 // Five wrong passwords lock the master admin for 60 s (423 + Retry-After).
 
 import { randomBytes, randomUUID } from "node:crypto";
@@ -34,6 +43,8 @@ import { createServer } from "node:http";
 import { eventRoutes } from "./mock-events.mjs";
 import { fleetRoutes } from "./mock-fleet.mjs";
 import { ALL_PERMISSIONS, liveRoutes } from "./mock-live.mjs";
+import { platformRoutes } from "./mock-platform.mjs";
+import { policyRoutes } from "./mock-policies.mjs";
 import { protectionRoutes } from "./mock-protection.mjs";
 import { restoreRoutes } from "./mock-restore.mjs";
 
@@ -361,6 +372,8 @@ const paramRoutes = [
   ...protectionRoutes(helpers),
   ...restoreRoutes(helpers),
   ...liveRoutes(helpers),
+  ...policyRoutes(helpers),
+  ...platformRoutes(helpers),
   ...eventRoutes(),
 ];
 

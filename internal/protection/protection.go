@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -54,6 +55,8 @@ type Options struct {
 	InternalToken string
 	// MinEscrowRecipients required to create a Repository (ADR-0008: two).
 	MinEscrowRecipients int
+	// Log receives background errors (schedule sync, evaluations).
+	Log *slog.Logger
 }
 
 // Service implements the protection domain.
@@ -69,6 +72,8 @@ type Service struct {
 	repoClient func(managementURL string) RepoManager
 	now        func() time.Time
 	events     atomic.Pointer[events.Bus]
+	// platformExp is set by SetPlatformExporter (platform_backup_rpc.go).
+	platformExp atomic.Pointer[platformExporterBox]
 }
 
 // SetEvents enables live updates (SSE).
@@ -86,6 +91,7 @@ type RepoManager interface {
 	Initialize(ctx context.Context, password, splitter string) (*repoclient.Status, error)
 	SetUser(ctx context.Context, username, password string) error
 	GrantRead(ctx context.Context, user, sourceUser, sourceHost string) (string, error)
+	RepositoryPassword(ctx context.Context) (string, error)
 	RevokeRead(ctx context.Context, id string) error
 }
 

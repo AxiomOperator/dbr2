@@ -56,6 +56,8 @@ var (
 	ErrStorageNotReady    = errors.New("repository storage not ready")
 	ErrNotFound           = errors.New("not found")
 	ErrInvalidPassword    = errors.New("the storage already holds a Kopia repository and the password does not open it")
+	ErrStatePresent       = errors.New("the state directory already holds a repository password")
+	ErrInvalidState       = errors.New("invalid state archive")
 )
 
 // Status is the GET /v1/status document (management API contract).
@@ -103,6 +105,24 @@ type Service struct {
 	mu       sync.Mutex
 	password atomic.Pointer[string]
 	info     atomic.Pointer[RepoInfo]
+	// creds replaces CertSHA256/ControlPassword after a state import.
+	creds atomic.Pointer[serverCreds]
+}
+
+type serverCreds struct{ certSHA256, controlPassword string }
+
+func (s *Service) certSHA256() string {
+	if c := s.creds.Load(); c != nil {
+		return c.certSHA256
+	}
+	return s.CertSHA256
+}
+
+func (s *Service) controlPassword() string {
+	if c := s.creds.Load(); c != nil {
+		return c.controlPassword
+	}
+	return s.ControlPassword
 }
 
 // Load restores the persisted state at start-up. It reports whether the
@@ -166,7 +186,7 @@ func (s *Service) Status(ctx context.Context) Status {
 		Initialized:   s.Initialized(),
 		ServerRunning: s.Server != nil && s.Server.Running(),
 		KopiaAddress:  s.KopiaAddr,
-		CertSHA256:    s.CertSHA256,
+		CertSHA256:    s.certSHA256(),
 		KopiaVersion:  KopiaVersion(),
 		StoragePath:   s.StoragePath,
 	}
@@ -306,14 +326,20 @@ func (s *Service) Initialize(ctx context.Context, password, splitter string) (St
 	s.info.Store(ri)
 	ok = true
 	s.Log.Info("repository initialized", "repository_id", s.RepositoryID, "splitter", actual, "reattached", exists)
-	if s.Server != nil {
-		s.Server.Start(s.Lifetime)
-		// Give the server a moment so the returned status is useful.
-		for deadline := time.Now().Add(20 * time.Second); !s.Server.Running() && time.Now().Before(deadline) && ctx.Err() == nil; {
-			time.Sleep(200 * time.Millisecond)
-		}
-	}
+	s.startServer(ctx)
 	return s.Status(ctx), nil
+}
+
+// startServer starts the supervised Kopia server and gives it a moment so
+// the returned status is useful.
+func (s *Service) startServer(ctx context.Context) {
+	if s.Server == nil {
+		return
+	}
+	s.Server.Start(s.Lifetime)
+	for deadline := time.Now().Add(20 * time.Second); !s.Server.Running() && time.Now().Before(deadline) && ctx.Err() == nil; {
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // repoSplitter reads the object splitter from the repository format.
@@ -485,10 +511,10 @@ func (s *Service) refresh(ctx context.Context) error {
 		_, err = s.Runner.Run(ctx, Invocation{
 			Args: []string{"server", "refresh",
 				"--address=https://" + loopback(s.KopiaAddr),
-				"--server-cert-fingerprint=" + s.CertSHA256,
+				"--server-cert-fingerprint=" + s.certSHA256(),
 				"--server-control-username=" + ControlUser},
-			Env:     map[string]string{"KOPIA_SERVER_PASSWORD": s.ControlPassword},
-			Secrets: []string{s.ControlPassword},
+			Env:     map[string]string{"KOPIA_SERVER_PASSWORD": s.controlPassword()},
+			Secrets: []string{s.controlPassword()},
 		})
 		if err == nil || ctx.Err() != nil {
 			break

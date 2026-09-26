@@ -2,17 +2,23 @@
 "use client";
 
 import {
+  ArchiveXIcon,
+  CalendarClockIcon,
   CircleAlertIcon,
   CircleCheckIcon,
   CircleDashedIcon,
   CircleXIcon,
   InfoIcon,
   SearchXIcon,
+  ShieldCheckIcon,
+  ShieldQuestionIcon,
+  ShieldXIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { AlertSeverity, RecoveryPointState } from "@/lib/api/protection-schemas";
+import type { AlertSeverity, RecoveryPointState, VerificationState } from "@/lib/api/protection-schemas";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 const AMBER = "border-amber-500/60 text-amber-700 dark:text-amber-400";
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -23,6 +29,7 @@ export const STATE_LABEL: Record<RecoveryPointState, string> = {
   failed: "Failed",
   missing: "Missing",
   deleting: "Deleting",
+  deleted: "Deleted",
 };
 
 /** Recovery point lifecycle state (icon + text). */
@@ -56,6 +63,53 @@ export function RecoveryPointStateBadge({ state }: { state: RecoveryPointState }
       return (
         <Badge variant="outline">
           <Trash2Icon aria-hidden="true" /> {STATE_LABEL.deleting}
+        </Badge>
+      );
+    case "deleted":
+      return (
+        <Badge variant="outline" className="text-muted-foreground">
+          <ArchiveXIcon aria-hidden="true" /> {STATE_LABEL.deleted}
+        </Badge>
+      );
+  }
+}
+
+/** "Deletion scheduled" marker for a recovery point in its grace period. */
+export function ScheduledDeletionBadge({ deleteAfter }: { deleteAfter: string | null }) {
+  if (!deleteAfter) return null;
+  return (
+    <Badge variant="outline" className={AMBER} title={`Deleted after ${formatDateTime(deleteAfter)}`}>
+      <CalendarClockIcon aria-hidden="true" /> Deletion {formatDate(deleteAfter)}
+    </Badge>
+  );
+}
+
+export const VERIFICATION_LABEL: Record<VerificationState, string> = {
+  unverified: "Not verified",
+  verified: "Verified",
+  verification_failed: "Verification failed",
+};
+
+/** Verification state of a recovery point (Phase 9), icon + text. */
+export function VerificationBadge({ state, verifiedAt }: { state: VerificationState; verifiedAt?: string | null }) {
+  const title = verifiedAt ? `Checked ${formatDateTime(verifiedAt)}` : undefined;
+  switch (state) {
+    case "verified":
+      return (
+        <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-400" title={title}>
+          <ShieldCheckIcon aria-hidden="true" /> {VERIFICATION_LABEL.verified}
+        </Badge>
+      );
+    case "verification_failed":
+      return (
+        <Badge variant="destructive" title={title}>
+          <ShieldXIcon aria-hidden="true" /> {VERIFICATION_LABEL.verification_failed}
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="outline" className="text-muted-foreground">
+          <ShieldQuestionIcon aria-hidden="true" /> {VERIFICATION_LABEL.unverified}
         </Badge>
       );
   }

@@ -10,7 +10,15 @@ import {
   ModeCell,
   RecoveryPointStateBadge,
   RecoveryPointStatusBadge,
+  VerificationBadge,
 } from "@/components/backups/backup-badges";
+import {
+  canScheduleDeletion,
+  ContractAtCaptureCard,
+  DeleteRecoveryPointButton,
+  RecoveryPointDeletionState,
+  VerificationCard,
+} from "@/components/backups/recovery-point-sections";
 import { DatabasesCard, describeDatabase, nestComponents, TopologyCard } from "@/components/backups/manifest-sections";
 import { CopyButton } from "@/components/common/copy-button";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
@@ -31,6 +39,7 @@ import { isApiError } from "@/lib/api/client";
 import { PERMISSION_APPLICATION_READ, PERMISSION_HOST_READ } from "@/lib/api/fleet-schemas";
 import {
   ManifestSchema,
+  PERMISSION_BACKUP_DELETE,
   PERMISSION_BACKUP_READ,
   PERMISSION_REPOSITORY_READ,
   type ManifestComponent,
@@ -50,12 +59,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 const mono = (s: string) => <span className="font-mono text-xs break-all">{s}</span>;
-
-const VERIFICATION_LABEL: Record<string, string> = {
-  unverified: "Not verified yet",
-  verified: "Verified",
-  verification_failed: "Verification failed",
-};
 
 /** "uid 999 / gid 999 · 0700", or "—". */
 export function formatOwner(c: Pick<ManifestComponent, "owner_uid" | "owner_gid" | "mode">): string {
@@ -115,7 +118,9 @@ function SummaryCard({ rp }: { rp: RecoveryPoint }) {
                 <RecoveryPointStatusBadge status={rp.status} />
               </span>
             </Field>
-            <Field label="Verification">{VERIFICATION_LABEL[rp.verification] ?? rp.verification}</Field>
+            <Field label="Verification">
+              <VerificationBadge state={rp.verification} verifiedAt={rp.verified_at} />
+            </Field>
             <Field label="Consistency">
               <ModeCell mode={rp.consistency_mode} crashConsistent={rp.crash_consistent_only} />
             </Field>
@@ -128,6 +133,8 @@ function SummaryCard({ rp }: { rp: RecoveryPoint }) {
               {formatBytes(rp.size_bytes)} · {rp.component_count} component{rp.component_count === 1 ? "" : "s"}
             </Field>
             <Field label="Trigger">{rp.trigger || "—"}</Field>
+            {rp.delete_after && <Field label="Deletion scheduled">{formatDateTime(rp.delete_after)}</Field>}
+            {rp.deleted_at && <Field label="Deleted">{formatDateTime(rp.deleted_at)}</Field>}
             <Field label="Workflow">{mono(rp.workflow_id)}</Field>
           </div>
         </dl>
@@ -294,12 +301,16 @@ function DetailBody({ id }: { id: string }) {
             <CopyButton value={d.id} label="recovery point ID" />
           </p>
         </div>
-        {d.state === "committed" && hasPermission(me, PERMISSION_RESTORE_EXECUTE) && (
-          <Link href={`/recovery-points/${d.id}/restore`} className={buttonVariants({ size: "sm" })}>
-            <HistoryIcon aria-hidden="true" /> Restore…
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {d.state === "committed" && hasPermission(me, PERMISSION_RESTORE_EXECUTE) && (
+            <Link href={`/recovery-points/${d.id}/restore`} className={buttonVariants({ size: "sm" })}>
+              <HistoryIcon aria-hidden="true" /> Restore…
+            </Link>
+          )}
+          {canScheduleDeletion(d) && hasPermission(me, PERMISSION_BACKUP_DELETE) && <DeleteRecoveryPointButton rp={d} />}
+        </div>
       </div>
+      <RecoveryPointDeletionState rp={d} />
       {d.error && (
         <Alert variant="destructive">
           <AlertTitle>{d.state === "failed" ? "Backup failed" : "Errors"}</AlertTitle>
@@ -326,6 +337,7 @@ function DetailBody({ id }: { id: string }) {
         </Alert>
       )}
       <SummaryCard rp={d} />
+      {(d.state === "committed" || d.verification !== "unverified") && <VerificationCard rp={d} />}
       {manifest === null ? (
         <p className="text-sm text-muted-foreground">
           No manifest is available{d.state === "failed" ? ": the backup failed before it was committed." : "."}
@@ -333,8 +345,9 @@ function DetailBody({ id }: { id: string }) {
       ) : manifest.success ? (
         <>
           <ComponentsCard components={manifest.data.components} />
-          <TopologyCard manifest={manifest.data} />
           <DatabasesCard components={manifest.data.components} />
+          <ContractAtCaptureCard contract={manifest.data.contract} applicationId={d.application_id} />
+          <TopologyCard manifest={manifest.data} />
         </>
       ) : (
         <Alert>

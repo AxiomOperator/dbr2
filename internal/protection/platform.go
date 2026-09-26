@@ -84,10 +84,14 @@ func (p *Platform) PrepareBackup(ctx context.Context, req *controlv1.PrepareBack
 	if err != nil {
 		return nil, grpcErr(err)
 	}
+	pol := s.policyFor(ctx, s.q, app.Record.PolicyID)
 	var repo store.Repository
-	if set.RepositoryID != nil {
+	switch {
+	case set.RepositoryID != nil:
 		repo, err = s.q.GetRepositoryByID(ctx, *set.RepositoryID)
-	} else {
+	case pol != nil && pol.RepositoryID != nil:
+		repo, err = s.q.GetRepositoryByID(ctx, *pol.RepositoryID)
+	default:
 		repo, err = s.q.GetDefaultRepository(ctx, s.opts.OrgID)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -100,6 +104,9 @@ func (p *Platform) PrepareBackup(ctx context.Context, req *controlv1.PrepareBack
 		return nil, precondition("Repository %s is %s (confirm its key escrow first)", repo.Name, strings.ReplaceAll(repo.Status, "_", " "))
 	}
 	mode := set.EffectiveMode()
+	if set.ConsistencyMode == nil && pol != nil && pol.ConsistencyMode != nil {
+		mode = *pol.ConsistencyMode
+	}
 	if req.ConsistencyMode != "" {
 		mode = req.ConsistencyMode
 	}
@@ -144,6 +151,7 @@ func (p *Platform) PrepareBackup(ctx context.Context, req *controlv1.PrepareBack
 		ConsistencyMode: mode, MaxQuiesceSeconds: uint32(set.MaxQuiesceSeconds), Components: pl.components, ContainerIds: pl.containerIDs,
 		PreHooks: pl.pre, PostHooks: pl.post, SeedComponents: seedComponents(mode, pl.components, s.lastManifest(ctx, appID)),
 		ApplicationJson: pl.seed, HostId: agent.ID.String(), Hostname: agent.Hostname, WaitForWindowSeconds: wait,
+		ContractJson: s.contractJSON(ctx, appID),
 	}, nil
 }
 
@@ -365,7 +373,7 @@ func (p *Platform) IndexRecoveryPoints(ctx context.Context, req *controlv1.Index
 	return out, nil
 }
 
-var workerEvents = map[string]bool{audit.ApplicationNotResumed: true}
+var workerEvents = map[string]bool{audit.ApplicationNotResumed: true, audit.BackupSkipped: true}
 
 // RecordEvent records an audit event (and alert) for the worker.
 func (p *Platform) RecordEvent(ctx context.Context, req *controlv1.RecordEventRequest) (*controlv1.RecordEventResponse, error) {
@@ -387,6 +395,9 @@ func (p *Platform) RecordEvent(ctx context.Context, req *controlv1.RecordEventRe
 			return nil
 		}
 		msg := req.Type
+		if req.Type == audit.BackupSkipped {
+			msg = "Scheduled backup skipped: another backup or restore of the application was still running"
+		}
 		if req.Type == audit.ApplicationNotResumed {
 			msg = "Needs attention: the application was not resumed after a backup. Check its containers now; the agent's quiesce lease resumes it when it expires."
 		}

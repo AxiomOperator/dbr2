@@ -234,6 +234,20 @@ type Worker struct {
 	OrphanGrace time.Duration `env:"DBR2_ORPHAN_GRACE" envDefault:"168h"`
 	// OrphanGCCron schedules orphan garbage collection (Temporal schedule).
 	OrphanGCCron string `env:"DBR2_ORPHAN_GC_CRON" envDefault:"30 3 * * *"`
+	// RetentionCron schedules policy retention and grace-period deletions.
+	RetentionCron string `env:"DBR2_RETENTION_CRON" envDefault:"45 3 * * *"`
+	// VerifyCron schedules Repository verification; VerifyReadPercent is
+	// the share of files whose content is fully read (hash-checked).
+	VerifyCron        string  `env:"DBR2_VERIFY_CRON" envDefault:"0 5 * * 0"`
+	VerifyReadPercent float64 `env:"DBR2_VERIFY_READ_PERCENT" envDefault:"10"`
+	// PlatformBundleDir receives the age-encrypted Platform Recovery
+	// Bundles (ADR-0008): a separate NFS export or directory that is not
+	// part of any Repository.
+	PlatformBundleDir string `env:"DBR2_PLATFORM_BUNDLE_DIR" envDefault:"/var/lib/dbr2/platform-bundles"`
+	// PlatformBundleKeep is how many bundle files are kept (newest first).
+	PlatformBundleKeep int `env:"DBR2_PLATFORM_BUNDLE_KEEP" envDefault:"14"`
+	// PlatformBackupCron schedules the Platform Protection workflow.
+	PlatformBackupCron string `env:"DBR2_PLATFORM_BACKUP_CRON" envDefault:"15 2 * * *"`
 }
 
 // LoadWorker reads the worker configuration.

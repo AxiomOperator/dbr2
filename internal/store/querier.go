@@ -11,27 +11,49 @@ import (
 )
 
 type Querier interface {
+	AbandonRunningPlatformBackups(ctx context.Context, arg AbandonRunningPlatformBackupsParams) (int64, error)
 	AcknowledgeNotification(ctx context.Context, arg AcknowledgeNotificationParams) (int64, error)
 	ActiveRestores(ctx context.Context, orgID uuid.UUID) ([]RestoreRun, error)
 	AddGroupMapping(ctx context.Context, arg AddGroupMappingParams) error
 	AddUserRole(ctx context.Context, arg AddUserRoleParams) error
 	// Rejects replay: a TOTP time step can be used at most once.
 	AdvanceTOTPStep(ctx context.Context, arg AdvanceTOTPStepParams) (int64, error)
+	CancelRecoveryPointDeletion(ctx context.Context, arg CancelRecoveryPointDeletionParams) (RecoveryPoint, error)
+	CancelRepositoryDeletion(ctx context.Context, arg CancelRepositoryDeletionParams) (Repository, error)
+	// ---- Deliveries ----------------------------------------------------------------
+	// Claims due deliveries with a lease: attempts is incremented and the next
+	// attempt pushed past the lease, so a crashed sender's work is retried and
+	// concurrent dispatchers never claim the same row.
+	ClaimDueDeliveries(ctx context.Context, arg ClaimDueDeliveriesParams) ([]ClaimDueDeliveriesRow, error)
 	// Single use: the conditional update makes concurrent claims race-safe.
 	ClaimRegistrationToken(ctx context.Context, tokenHash []byte) (ClaimRegistrationTokenRow, error)
+	// ---- Fan-out -------------------------------------------------------------------
+	// Run inside a transaction: the claimed rows stay locked until it commits, and
+	// other dispatchers skip them.
+	ClaimUndeliveredNotifications(ctx context.Context, limit int32) ([]NotificationOutbox, error)
+	ClearAgentOfflineAlerted(ctx context.Context, id uuid.UUID) (int64, error)
+	ClearSystemRepository(ctx context.Context, orgID uuid.UUID) error
 	CommitRecoveryPoint(ctx context.Context, arg CommitRecoveryPointParams) (RecoveryPoint, error)
+	CompleteEscrowDrill(ctx context.Context, arg CompleteEscrowDrillParams) (EscrowDrill, error)
 	ConfirmRepositoryEscrow(ctx context.Context, arg ConfirmRepositoryEscrowParams) (Repository, error)
 	ConsumeOIDCAuthRequest(ctx context.Context, state string) (OidcAuthRequest, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (CreateAPITokenRow, error)
 	CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error)
 	CreateAuthority(ctx context.Context, arg CreateAuthorityParams) error
+	CreateEscrowDrill(ctx context.Context, arg CreateEscrowDrillParams) (EscrowDrill, error)
 	CreateEscrowRecipient(ctx context.Context, arg CreateEscrowRecipientParams) (EscrowRecipient, error)
 	// SPDX-License-Identifier: Apache-2.0
 	CreateLocalCredential(ctx context.Context, arg CreateLocalCredentialParams) error
 	CreateManualApplication(ctx context.Context, arg CreateManualApplicationParams) (Application, error)
 	CreateMasterAdmin(ctx context.Context, arg CreateMasterAdminParams) (User, error)
+	// SPDX-License-Identifier: Apache-2.0
+	// ---- Channels ----------------------------------------------------------------
+	CreateNotificationChannel(ctx context.Context, arg CreateNotificationChannelParams) (NotificationChannel, error)
 	CreateOIDCAuthRequest(ctx context.Context, arg CreateOIDCAuthRequestParams) error
 	CreateOIDCUser(ctx context.Context, arg CreateOIDCUserParams) (User, error)
+	// SPDX-License-Identifier: Apache-2.0
+	CreatePlatformBackup(ctx context.Context, arg CreatePlatformBackupParams) (PlatformBackup, error)
+	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (ProtectionPolicy, error)
 	// SPDX-License-Identifier: Apache-2.0
 	CreateRecoveryPoint(ctx context.Context, arg CreateRecoveryPointParams) (RecoveryPoint, error)
 	CreateRegistrationToken(ctx context.Context, arg CreateRegistrationTokenParams) (CreateRegistrationTokenRow, error)
@@ -44,16 +66,20 @@ type Querier interface {
 	DeleteAgentSession(ctx context.Context, arg DeleteAgentSessionParams) error
 	// Standalone container applications claimed by a manual application.
 	DeleteContainerApplications(ctx context.Context, arg DeleteContainerApplicationsParams) error
+	DeleteContract(ctx context.Context, applicationID uuid.UUID) (int64, error)
 	DeleteExpiredOIDCAuthRequests(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteGroupMapping(ctx context.Context, arg DeleteGroupMappingParams) (int64, error)
 	DeleteManualApplication(ctx context.Context, arg DeleteManualApplicationParams) (int64, error)
+	DeleteNotificationChannel(ctx context.Context, arg DeleteNotificationChannelParams) (int64, error)
+	DeletePolicy(ctx context.Context, arg DeletePolicyParams) (int64, error)
 	DeleteUserRole(ctx context.Context, arg DeleteUserRoleParams) error
 	DeleteUserRolesBySource(ctx context.Context, arg DeleteUserRolesBySourceParams) error
 	DisableTOTP(ctx context.Context, userID uuid.UUID) error
 	EnableTOTP(ctx context.Context, arg EnableTOTPParams) error
 	EnqueueNotification(ctx context.Context, arg EnqueueNotificationParams) error
 	FailRecoveryPoint(ctx context.Context, arg FailRecoveryPointParams) (RecoveryPoint, error)
+	FinishPlatformBackup(ctx context.Context, arg FinishPlatformBackupParams) (PlatformBackup, error)
 	FinishRestoreRun(ctx context.Context, arg FinishRestoreRunParams) (RestoreRun, error)
 	GetActiveAPIToken(ctx context.Context, tokenHash []byte) (GetActiveAPITokenRow, error)
 	GetActiveSession(ctx context.Context, id []byte) (GetActiveSessionRow, error)
@@ -64,29 +90,46 @@ type Querier interface {
 	GetApplicationBackupSettings(ctx context.Context, applicationID uuid.UUID) (ApplicationBackupSetting, error)
 	// SPDX-License-Identifier: Apache-2.0
 	GetAuthority(ctx context.Context, name string) (PkiAuthority, error)
+	GetContract(ctx context.Context, applicationID uuid.UUID) (RecoveryContract, error)
 	GetDefaultRepository(ctx context.Context, orgID uuid.UUID) (Repository, error)
+	GetEscrowDrill(ctx context.Context, arg GetEscrowDrillParams) (EscrowDrill, error)
 	GetHostSettings(ctx context.Context, agentID uuid.UUID) (HostSetting, error)
 	GetInventorySnapshot(ctx context.Context, agentID uuid.UUID) (InventorySnapshot, error)
 	GetLocalCredential(ctx context.Context, userID uuid.UUID) (LocalCredential, error)
 	GetLocalCredentialForUpdate(ctx context.Context, userID uuid.UUID) (LocalCredential, error)
 	// SPDX-License-Identifier: Apache-2.0
 	GetMasterAdmin(ctx context.Context, orgID uuid.UUID) (User, error)
+	GetNotificationChannel(ctx context.Context, arg GetNotificationChannelParams) (NotificationChannel, error)
+	GetNotificationChannelByID(ctx context.Context, id uuid.UUID) (NotificationChannel, error)
+	GetOutboxNotification(ctx context.Context, id int64) (NotificationOutbox, error)
 	GetPendingRecoveryPointForRun(ctx context.Context, arg GetPendingRecoveryPointForRunParams) (RecoveryPoint, error)
+	GetPlatformBackup(ctx context.Context, id string) (PlatformBackup, error)
+	// ---- Platform settings --------------------------------------------------------
+	GetPlatformSetting(ctx context.Context, arg GetPlatformSettingParams) (PlatformSetting, error)
+	GetPolicy(ctx context.Context, arg GetPolicyParams) (ProtectionPolicy, error)
 	GetRecoveryPoint(ctx context.Context, arg GetRecoveryPointParams) (RecoveryPoint, error)
 	GetRecoveryPointByID(ctx context.Context, id string) (RecoveryPoint, error)
 	GetRepository(ctx context.Context, arg GetRepositoryParams) (Repository, error)
 	GetRepositoryByID(ctx context.Context, id uuid.UUID) (Repository, error)
 	GetRestoreRun(ctx context.Context, arg GetRestoreRunParams) (RestoreRun, error)
 	GetRestoreRunByID(ctx context.Context, id string) (RestoreRun, error)
+	GetRunningPlatformBackup(ctx context.Context, orgID uuid.UUID) (PlatformBackup, error)
+	GetSystemRepository(ctx context.Context, orgID uuid.UUID) (Repository, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByOIDC(ctx context.Context, arg GetUserByOIDCParams) (User, error)
 	InsertAgentCertificate(ctx context.Context, arg InsertAgentCertificateParams) error
 	// SPDX-License-Identifier: Apache-2.0
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (InsertAuditEventRow, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
+	InsertNotificationDelivery(ctx context.Context, arg InsertNotificationDeliveryParams) error
 	LastCommittedRecoveryPoint(ctx context.Context, applicationID uuid.UUID) (RecoveryPoint, error)
+	LastCompletedEscrowDrill(ctx context.Context, orgID uuid.UUID) (EscrowDrill, error)
 	LatestAttemptPerApplication(ctx context.Context, orgID uuid.UUID) ([]RecoveryPoint, error)
 	LatestCommittedPerApplication(ctx context.Context, orgID uuid.UUID) ([]RecoveryPoint, error)
+	// ---- Agent presence -----------------------------------------------------------
+	// last_activity: the latest sign of life (heartbeat, health report) or the
+	// last status change (an agent just approved or resumed is not "offline").
+	ListActiveAgentPresence(ctx context.Context) ([]ListActiveAgentPresenceRow, error)
 	ListAgentApplications(ctx context.Context, agentID uuid.UUID) ([]Application, error)
 	ListAgentCommands(ctx context.Context, arg ListAgentCommandsParams) ([]AgentCommand, error)
 	ListAgentRepositoryAccessForAgent(ctx context.Context, agentID uuid.UUID) ([]AgentRepositoryAccess, error)
@@ -94,12 +137,24 @@ type Querier interface {
 	ListAgents(ctx context.Context, orgID uuid.UUID) ([]Agent, error)
 	ListApplicationBackupSettings(ctx context.Context, orgID uuid.UUID) ([]ApplicationBackupSetting, error)
 	ListApplications(ctx context.Context, orgID uuid.UUID) ([]ListApplicationsRow, error)
+	ListApplicationsForPolicy(ctx context.Context, policyID *uuid.UUID) ([]ListApplicationsForPolicyRow, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
+	ListChannelDeliveries(ctx context.Context, arg ListChannelDeliveriesParams) ([]ListChannelDeliveriesRow, error)
+	ListCommittedForRetention(ctx context.Context, arg ListCommittedForRetentionParams) ([]ListCommittedForRetentionRow, error)
+	ListContracts(ctx context.Context, orgID uuid.UUID) ([]ListContractsRow, error)
+	ListDueDeletions(ctx context.Context, arg ListDueDeletionsParams) ([]RecoveryPoint, error)
+	ListEnabledNotificationChannels(ctx context.Context) ([]NotificationChannel, error)
+	ListEscrowDrills(ctx context.Context, orgID uuid.UUID) ([]EscrowDrill, error)
 	// SPDX-License-Identifier: Apache-2.0
 	ListEscrowRecipients(ctx context.Context, orgID uuid.UUID) ([]EscrowRecipient, error)
 	ListGroupMappings(ctx context.Context, orgID uuid.UUID) ([]OidcGroupMapping, error)
 	ListGroupMappingsForGroups(ctx context.Context, arg ListGroupMappingsForGroupsParams) ([]string, error)
+	ListNotificationChannels(ctx context.Context, orgID uuid.UUID) ([]NotificationChannel, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]NotificationOutbox, error)
+	ListPlatformBackups(ctx context.Context, arg ListPlatformBackupsParams) ([]PlatformBackup, error)
+	// SPDX-License-Identifier: Apache-2.0
+	ListPolicies(ctx context.Context, orgID uuid.UUID) ([]ListPoliciesRow, error)
+	ListPolicyAssignments(ctx context.Context, orgID uuid.UUID) ([]ListPolicyAssignmentsRow, error)
 	ListRecoveryPoints(ctx context.Context, arg ListRecoveryPointsParams) ([]RecoveryPoint, error)
 	ListRegistrationTokens(ctx context.Context, orgID uuid.UUID) ([]ListRegistrationTokensRow, error)
 	ListRepositories(ctx context.Context, orgID uuid.UUID) ([]Repository, error)
@@ -108,14 +163,26 @@ type Querier interface {
 	// SPDX-License-Identifier: Apache-2.0
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]ListUserRolesRow, error)
 	ListUsers(ctx context.Context, orgID uuid.UUID) ([]User, error)
+	ListVerificationCandidates(ctx context.Context, arg ListVerificationCandidatesParams) ([]ListVerificationCandidatesRow, error)
+	// Conditional: exactly one dispatcher raises agent.offline per outage.
+	MarkAgentOfflineAlerted(ctx context.Context, id uuid.UUID) (int64, error)
 	MarkApplicationsMissing(ctx context.Context, arg MarkApplicationsMissingParams) error
+	MarkDeliveryFailed(ctx context.Context, arg MarkDeliveryFailedParams) error
+	MarkDeliveryRetry(ctx context.Context, arg MarkDeliveryRetryParams) error
+	MarkDeliverySent(ctx context.Context, id int64) error
 	MarkMissingRecoveryPoints(ctx context.Context, arg MarkMissingRecoveryPointsParams) (int64, error)
+	MarkNotificationsFannedOut(ctx context.Context, ids []int64) error
+	MarkRecoveryPointDeleted(ctx context.Context, id string) error
+	MarkRecoveryPointDeleting(ctx context.Context, id string) error
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) error
+	RecordNotificationChannelResult(ctx context.Context, arg RecordNotificationChannelResultParams) error
+	RegenerateRepositoryEscrow(ctx context.Context, arg RegenerateRepositoryEscrowParams) (Repository, error)
 	RemoveEscrowRecipient(ctx context.Context, arg RemoveEscrowRecipientParams) (int64, error)
 	// Logical size of the latest committed recovery point of every application,
 	// summed per host (physical usage is not attributable under deduplication).
 	RepositoryUsageByHost(ctx context.Context, repositoryID uuid.UUID) ([]RepositoryUsageByHostRow, error)
 	ResetLoginFailures(ctx context.Context, userID uuid.UUID) error
+	RetireDueRepositories(ctx context.Context, orgID uuid.UUID) ([]Repository, error)
 	RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) (int64, error)
 	RevokeAgentCertificates(ctx context.Context, agentID uuid.UUID) error
 	RevokeAgentCertificatesExcept(ctx context.Context, arg RevokeAgentCertificatesExceptParams) error
@@ -123,14 +190,22 @@ type Querier interface {
 	RevokeSession(ctx context.Context, id []byte) error
 	RevokeUserSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeUserSessionsExcept(ctx context.Context, arg RevokeUserSessionsExceptParams) error
+	ScheduleRecoveryPointDeletion(ctx context.Context, arg ScheduleRecoveryPointDeletionParams) (RecoveryPoint, error)
+	ScheduleRepositoryDeletion(ctx context.Context, arg ScheduleRepositoryDeletionParams) (Repository, error)
 	SetAgentCertificate(ctx context.Context, arg SetAgentCertificateParams) error
 	SetAgentStatus(ctx context.Context, arg SetAgentStatusParams) (Agent, error)
+	SetApplicationPolicy(ctx context.Context, arg SetApplicationPolicyParams) (int64, error)
+	SetContractState(ctx context.Context, arg SetContractStateParams) error
 	SetPendingTOTP(ctx context.Context, arg SetPendingTOTPParams) error
+	SetPlatformBackupManifest(ctx context.Context, arg SetPlatformBackupManifestParams) error
+	SetRecoveryPointVerification(ctx context.Context, arg SetRecoveryPointVerificationParams) error
 	SetRegistrationTokenAgent(ctx context.Context, arg SetRegistrationTokenAgentParams) error
 	SetRepositoryReindexed(ctx context.Context, id uuid.UUID) error
+	SetRepositoryVerified(ctx context.Context, id uuid.UUID) error
 	SetRestoreGrant(ctx context.Context, arg SetRestoreGrantParams) error
 	SetRestoreStep(ctx context.Context, arg SetRestoreStepParams) error
 	SetRestoreWorkflow(ctx context.Context, arg SetRestoreWorkflowParams) error
+	SetSystemRepository(ctx context.Context, arg SetSystemRepositoryParams) (Repository, error)
 	SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) error
 	StartRestoreRun(ctx context.Context, arg StartRestoreRunParams) (RestoreRun, error)
 	TouchAPIToken(ctx context.Context, id uuid.UUID) error
@@ -142,19 +217,23 @@ type Querier interface {
 	UpdateAgentLatency(ctx context.Context, arg UpdateAgentLatencyParams) error
 	UpdateApplicationMetadata(ctx context.Context, arg UpdateApplicationMetadataParams) (Application, error)
 	UpdateManualApplication(ctx context.Context, arg UpdateManualApplicationParams) (Application, error)
+	UpdateNotificationChannel(ctx context.Context, arg UpdateNotificationChannelParams) (NotificationChannel, error)
 	UpdateOIDCUserProfile(ctx context.Context, arg UpdateOIDCUserProfileParams) error
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
+	UpdatePolicy(ctx context.Context, arg UpdatePolicyParams) (ProtectionPolicy, error)
 	UpdateRepositoryConnection(ctx context.Context, arg UpdateRepositoryConnectionParams) error
 	UpsertAgentCommand(ctx context.Context, arg UpsertAgentCommandParams) error
 	UpsertAgentRepositoryAccess(ctx context.Context, arg UpsertAgentRepositoryAccessParams) error
 	UpsertAgentSession(ctx context.Context, arg UpsertAgentSessionParams) error
 	UpsertApplicationBackupSettings(ctx context.Context, arg UpsertApplicationBackupSettingsParams) (ApplicationBackupSetting, error)
+	UpsertContract(ctx context.Context, arg UpsertContractParams) (RecoveryContract, error)
 	UpsertDiscoveredApplication(ctx context.Context, arg UpsertDiscoveredApplicationParams) error
 	UpsertHostSettings(ctx context.Context, arg UpsertHostSettingsParams) (HostSetting, error)
 	// Reindexing (ADR-0003): the Repository wins.
 	UpsertIndexedRecoveryPoint(ctx context.Context, arg UpsertIndexedRecoveryPointParams) error
 	// SPDX-License-Identifier: Apache-2.0
 	UpsertInventorySnapshot(ctx context.Context, arg UpsertInventorySnapshotParams) error
+	UpsertPlatformSetting(ctx context.Context, arg UpsertPlatformSettingParams) (PlatformSetting, error)
 }
 
 var _ Querier = (*Queries)(nil)

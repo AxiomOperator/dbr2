@@ -27,6 +27,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/obs"
 	"github.com/AxiomOperator/dbr2/internal/pg"
+	"github.com/AxiomOperator/dbr2/internal/platform"
 	"github.com/AxiomOperator/dbr2/internal/version"
 
 	"github.com/go-chi/chi/v5"
@@ -114,13 +115,23 @@ func serve(ctx context.Context) error {
 	defer stopGateway()
 	gw.SetEvents(bus)
 	prot.SetEvents(bus)
+	// Platform self-backup (ADR-0008): the bundle is encrypted in this process.
+	prot.SetPlatformExporter(platform.NewExporter(pool, uuid.MustParse(db.DefaultOrgID), platform.Secrets{
+		SecretKey: cfg.SecretKey, InternalToken: cfg.InternalToken, EntraClientSecret: cfg.Entra.ClientSecret}, log))
+	go prot.RunPeriodic(ctx)
 
 	go janitor(ctx, pool, log)
+
+	notifier, err := startNotify(ctx, cfg, pool, log, gw, bus)
+	if err != nil {
+		return err
+	}
 
 	handler := api.NewHandler(&api.Deps{
 		Auth: svc, Fleet: fl, Protection: prot, Events: bus, Log: log, Ready: checks, DocsPublic: cfg.DocsPublic, CookieSecure: cfg.CookieSecure,
 		WebLoginPath: cfg.WebLoginPath, PublicURL: cfg.PublicURL, AllowedOrigins: cfg.AllowedOrigins(),
 		TrustedProxies: cfg.TrustedProxies(),
+		Notify:         notifier,
 	})
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

@@ -23,6 +23,7 @@ const detail = ApplicationDetailSchema.parse({
   criticality: null,
   last_seen_at: "2026-09-25T10:00:00Z",
   missing_since: null,
+  policy_id: null,
   collected_at: "2026-09-25T10:00:00Z",
   analysis: {
     key: "compose:shop",

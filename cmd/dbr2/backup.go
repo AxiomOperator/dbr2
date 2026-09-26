@@ -168,6 +168,9 @@ func cmdRecoveryPoints(args []string) error {
 }
 
 func cmdAdmin(args []string) error {
+	if len(args) > 0 && args[0] == "restore-platform" {
+		return errRestorePlatform
+	}
 	if len(args) == 0 || args[0] != "reindex" {
 		return errors.New("usage: dbr2 admin reindex --repository REPO")
 	}

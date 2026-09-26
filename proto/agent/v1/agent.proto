@@ -478,6 +478,26 @@ message ComponentSpec {
   // agent stages as containers/<id>.json (it holds the real environment,
   // which never passes through the control plane in clear text).
   repeated string container_ids = 9;
+  // Database components: what to dump (Phase 8, ADR-0017 formats).
+  DatabaseSpec database = 10;
+}
+
+// DatabaseSpec describes an online logical dump.
+message DatabaseSpec {
+  // postgresql | redis
+  string engine = 1;
+  // pg_dumpall-sql-zstd | rdb
+  string format = 2;
+  // Container to run the dump in (ID or name).
+  string container_id = 3;
+  string service = 4;
+  // PostgreSQL: role to connect as (default: POSTGRES_USER from the
+  // container environment, else "postgres"); local socket inside the
+  // container.
+  string user = 5;
+  // Redis: also capture the AOF (appendonlydir or appendonly.aof) when
+  // AOF is enabled; stored as a second file in the same snapshot.
+  bool include_aof = 6;
 }
 
 // SnapshotComponentsCommand snapshots components of one recovery point into
@@ -522,6 +542,11 @@ message ComponentResult {
   string capture_method = 20;
   // Single-stream components: the file name inside the snapshot.
   string file_name = 21;
+  // Database components: the dump that was taken and how it was checked.
+  DatabaseSpec database = 22;
+  // Validation performed on the captured data, e.g. "pg_dumpall trailer
+  // present; 12.3 MiB uncompressed" or "RDB magic REDIS0011, 3 keys".
+  string validation = 23;
 }
 
 // SnapshotComponentsResult lists every component outcome.

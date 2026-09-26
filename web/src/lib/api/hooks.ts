@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { isApiError } from "./client";
 import { api, queryKeys } from "./endpoints";
-import type { JobState, JobType, RecoveryPointState } from "./protection-schemas";
+import type { JobState, JobType, RecoveryPointFilterState } from "./protection-schemas";
 import { isActiveRestore, type RestoreBody, type RestoreState } from "./restore-schemas";
 
 export function useMe() {
@@ -142,7 +143,7 @@ export function useBackupSettings(applicationId: string, options: { enabled?: bo
 }
 
 export function useRecoveryPoints(
-  filters: { applicationId?: string | null; state?: RecoveryPointState | null },
+  filters: { applicationId?: string | null; state?: RecoveryPointFilterState | null },
   options: { enabled?: boolean } = {},
 ) {
   return useQuery({
@@ -283,6 +284,136 @@ export function useGroupMappings(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.groupMappings,
     queryFn: ({ signal }) => api.groupMappings(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+// --- Phase 7: policies, contracts, notifications -----------------------------
+
+/** Policies change rarely; next-run times move on, so refresh now and then. */
+export const POLICIES_REFRESH_MS = 60_000;
+/** Contracts are evaluated every 5 minutes (and after each change). */
+export const CONTRACTS_REFRESH_MS = 60_000;
+
+export function usePolicies(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.policies,
+    queryFn: ({ signal }) => api.policies(signal),
+    refetchInterval: POLICIES_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function usePolicy(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.policy(id),
+    queryFn: ({ signal }) => api.policy(id, signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+/**
+ * The policy an application is assigned to. The application DTO does not
+ * carry its policy, so this reads the details (assigned applications) of
+ * every policy that has assignments.
+ */
+export function useApplicationPolicy(applicationId: string, options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true;
+  const policies = usePolicies({ enabled });
+  const candidates = (policies.data ?? []).filter((p) => p.applications > 0);
+  const details = useQueries({
+    queries: candidates.map((p) => ({
+      queryKey: queryKeys.policy(p.id),
+      queryFn: ({ signal }: { signal: AbortSignal }) => api.policy(p.id, signal),
+      enabled,
+    })),
+  });
+  const found = details.find((d) => d.data?.assigned_applications.some((a) => a.id === applicationId))?.data ?? null;
+  return {
+    policies,
+    policy: found,
+    isPending: policies.isPending || details.some((d) => d.isPending),
+    isError: policies.isError || details.some((d) => d.isError),
+  };
+}
+
+export function useContracts(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.contractsAll,
+    queryFn: ({ signal }) => api.contracts(signal),
+    refetchInterval: CONTRACTS_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+/** An application's Recovery Contract, or null when it has none (404). */
+export function useContract(applicationId: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.contract(applicationId),
+    queryFn: async ({ signal }) => {
+      try {
+        return await api.contract(applicationId, signal);
+      } catch (err) {
+        if (isApiError(err) && err.status === 404) return null;
+        throw err;
+      }
+    },
+    refetchInterval: CONTRACTS_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useNotificationChannels(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.notificationChannels,
+    queryFn: ({ signal }) => api.notificationChannels(signal),
+    refetchInterval: 60_000,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useNotificationDeliveries(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.notificationDeliveries(id),
+    queryFn: ({ signal }) => api.notificationDeliveries(id, signal),
+    refetchInterval: 15_000,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useSmtpSettings(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.smtpSettings,
+    queryFn: ({ signal }) => api.smtpSettings(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+// --- Phase 9: escrow health, drills, platform protection ---------------------
+
+export function useEscrowHealth(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.escrowHealth,
+    queryFn: ({ signal }) => api.escrowHealth(signal),
+    refetchInterval: 5 * 60_000,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useEscrowDrills(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.escrowDrills,
+    queryFn: ({ signal }) => api.escrowDrills(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+/** Fast while a run is in progress. */
+export function usePlatformBackups(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.platformBackups,
+    queryFn: ({ signal }) => api.platformBackups(signal),
+    refetchInterval: (q) => (q.state.data?.some((b) => b.state === "running") ? 3_000 : 60_000),
     enabled: options.enabled ?? true,
   });
 }

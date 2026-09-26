@@ -9,6 +9,8 @@ import {
   ModeCell,
   RecoveryPointStateBadge,
   RecoveryPointStatusBadge,
+  ScheduledDeletionBadge,
+  VerificationBadge,
 } from "@/components/backups/backup-badges";
 import {
   Table,
@@ -61,8 +63,18 @@ function buildColumns(showApplication: boolean, canRestore: boolean) {
         <div className="flex flex-col items-start gap-1">
           <RecoveryPointStateBadge state={row.original.state} />
           <RecoveryPointStatusBadge status={row.original.status} />
+          <ScheduledDeletionBadge deleteAfter={row.original.delete_after} />
         </div>
       ),
+    }),
+    col.accessor("verification", {
+      header: "Verification",
+      cell: ({ row }) =>
+        row.original.state === "committed" || row.original.verification !== "unverified" ? (
+          <VerificationBadge state={row.original.verification} verifiedAt={row.original.verified_at} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     }),
     col.accessor("consistency_mode", {
       header: "Mode",
@@ -159,7 +171,11 @@ export function RecoveryPointsTable({
             </TableRow>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-rp-state={row.original.state}>
+              <TableRow
+                key={row.id}
+                data-rp-state={row.original.state}
+                data-scheduled-deletion={row.original.delete_after ? "true" : undefined}
+              >
                 {row.getAllCells().map((cell) => (
                   <TableCell key={cell.id} className="align-top">
                     <table.FlexRender cell={cell} />

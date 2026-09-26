@@ -35,6 +35,7 @@ import { api, queryKeys } from "@/lib/api/endpoints";
 import type { ApplicationDetail } from "@/lib/api/fleet-schemas";
 import {
   CONSISTENCY_MODES,
+  DATABASE_STRATEGIES,
   HOOK_MAX_TIMEOUT_SECONDS,
   MAX_QUIESCE_MAX_MINUTES,
   MAX_QUIESCE_MIN_MINUTES,
@@ -43,6 +44,7 @@ import {
   UpdateBackupSettingsRequestSchema,
   type BackupSettings,
   type ConsistencyMode,
+  type DatabaseStrategy,
   type Hook,
   type UpdateBackupSettingsRequest,
 } from "@/lib/api/protection-schemas";
@@ -69,6 +71,18 @@ export const MODE_HELP: Record<ConsistencyMode | typeof AUTO, string> = {
   offline: "Stops the application's containers for the capture and starts them again afterwards: fully consistent, with downtime.",
 };
 
+export const DATABASE_STRATEGY_LABEL: Record<DatabaseStrategy, string> = {
+  both: "Both: dumps and data volumes (default)",
+  logical: "Logical: dumps only (data volumes skipped)",
+  volume: "Volume: data volumes only (no dumps)",
+};
+
+export const DATABASE_STRATEGY_HELP: Record<DatabaseStrategy, string> = {
+  both: "Detected PostgreSQL and Redis containers are dumped while they run (consistent without downtime) and their data volumes are captured too.",
+  logical: "Only the dumps are kept: smaller recovery points, and restores load the dump. The databases' data volumes are skipped.",
+  volume: "No dumps: the data volumes are captured like any other volume (crash-consistent unless quiesced or offline).",
+};
+
 // ---------------------------------------------------------------------------
 // Draft <-> request (pure, tested)
 // ---------------------------------------------------------------------------
@@ -89,6 +103,7 @@ export interface SettingsDraft {
   postHooks: HookDraft[];
   optional: string[];
   excluded: string[];
+  databaseStrategy: DatabaseStrategy;
 }
 
 let hookKey = 1;
@@ -112,6 +127,7 @@ export function settingsToDraft(s: BackupSettings): SettingsDraft {
     postHooks: s.post_hooks.map(hookToDraft),
     optional: [...s.optional_components],
     excluded: [...s.excluded_components],
+    databaseStrategy: s.database_strategy ?? "both",
   };
 }
 
@@ -178,6 +194,7 @@ export function draftToRequest(
     // A component cannot be both optional and excluded; config is always required.
     optional_components: draft.optional.filter((c) => !excluded.has(c) && c !== "config"),
     excluded_components: draft.excluded,
+    database_strategy: draft.databaseStrategy,
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
   return { ok: true, value: parsed.data };
@@ -554,6 +571,28 @@ function SettingsForm({
               Effective mode (saved settings): <strong>{modeLabel(initial.effective_mode)}</strong>
             </p>
           )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${id}-db`}>Database strategy</Label>
+          <Select
+            value={draft.databaseStrategy}
+            onValueChange={(v) => set({ databaseStrategy: v as DatabaseStrategy })}
+            disabled={disabled}
+          >
+            <SelectTrigger id={`${id}-db`} className="w-full sm:w-96">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DATABASE_STRATEGIES.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {DATABASE_STRATEGY_LABEL[m]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground" data-testid="db-strategy-help">
+            {DATABASE_STRATEGY_HELP[draft.databaseStrategy]}
+          </p>
         </div>
         <HooksEditor
           title="Pre-hooks"

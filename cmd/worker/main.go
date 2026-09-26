@@ -31,6 +31,7 @@ import (
 	"github.com/AxiomOperator/dbr2/workflows/backup"
 	"github.com/AxiomOperator/dbr2/workflows/diag"
 	"github.com/AxiomOperator/dbr2/workflows/hosts"
+	platformwf "github.com/AxiomOperator/dbr2/workflows/platform"
 	"github.com/AxiomOperator/dbr2/workflows/restore"
 )
 
@@ -104,8 +105,12 @@ func run() error {
 	dispatcher := &agentcmd.Dispatcher{Control: gwControl, Token: cfg.InternalToken}
 	workflows.Register(w, &diag.Activities{}, &hosts.Activities{Control: gwControl, Token: cfg.InternalToken},
 		&backup.Activities{Agent: dispatcher, Platform: platform, Token: cfg.InternalToken, Maint: maint},
-		&restore.Activities{Agent: dispatcher, Platform: platform, Token: cfg.InternalToken})
+		&restore.Activities{Agent: dispatcher, Platform: platform, Token: cfg.InternalToken},
+		&platformwf.Activities{Platform: platform, Token: cfg.InternalToken, Maint: maint,
+			BundleDir: cfg.PlatformBundleDir, Keep: cfg.PlatformBundleKeep})
 	go ensureSchedules(ctx, c, cfg, log)
+	go ensurePlatformSchedule(ctx, c, cfg, log)
+	go ensureMaintenanceSchedules(ctx, c, cfg, log)
 
 	var healthy atomic.Bool
 	srv := &http.Server{Addr: cfg.HealthAddr, ReadHeaderTimeout: 5 * time.Second,

@@ -34,7 +34,7 @@ func (q *Queries) ClaimRegistrationToken(ctx context.Context, tokenHash []byte) 
 const createAgent = `-- name: CreateAgent :one
 INSERT INTO agents (org_id, hostname, agent_version, protocol_version, os_release, architecture, registration_token_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id
+RETURNING id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id, offline_alerted_at
 `
 
 type CreateAgentParams struct {
@@ -81,6 +81,7 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent
 		&i.DockerVersion,
 		&i.HealthError,
 		&i.RegistrationTokenID,
+		&i.OfflineAlertedAt,
 	)
 	return i, err
 }
@@ -168,7 +169,7 @@ func (q *Queries) DeleteAgentSession(ctx context.Context, arg DeleteAgentSession
 }
 
 const getAgent = `-- name: GetAgent :one
-SELECT id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id FROM agents WHERE id = $1
+SELECT id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id, offline_alerted_at FROM agents WHERE id = $1
 `
 
 func (q *Queries) GetAgent(ctx context.Context, id uuid.UUID) (Agent, error) {
@@ -197,6 +198,7 @@ func (q *Queries) GetAgent(ctx context.Context, id uuid.UUID) (Agent, error) {
 		&i.DockerVersion,
 		&i.HealthError,
 		&i.RegistrationTokenID,
+		&i.OfflineAlertedAt,
 	)
 	return i, err
 }
@@ -333,7 +335,7 @@ func (q *Queries) ListAgentSessions(ctx context.Context) ([]AgentSession, error)
 }
 
 const listAgents = `-- name: ListAgents :many
-SELECT id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id FROM agents WHERE org_id = $1 ORDER BY hostname, enrolled_at
+SELECT id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id, offline_alerted_at FROM agents WHERE org_id = $1 ORDER BY hostname, enrolled_at
 `
 
 func (q *Queries) ListAgents(ctx context.Context, orgID uuid.UUID) ([]Agent, error) {
@@ -368,6 +370,7 @@ func (q *Queries) ListAgents(ctx context.Context, orgID uuid.UUID) ([]Agent, err
 			&i.DockerVersion,
 			&i.HealthError,
 			&i.RegistrationTokenID,
+			&i.OfflineAlertedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -492,7 +495,7 @@ const setAgentStatus = `-- name: SetAgentStatus :one
 UPDATE agents SET status = $2, status_reason = $3, status_changed_at = now(), status_changed_by = $4,
     approved_at = CASE WHEN $2 = 'active' AND approved_at IS NULL THEN now() ELSE approved_at END
 WHERE id = $1 AND org_id = $5
-RETURNING id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id
+RETURNING id, org_id, hostname, status, status_reason, status_changed_at, status_changed_by, enrolled_at, approved_at, agent_version, protocol_version, os_release, architecture, cert_serial, cert_fingerprint, cert_not_after, last_seen_at, last_latency_ms, docker_reachable, docker_version, health_error, registration_token_id, offline_alerted_at
 `
 
 type SetAgentStatusParams struct {
@@ -535,6 +538,7 @@ func (q *Queries) SetAgentStatus(ctx context.Context, arg SetAgentStatusParams) 
 		&i.DockerVersion,
 		&i.HealthError,
 		&i.RegistrationTokenID,
+		&i.OfflineAlertedAt,
 	)
 	return i, err
 }

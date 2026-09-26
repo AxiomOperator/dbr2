@@ -19,7 +19,7 @@ import { PERMISSION_APPLICATION_READ } from "@/lib/api/fleet-schemas";
 import {
   PERMISSION_BACKUP_READ,
   RECOVERY_POINT_STATES,
-  type RecoveryPointState,
+  type RecoveryPointFilterState,
 } from "@/lib/api/protection-schemas";
 import { BACKUPS_REFRESH_MS, RECOVERY_POINTS_LIMIT, useApplications, useRecoveryPoints } from "@/lib/api/hooks";
 import { PERMISSION_RESTORE_EXECUTE } from "@/lib/api/restore-schemas";
@@ -28,7 +28,7 @@ const ALL = "all";
 
 export interface RecoveryPointFilters {
   application: string;
-  state: RecoveryPointState | typeof ALL;
+  state: RecoveryPointFilterState | typeof ALL;
 }
 
 /** Reads the filters from the URL (`?application=&state=`); unknown states are ignored. */
@@ -36,7 +36,7 @@ export function parseRecoveryPointFilters(params: URLSearchParams): RecoveryPoin
   const state = params.get("state") ?? "";
   return {
     application: params.get("application") || ALL,
-    state: (RECOVERY_POINT_STATES as readonly string[]).includes(state) ? (state as RecoveryPointState) : ALL,
+    state: (RECOVERY_POINT_STATES as readonly string[]).includes(state) ? (state as RecoveryPointFilterState) : ALL,
   };
 }
 

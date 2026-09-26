@@ -120,6 +120,7 @@ github.com/prometheus/client_model/go v0.6.2 — Apache-2.0
 github.com/prometheus/common v0.68.1 — Apache-2.0
 github.com/prometheus/procfs v0.22.0 — Apache-2.0
 github.com/robfig/cron v1.2.0 — MIT
+github.com/robfig/cron/v3 v3.0.1 — MIT
 github.com/rs/xid v1.6.0 — MIT
 github.com/sethvargo/go-retry v0.4.0 — Apache-2.0
 github.com/skratchdot/open-golang/open v0.0.0-20200116055534-eef842397966 — MIT
@@ -5946,6 +5947,7 @@ SoundCloud Ltd. (http://soundcloud.com/).
 --------------------------------------------------------------------------------
 Applies to:
   - github.com/robfig/cron v1.2.0 (MIT)
+  - github.com/robfig/cron/v3 v3.0.1 (MIT)
 --------------------------------------------------------------------------------
 Copyright (C) 2012 Rob Figueiredo
 All Rights Reserved.

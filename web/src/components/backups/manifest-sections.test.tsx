@@ -40,15 +40,30 @@ describe("manifest sections", () => {
     );
     const m = ManifestSchema.parse({
       schema_version: 1,
-      components: [c("database:db", { kind: "database", database: { engine: "redis", format: "rdb" } })],
+      components: [
+        c("database:cache", { kind: "database", database: { engine: "redis", format: "rdb", container: "shop-cache-1" } }),
+        c("database:db", {
+          kind: "database",
+          database: { engine: "postgresql", format: "pg_dumpall-sql-zstd", service: "db" },
+          validation: "pg_dumpall exit 0; zstd frame verified",
+        }),
+      ],
     });
     renderWithQuery(<DatabasesCard components={m.components} />);
-    expect(screen.getByText("Redis dump (rdb)")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Database dumps" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getByText("Redis")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("shop-cache-1")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Not recorded")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("PostgreSQL")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("pg_dumpall-sql-zstd")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("service db")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("pg_dumpall exit 0; zstd frame verified")).toBeInTheDocument();
   });
 
-  it("explains that no dumps exist before Phase 8", () => {
+  it("explains when a recovery point has no dumps", () => {
     renderWithQuery(<DatabasesCard components={[]} />);
-    expect(screen.getByText(/arrive with Phase 8/)).toBeInTheDocument();
+    expect(screen.getByText(/database strategy is “logical” or “both”/)).toBeInTheDocument();
   });
 
   it("shows the topology at capture time, or says it was not recorded", () => {

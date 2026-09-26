@@ -182,29 +182,35 @@ Goal: remove the architectural unknowns before building.
 
 ## Phase 7 — Scheduling, retention & notifications
 
-- [ ] Protection Policies: schedule (cron, hourly, daily, weekly, monthly), consistency mode, retention, target Repositories
-- [ ] Temporal schedules; overlapping runs skipped and recorded (ADR-0011)
-- [ ] Retention at recovery-point level: manifest deleted first, then components; runs under the maintenance identity
-- [ ] **Deletion grace period** (default 7 days) for manual deletions of recovery points and Repositories (ADR-0014)
-- [ ] **Recovery Contract** (v1.0 subset): maximum RPO, required components; Satisfied or Violated, with RPO-violation reporting
-- [ ] Notifications: email and generic webhook. Events: backup failed, missed or warning; restore completed or failed; agent offline; RPO violated; auto-resume; escrow unhealthy; verification failed; master admin login
+- [x] Protection Policies: schedule (cron, hourly, daily, weekly, monthly), consistency mode, retention, target Repositories
+- [x] Temporal schedules; overlapping runs skipped and recorded (ADR-0011)
+- [x] Retention at recovery-point level: manifest deleted first, then components; runs under the maintenance identity
+- [x] **Deletion grace period** (default 7 days) for manual deletions of recovery points and Repositories (ADR-0014)
+- [x] **Recovery Contract** (v1.0 subset): maximum RPO, required components; Satisfied or Violated, with RPO-violation reporting
+- [x] Notifications: email and generic webhook. Events: backup failed, missed or warning; restore completed or failed; agent offline; RPO violated; auto-resume; escrow unhealthy; verification failed; master admin login
+
+**Status: complete (2026-09-25).** ADR-0018. Verified on the dev stack: scheduled backups every minute from a policy, retention deleting outside `keep_last`, a contract RPO violation raising an alert, and deletion grace with undo (API integration test).
 
 ## Phase 8 — Database-aware backups (PostgreSQL, Redis)
 
-- [ ] Database detection for PostgreSQL and Redis
-- [ ] PostgreSQL: `pg_dump` streamed into a `database` component (Zstandard-compressed stream); online, no quiesce
-- [ ] Redis: `BGSAVE`, wait for completion, then capture the RDB file (plus the AOF when enabled); online, no quiesce
-- [ ] Strategy options: logical, volume, or both (default **both** for databases, with the volume copy allowed to be crash-consistent)
-- [ ] Dump and RDB validation
+- [x] Database detection for PostgreSQL and Redis
+- [x] PostgreSQL: `pg_dumpall` (all databases and roles) streamed into a `database` component (Zstandard-compressed stream); online, no quiesce
+- [x] Redis: `BGSAVE`, wait for completion, then capture the RDB file (plus the AOF when enabled); online, no quiesce
+- [x] Strategy options: logical, volume, or both (default **both** for databases, with the volume copy allowed to be crash-consistent)
+- [x] Dump and RDB validation
+
+**Status: complete (2026-09-25).** Verified on the dev stack against real `postgres:18-alpine` and `redis:8-alpine`: dumps were validated (pg_dumpall trailer; RDB magic plus AOF), and a database-only restore brought back 1000 rows while the database kept running.
 
 ## Phase 9 — Verification & platform self-protection
 
-- [ ] Repository integrity verification workflow (`repository/{id}/verify`)
-- [ ] Recovery point verification state (Unverified, Verified, Verification Failed)
-- [ ] **Platform self-backup** to the System Repository, plus an age-encrypted Platform Recovery Bundle in a separate NFS export or directory (ADR-0008)
-- [ ] Escrow health checks, re-escrow on secret rotation, annual escrow drill reminder
-- [ ] `dbr2 admin restore-platform` plus the platform recovery runbook (fresh Temporal, reindex); document Veeam's VM backup as an additional layer
-- [ ] Platform recovery test passing in CI
+- [x] Repository integrity verification workflow (`repository/{id}/verify`)
+- [x] Recovery point verification state (Unverified, Verified, Verification Failed)
+- [x] **Platform self-backup** to the System Repository, plus an age-encrypted Platform Recovery Bundle in a separate NFS export or directory (ADR-0008)
+- [x] Escrow health checks, re-escrow on secret rotation, annual escrow drill reminder
+- [x] `dbr2 admin restore-platform` plus the platform recovery runbook (fresh Temporal, reindex); document Veeam's VM backup as an additional layer (implemented as `dbr2-server admin restore-platform`; `docs/operations/platform-recovery.md`)
+- [x] Platform recovery test passing in CI (`internal/platform/recovery_integration_test.go`, part of `make test-integration`)
+
+**Status: complete (2026-09-25).** Verified on the dev stack: Repository verification with 100 % reads marked recovery points Verified, an escrow drill decrypted with a key from the "safe" made escrow healthy, and a platform bundle was written to the System Repository and the bundle directory and verified with an escrow identity (`restore-platform --verify-only`).
 
 ## v1.0 release gate
 
@@ -304,6 +310,62 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Feature — Phases 7, 8 and 9 complete (scheduling, retention, contracts, notifications; database-aware backups; verification and self-protection)
+- **Notes:**
+  - **ADR-0018 (new):** scheduling, retention, deletion grace, recovery contracts, notifications, verification, escrow health and the database strategy.
+  - **Phase 7:**
+    - Protection Policies: cron or preset schedule plus timezone, mode and Repository defaults, grandfather-father-son retention.
+    - One Temporal schedule per application, kept in sync; overlapping runs are skipped and recorded (`backup.skipped`).
+    - `RetentionWorkflow` runs daily as `maint@dbr2`: manifest first, then components; an application's latest recovery point is never deleted.
+    - Deletion grace: 7 days for recovery points and Repositories, with typed confirmation, a reason and undo.
+    - Recovery Contracts (max RPO, required components): evaluated every 5 minutes with violation and recovery alerts, and recorded in each manifest at capture.
+    - Notifications (`internal/notify`): email and HMAC-signed webhooks with event and severity filters, retries, multi-instance safety (`SKIP LOCKED`), sealed write-only secrets, and agent offline/online alerts.
+  - **Phase 8:**
+    - PostgreSQL and Redis detection, with tooling images excluded.
+    - Online dumps before the quiesce window:
+      - `pg_dumpall --clean --if-exists` streamed through zstd, validated by exit code and trailer.
+      - Redis `BGSAVE` completion, then the RDB (plus AOF), validated by the RDB magic.
+    - Strategy per application: logical, volume or both (the default).
+    - Manifests record `database` and `validation`.
+  - **Phase 9:**
+    - Engine `Verify`: every object checked and a sampled share of files fully read. `repository/<id>/verify` runs on demand and weekly (`platform-verify`); recovery points become Verified or Verification Failed (critical alert).
+    - Escrow health checked hourly: recipients, confirmation, recipient drift, the 90-day re-confirmation and the annual drill. Packages can be regenerated from the reposerver's password; drills run through the console.
+    - Platform self-backup and `dbr2-server admin restore-platform`: see the entry below, and the reposerver `state-export`/`state-import` and `repository-password` endpoints.
+  - **Found by the end-to-end run and fixed:**
+    1. A **database-only restore** sent an empty component list to the agent, and it also stopped the whole application first. Restores now stop the application only when files are swapped, and skip the data step when there are none. Dumps load into the running database.
+    2. A new policy's `next_run` was missing from the create response.
+  - **Dev environment:** the dev database and Caddy volumes were recreated again during the subagents' parallel Docker work. The dev agent, escrow recipients and Repository were re-bootstrapped; the dev Repository storage, which is test data only, was reset.
+  - **Verification on the dev stack:**
+    - A PostgreSQL + Redis Compose app backed up with 7 components; the dumps were validated.
+    - Database-only restore of 1000 rows.
+    - Policy schedule firing every minute.
+    - Retention deleting the out-of-policy recovery point.
+    - Verification at 100 % reads: all recovery points Verified.
+    - Contract RPO violation.
+    - Escrow drill making escrow healthy.
+    - Platform bundle (82 KiB) written and verified with an escrow identity.
+  - **Deferred:**
+    - Redis AUTH/ACL.
+    - A pack-blob-level verification from the worker (the maint session has no blob list; the stock `kopia snapshot verify` on the reposerver host covers it).
+    - Retention of pinned platform snapshots.
+    - Platform backup triggered by security-relevant changes (daily only for now).
+    - Two-person approval and maintenance windows ("Later").
+- **Files:** `internal/{protection,notify,platform,agent,runtime,engine,reposerver,repoclient,api,audit,manifest,config,temporalx}`, `workflows/{backup,platform,ops,restore,register.go}`, `cmd/{server,worker,dbr2}`, `proto/{agent,control}/v1`, `db/migrations/0000{5,6,7}_*`, `db/queries/{policies,notifications,platform,backups}.sql`, `web/**`, `api/openapi.yaml`, component changelogs, `docs/adr/0018` (new), `docs/adr/0008` (amendment), `docs/operations/platform-recovery.md` (new), `docs/stack_info/final_stack.md`, `docs/threat_model.md` (T36–T39), `docs/dev/audit-events.md`, `README.md`, `docs/roadmap.md`
+
+### 2026-09-25 — Feature — Phase 9: platform self-backup and platform recovery (ADR-0008)
+- **Notes:**
+  - **Platform Recovery Bundle** (`internal/platform`): `tar` → `zstd` → age (binary) to every escrow recipient, produced and encrypted **inside dbr2-server** (plaintext never leaves the process). Entries: `db/<table>.copy` for every `public` table except `goose_db_version` (`COPY … FORMAT binary`, one REPEATABLE READ read-only snapshot), `secrets/` (`dbr2_secret_key`, `dbr2_internal_token`, `dbr2_entra_client_secret` if set), `reposerver/<id>.tar` (each reposerver's `GET /v1/state-export`; an unreachable reposerver is recorded as missing → Partial + alert), and `manifest.json` last (versions, goose schema version, row counts, columns, SHA-256 of every entry, no secret values). Tables are buffered one at a time in memory.
+  - **Temporal excluded** (recovery uses a fresh Temporal; forensic history is covered by the Veeam VM backup) — recorded as an ADR-0008 amendment together with the bundle format and where each part runs.
+  - **Control plane:** `PlatformService` `BeginPlatformBackup`, `ExportPlatform` (server-streaming, 1 MiB chunks, final summary message) and `RecordPlatformBackup` (audit `platform.backup.succeeded|partial|failed`, warning/critical alert). The response message is `ExportPlatformResponse` (buf lint requires the `<Rpc>Response` name).
+  - **Worker:** `PlatformProtectionWorkflow` (`workflows/platform`; ID `platform/protection`, daily schedule `platform-protection` at `DBR2_PLATFORM_BACKUP_CRON` = `15 2 * * *`, overlap skip; the server refuses a second concurrent run) tees the ciphertext into the System Repository (pinned snapshot `maint@dbr2:/platform`, `dbr2-kind=platform`, shared `MaintSessions`) and `DBR2_PLATFORM_BUNDLE_DIR` (temp + fsync + rename; newest 14 kept). One target missing → Partial; both → failed.
+  - **API:** `GET/POST /api/v1/platform/backups`, `PUT /api/v1/repositories/{id}/system` (`repository.manage`); audit `platform.backup.requested`, `repository.system.designated`.
+  - **DB:** migration `00007_platform_backups` (`platform_backups`, `repositories.is_system` with a partial unique index).
+  - **Restore:** `dbr2-server admin restore-platform` (the roadmap's `dbr2 admin restore-platform` needs direct database access on a fresh install; the CLI prints a pointer). Verifies every digest, migrates to the bundle's schema version as the database owner, restores every table in one transaction with `session_replication_role = replica` (superuser connection), resets sequences, applies newer migrations, writes secrets / reposerver state or imports the state (`POST /v1/state-import`), prints the next steps. `--verify-only` for drills, `--no-database` for the reposerver import after the reposervers use the restored token.
+  - **Platform recovery test:** two throwaway PostgreSQL databases; seed through the real services (master admin, OIDC user, CA, agent, escrow recipient, Repository with escrow package, recovery points, audit events, outbox), export against a fake reposerver, restore, and assert row counts, audit trigger enforcement, sequence reset, CA key decryption with the restored secret key, escrow package decryption, reposerver state import and tamper rejection.
+  - **Deployment:** worker bind mount `${DBR2_PLATFORM_BUNDLE_HOST_PATH:-./platform-bundles}` (a separate NFS export or directory outside every Repository); dev uses `.dev/platform-bundles` (`make dev-up` creates it).
+  - **Open:** triggering a platform backup after security-relevant configuration changes; retention of platform snapshots in the System Repository (pinned, kept indefinitely); console UI; the reposerver `state-export`/`state-import` endpoints are coded against the agreed contract (tested with fakes).
+- **Files:** `internal/platform/*`, `internal/protection/platform_backup_rpc.go`, `internal/protection/protection.go` (one field), `workflows/platform/*`, `workflows/register.go`, `internal/api/ops_platform.go`, `internal/audit/events_platform.go`, `internal/repoclient/client.go`, `internal/temporalx/temporalx.go`, `internal/config/config.go`, `proto/control/v1/control.proto`, `db/migrations/00007_platform_backups.sql`, `db/queries/platform.sql`, `cmd/server/{main.go,serve.go,restore_platform.go}`, `cmd/worker/{main.go,schedules.go}`, `cmd/dbr2/{backup.go,main.go,platform.go}`, compose files, `Makefile`, `docs/operations/platform-recovery.md`, ADR-0008, `docs/dev/audit-events.md`, changelogs (server, worker, cli, api, agent-protocol, db-schema, deployment)
 
 ### 2026-09-25 — Fix — `make dev-up` build failure (DNS inside build containers)
 - **Notes:**

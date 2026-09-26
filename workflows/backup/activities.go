@@ -202,12 +202,18 @@ func BuildManifest(in CommitInput, now time.Time) (*manifest.Manifest, error) {
 		c := manifest.Component{Name: r.Name, Kind: kindName(r.Kind), Required: r.Required, Status: r.Status, Error: r.Error,
 			SnapshotID: r.SnapshotId, RootObjectID: r.RootObjectId, SnapshotSource: r.Source, SizeBytes: r.SizeBytes, Files: r.Files,
 			StartedAt: time.UnixMilli(r.StartedUnixMs).UTC(), FinishedAt: time.UnixMilli(r.FinishedUnixMs).UTC(),
-			Path: r.Path, VolumeName: r.VolumeName, Mode: r.Mode, SELinuxContext: r.SelinuxContext, Parent: r.Parent, CaptureMethod: r.CaptureMethod, FileName: r.FileName}
+			Path: r.Path, VolumeName: r.VolumeName, Mode: r.Mode, SELinuxContext: r.SelinuxContext, Parent: r.Parent, CaptureMethod: r.CaptureMethod, FileName: r.FileName, Validation: r.Validation}
+		if d := r.Database; d != nil {
+			c.Database = &manifest.DatabaseDump{Engine: d.Engine, Format: d.Format, Service: d.Service, Container: d.ContainerId}
+		}
 		if c.Kind == manifest.KindVolume || c.Kind == manifest.KindBindMount {
 			uid, gid := r.OwnerUid, r.OwnerGid
 			c.OwnerUID, c.OwnerGID = &uid, &gid
 		}
 		m.Components = append(m.Components, c)
+	}
+	if len(in.Plan.ContractJson) > 0 {
+		m.Contract = contractAtCapture(in.Plan.ContractJson, m.Components)
 	}
 	st, ok := manifest.StatusFor(m.Components)
 	if !ok {
@@ -324,4 +330,31 @@ func commitWith(ctx context.Context, rep engine.Repository, m *manifest.Manifest
 func jsonDetails(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// contractAtCapture evaluates the Recovery Contract's required components
+// against this recovery point (the RPO is by definition met at capture).
+func contractAtCapture(spec []byte, comps []manifest.Component) *manifest.Contract {
+	var c struct {
+		MaxRPOMinutes      *int32   `json:"max_rpo_minutes"`
+		RequiredComponents []string `json:"required_components"`
+	}
+	if json.Unmarshal(spec, &c) != nil {
+		return nil
+	}
+	got := map[string]bool{}
+	for _, x := range comps {
+		if x.Status == manifest.ComponentSucceeded {
+			got[x.Name] = true
+		}
+	}
+	var missing []string
+	for _, r := range c.RequiredComponents {
+		if !got[r] {
+			missing = append(missing, r)
+		}
+	}
+	details, _ := json.Marshal(map[string]any{"max_rpo_minutes": c.MaxRPOMinutes, "required_components": c.RequiredComponents,
+		"missing_components": missing})
+	return &manifest.Contract{Satisfied: len(missing) == 0, Details: details}
 }

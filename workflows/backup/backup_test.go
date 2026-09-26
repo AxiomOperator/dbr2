@@ -318,3 +318,80 @@ func TestOrphanGC(t *testing.T) {
 		t.Fatal("GC deleted the manifest")
 	}
 }
+
+func TestDeleteRecoveryPointManifestFirst(t *testing.T) {
+	ctx := context.Background()
+	r := repo(t)
+	p := plan(manifest.ModeLive)
+	s := component(t, r, p.RecoveryPointId, "volume:data", "volume", agentID)
+	m, _ := BuildManifest(commitInput(p, s), time.Now())
+	if _, err := commitWith(ctx, r, m); err != nil {
+		t.Fatal(err)
+	}
+	other := component(t, r, manifest.NewRecoveryPointID(time.Now()), "volume:data", "volume", agentID)
+	var order []string
+	n, err := deleteRecoveryPoint(ctx, r, p.RecoveryPointId, func() {
+		if found, _, _ := readManifests(ctx, r, func() {}); len(found) == 0 {
+			order = append(order, "no-manifest")
+		} else {
+			order = append(order, "manifest")
+		}
+	})
+	if err != nil || n != 2 {
+		t.Fatalf("deleted %d, %v", n, err)
+	}
+	if strings.Join(order, ",") != "no-manifest,no-manifest" {
+		t.Fatalf("manifest was not deleted first: %v", order)
+	}
+	if _, err := r.Get(ctx, s.ID); err == nil {
+		t.Fatal("component survived")
+	}
+	if _, err := r.Get(ctx, other.ID); err != nil {
+		t.Fatal("another recovery point's component was deleted")
+	}
+}
+
+func TestDatabaseDumpsRunBeforeQuiesce(t *testing.T) {
+	p := plan(manifest.ModeQuiesced)
+	p.Components = append([]*agentv1.ComponentSpec{{Name: "database:db", Kind: agentv1.ComponentKind_COMPONENT_KIND_DATABASE, Required: true,
+		Database: &agentv1.DatabaseSpec{Engine: "postgresql", Format: "pg_dumpall-sql-zstd", ContainerId: "shop-db-1"}}}, p.Components...)
+	c := &calls{}
+	var mu sync.Mutex
+	var batches [][]string
+	calls := 0
+	e := env(t, p, func() (*agentv1.SnapshotComponentsResult, error) {
+		calls++
+		if calls > 1 {
+			return okResults(p.RecoveryPointId), nil
+		}
+		r := &agentv1.SnapshotComponentsResult{}
+		now := time.Now().UnixMilli()
+		r.Components = append(r.Components, &agentv1.ComponentResult{Name: "database:db", Kind: agentv1.ComponentKind_COMPONENT_KIND_DATABASE,
+			Required: true, Status: "succeeded", SnapshotId: "d1", Source: "agent@" + agentID + ":/app-1/database:db", StartedUnixMs: now, FinishedUnixMs: now,
+			Database: &agentv1.DatabaseSpec{Engine: "postgresql", Format: "pg_dumpall-sql-zstd", ContainerId: "shop-db-1"}, Validation: "trailer present"})
+		return r, nil
+	}, c)
+	e.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, args converter.EncodedValues) {
+		if info.ActivityType.Name == "Snapshot" {
+			var in SnapshotInput
+			_ = args.Get(&in)
+			var names []string
+			for _, x := range in.Components {
+				names = append(names, x.Name)
+			}
+			mu.Lock()
+			batches = append(batches, names)
+			mu.Unlock()
+		}
+	})
+	e.ExecuteWorkflow(BackupWorkflow, Input{ApplicationID: "app-1"})
+	if err := e.GetWorkflowError(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(c.order, " "); got != "snapshot hooks:pre quiesce snapshot resume hooks:post commit complete:committed" {
+		t.Fatalf("order = %s", got)
+	}
+	if len(batches) != 2 || strings.Join(batches[0], ",") != "database:db" || strings.Join(batches[1], ",") != "volume:data" {
+		t.Fatalf("batches = %v", batches)
+	}
+}

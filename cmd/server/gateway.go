@@ -69,7 +69,7 @@ func startGateway(ctx context.Context, cfg *config.Server, pool *pgxpool.Pool, l
 
 	fl := fleet.New(fleet.Options{OrgID: orgID, GatewayAddress: cfg.GatewayPublicAddress, TaskQueue: cfg.Temporal.TaskQueue},
 		pool, rec, gw, box, tc)
-	prot := protection.New(protection.Options{OrgID: orgID, TaskQueue: cfg.Temporal.TaskQueue, InternalToken: cfg.InternalToken},
+	prot := protection.New(protection.Options{OrgID: orgID, TaskQueue: cfg.Temporal.TaskQueue, InternalToken: cfg.InternalToken, Log: log},
 		pool, rec, fl, gw, tc)
 
 	if cfg.InternalToken == "" {

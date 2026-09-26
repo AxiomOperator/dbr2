@@ -121,6 +121,10 @@ export type ApplicationDetail = {
     name: string;
     owner: string | null;
     /**
+     * Assigned Protection Policy (null = none).
+     */
+    policy_id: string | null;
+    /**
      * Protection status (protected, at_risk, failed, unprotected) with reasons, the latest recovery point and attempt, a running operation, and coverage: each component the application has now and whether the latest recovery point contains it.
      */
     protection?: Protection;
@@ -156,6 +160,10 @@ export type ApplicationSummary = {
     name: string;
     owner: string | null;
     /**
+     * Assigned Protection Policy (null = none).
+     */
+    policy_id: string | null;
+    /**
      * Protection status (protected, at_risk, failed, unprotected) with reasons, the latest recovery point and attempt, a running operation, and coverage: each component the application has now and whether the latest recovery point contains it.
      */
     protection?: Protection;
@@ -170,6 +178,10 @@ export type ApplicationSummary = {
      */
     unprotected_high: number;
     volumes: number;
+};
+
+export type AssignPolicyRequest = {
+    policy_id: string | null;
 };
 
 export type AuditEvent = {
@@ -203,6 +215,10 @@ export type BackupSettingsDto = {
      * Null = automatic: quiesced when hooks are defined, otherwise live (crash-consistent).
      */
     consistency_mode: 'live' | 'quiesced' | 'offline' | null;
+    /**
+     * Detected PostgreSQL/Redis containers: logical (dumps only; their data volumes are skipped), volume (no dumps) or both (default).
+     */
+    database_strategy?: 'logical' | 'volume' | 'both';
     readonly effective_mode?: string;
     excluded_components: Array<string> | null;
     /**
@@ -242,6 +258,17 @@ export type Change = {
     path: string;
 };
 
+export type ChannelConfigDto = {
+    /**
+     * Email channels: recipient addresses.
+     */
+    to?: Array<string> | null;
+    /**
+     * Webhook channels: the endpoint. https is required; plain http is accepted only for localhost / loopback addresses. Redirects are not followed.
+     */
+    url?: string;
+};
+
 export type CodeInputBody = {
     code: string;
 };
@@ -250,6 +277,10 @@ export type Collision = {
     detail: string;
     kind: 'container_name' | 'port' | 'network' | 'volume' | 'bind_path' | 'dependency';
     name: string;
+};
+
+export type CompleteEscrowDrillRequest = {
+    confirmation_code: string;
 };
 
 export type ComponentCoverage = {
@@ -336,6 +367,20 @@ export type ContainerRef = {
     state: string;
 };
 
+export type ContractDto = {
+    application_id: string;
+    application_name?: string;
+    evaluated_at: string | null;
+    /**
+     * Maximum age of the latest recovery point (null = no RPO).
+     */
+    max_rpo_minutes: number | null;
+    required_components: Array<string> | null;
+    state: 'satisfied' | 'violated' | 'unknown';
+    state_reasons: Array<string> | null;
+    violated_since: string | null;
+};
+
 export type Cookie = {
     Domain: string;
     Expires: string;
@@ -361,6 +406,18 @@ export type CreateApplicationRequest = {
 
 export type CreateApplicationResponse = {
     id: string;
+};
+
+export type CreateNotificationChannelRequest = {
+    config: ChannelConfigDto;
+    enabled?: boolean;
+    /**
+     * Event types to deliver (exact or prefix wildcard such as backup.*); empty or omitted = all.
+     */
+    events?: Array<string> | null;
+    kind: 'email' | 'webhook';
+    min_severity?: 'info' | 'warning' | 'critical';
+    name: string;
 };
 
 export type CreateRegistrationTokenRequest = {
@@ -410,6 +467,22 @@ export type CreatedRepoBody = {
     repository: RepositoryDto;
 };
 
+export type DeleteRecoveryPointRequest = {
+    /**
+     * Type the application (or Repository) name.
+     */
+    confirmation: string;
+    reason: string;
+};
+
+export type DeleteRepositoryRequest = {
+    /**
+     * Type the application (or Repository) name.
+     */
+    confirmation: string;
+    reason: string;
+};
+
 export type Dependency = {
     detail: string;
     kind: string;
@@ -418,6 +491,17 @@ export type Dependency = {
 
 export type DiscoverAgentResponse = {
     workflow_id: string;
+};
+
+export type DrillDto = {
+    completed_at: string | null;
+    created_at: string;
+    id: string;
+    /**
+     * The drill package (only when it is created).
+     */
+    package?: string;
+    recipients: number;
 };
 
 export type EnvVar = {
@@ -440,6 +524,27 @@ export type ErrorDetail = {
      * The value at the given location
      */
     value?: unknown;
+};
+
+export type EscrowHealth = {
+    checked_at: string;
+    healthy: boolean;
+    last_drill_at: string | null;
+    problems: Array<EscrowProblem> | null;
+    recipients: number;
+};
+
+export type EscrowPkgOutBody = {
+    escrow_filename: string;
+    escrow_package: string;
+    repository: RepositoryDto;
+};
+
+export type EscrowProblem = {
+    code: 'too_few_recipients' | 'not_confirmed' | 'recipients_changed' | 'reconfirm_due' | 'drill_due';
+    message: string;
+    repository_id?: string;
+    severity: 'critical' | 'warning';
 };
 
 export type EscrowRecipientDto = {
@@ -669,12 +774,32 @@ export type ListContainersResponse = {
     items: Array<FleetContainerDto> | null;
 };
 
+export type ListContractsResponse = {
+    items: Array<ContractDto> | null;
+};
+
+export type ListEscrowDrillsResponse = {
+    items: Array<DrillDto> | null;
+};
+
 export type ListEscrowRecipientsResponse = {
     items: Array<EscrowRecipientDto> | null;
 };
 
 export type ListJobsResponse = {
     items: Array<Job> | null;
+};
+
+export type ListNotificationChannelsResponse = {
+    items: Array<NotificationChannelDto> | null;
+};
+
+export type ListNotificationDeliveriesResponse = {
+    items: Array<NotificationDeliveryDto> | null;
+};
+
+export type ListPlatformBackupsResponse = {
+    items: Array<PlatformBackupDto> | null;
 };
 
 export type ListRecoveryPointsResponse = {
@@ -695,6 +820,10 @@ export type ListRestoresResponse = {
 
 export type ListVolumesResponse = {
     items: Array<FleetVolumeDto> | null;
+};
+
+export type ListOutBody = {
+    items: Array<PolicyDto> | null;
 };
 
 export type LiveDto = {
@@ -768,6 +897,47 @@ export type NetworkUse = {
     name: string;
 };
 
+export type NotificationChannelDto = {
+    config: ChannelConfigDto;
+    created_at: string;
+    enabled: boolean;
+    /**
+     * Subscribed event types (exact, or prefix wildcards such as backup.*); empty = all events.
+     */
+    events: Array<string> | null;
+    id: string;
+    kind: 'email' | 'webhook';
+    last_delivery_at: string | null;
+    /**
+     * Error of the most recent failed delivery; cleared by the next success.
+     */
+    last_error: string | null;
+    min_severity: 'info' | 'warning' | 'critical';
+    name: string;
+    /**
+     * Whether a webhook signing secret is stored (the secret itself is write-only).
+     */
+    secret_set: boolean;
+    updated_at: string;
+};
+
+export type NotificationDeliveryDto = {
+    attempts: number;
+    created_at: string;
+    event_type: string;
+    id: number;
+    last_error: string | null;
+    message: string;
+    /**
+     * Pending deliveries only.
+     */
+    next_attempt_at: string | null;
+    notification_id: number;
+    sent_at: string | null;
+    severity: 'info' | 'warning' | 'critical';
+    state: 'pending' | 'sent' | 'failed';
+};
+
 export type PasswordInputBody = {
     current_password: string;
     new_password: string;
@@ -776,6 +946,112 @@ export type PasswordInputBody = {
 export type PathRemap = {
     from: string;
     to: string;
+};
+
+export type PlatformBackupDto = {
+    /**
+     * Copy in the worker's bundle directory (null = not written there).
+     */
+    bundle_path: string | null;
+    error: string | null;
+    /**
+     * dbr2-platform-<UTC timestamp>.tar.zst.age
+     */
+    file_name: string | null;
+    finished_at: string | null;
+    id: string;
+    /**
+     * The bundle's plaintext manifest.json (versions, row counts, digests, missing reposervers). Never contains secrets.
+     */
+    manifest?: unknown;
+    /**
+     * The System Repository at the time of the run.
+     */
+    repository_id: string | null;
+    /**
+     * SHA-256 (hex) of the encrypted bundle file.
+     */
+    sha256: string | null;
+    /**
+     * Size of the encrypted bundle.
+     */
+    size_bytes: number;
+    /**
+     * Pinned Kopia snapshot in the System Repository (null = not written there).
+     */
+    snapshot_id: string | null;
+    started_at: string;
+    state: 'running' | 'succeeded' | 'partial' | 'failed';
+    trigger: string;
+    workflow_id: string | null;
+};
+
+export type PolicyApplicationDto = {
+    host_id: string;
+    id: string;
+    name: string;
+};
+
+export type PolicyBody = {
+    /**
+     * Used when the application sets none.
+     */
+    consistency_mode?: 'live' | 'quiesced' | 'offline';
+    description?: string;
+    enabled: boolean;
+    name: string;
+    /**
+     * Used when the application sets none (default: the default Repository).
+     */
+    repository_id?: string;
+    retention: RetentionInput;
+    /**
+     * hourly, daily, weekly, monthly or a 5-field cron expression (minute hour day month weekday).
+     */
+    schedule: string;
+    /**
+     * IANA timezone for the schedule (default UTC).
+     */
+    timezone?: string;
+};
+
+export type PolicyDto = {
+    applications: number;
+    consistency_mode: string | null;
+    created_at: string;
+    description: string;
+    enabled: boolean;
+    id: string;
+    name: string;
+    next_run: string | null;
+    repository_id: string | null;
+    retention: RetentionDto;
+    /**
+     * Cron expression (presets are stored as cron).
+     */
+    schedule: string;
+    timezone: string;
+    updated_at: string;
+};
+
+export type PolicyOutBody = {
+    applications: number;
+    assigned_applications: Array<PolicyApplicationDto> | null;
+    consistency_mode: string | null;
+    created_at: string;
+    description: string;
+    enabled: boolean;
+    id: string;
+    name: string;
+    next_run: string | null;
+    repository_id: string | null;
+    retention: RetentionDto;
+    /**
+     * Cron expression (presets are stored as cron).
+     */
+    schedule: string;
+    timezone: string;
+    updated_at: string;
 };
 
 export type Port = {
@@ -888,6 +1164,11 @@ export type ProvidersOutputBody = {
     oidc: Array<ProviderInfo> | null;
 };
 
+export type PutContractRequest = {
+    max_rpo_minutes?: number;
+    required_components: Array<string> | null;
+};
+
 export type ReasonInputBody = {
     /**
      * Stored in the audit log.
@@ -904,6 +1185,12 @@ export type RecoveryPointDto = {
     consistency_point: string | null;
     crash_consistent_only: boolean;
     created_at: string;
+    /**
+     * Scheduled deletion time (grace period); null when not scheduled.
+     */
+    delete_after: string | null;
+    delete_reason: string | null;
+    deleted_at: string | null;
     error: string | null;
     host_id: string;
     hostname: string;
@@ -914,10 +1201,15 @@ export type RecoveryPointDto = {
     manifest?: unknown;
     repository_id: string;
     size_bytes: number;
-    state: 'pending' | 'committed' | 'failed' | 'missing' | 'deleting';
+    state: 'pending' | 'committed' | 'failed' | 'missing' | 'deleting' | 'deleted';
     status: 'complete' | 'partial' | null;
     trigger: string;
     verification: 'unverified' | 'verified' | 'verification_failed';
+    /**
+     * Per-component verification results (detail view).
+     */
+    verification_details?: unknown;
+    verified_at: string | null;
     workflow_id: string;
 };
 
@@ -939,6 +1231,11 @@ export type RepositoryDto = {
      */
     cert_sha256: string;
     created_at: string;
+    /**
+     * Set while the Repository is pending deletion (grace period).
+     */
+    delete_after: string | null;
+    delete_reason: string | null;
     description: string;
     escrow_confirmed_at: string | null;
     escrow_generated_at: string | null;
@@ -946,8 +1243,13 @@ export type RepositoryDto = {
     id: string;
     internal_server_url: string;
     is_default: boolean;
+    /**
+     * The System Repository that receives Platform Recovery Bundles (ADR-0008).
+     */
+    is_system: boolean;
     kopia_repository_id: string | null;
     last_reindex_at: string | null;
+    last_verified_at: string | null;
     /**
      * Live reposerver status; null when unreachable (see live_error).
      */
@@ -957,7 +1259,7 @@ export type RepositoryDto = {
     name: string;
     server_url: string;
     splitter: string | null;
-    status: 'awaiting_escrow' | 'ready' | 'unavailable' | 'retired';
+    status: 'awaiting_escrow' | 'ready' | 'unavailable' | 'pending_deletion' | 'retired';
     /**
      * Per-host logical size of each application's latest recovery point (deduplicated physical usage is shared and not attributable).
      */
@@ -1023,6 +1325,30 @@ export type RestoreUpdatedEvent = {
     step?: string;
 };
 
+export type RetentionDto = {
+    keep_daily: number;
+    /**
+     * Newest per hour, for this many hours.
+     */
+    keep_hourly: number;
+    /**
+     * Newest recovery points always kept.
+     */
+    keep_last: number;
+    keep_monthly: number;
+    keep_weekly: number;
+    keep_yearly: number;
+};
+
+export type RetentionInput = {
+    keep_daily?: number;
+    keep_hourly?: number;
+    keep_last?: number;
+    keep_monthly?: number;
+    keep_weekly?: number;
+    keep_yearly?: number;
+};
+
 export type Role = {
     description: string;
     display_name: string;
@@ -1040,6 +1366,20 @@ export type RoleAssignment = {
 
 export type RolesOutputBody = {
     items: Array<Role> | null;
+};
+
+export type SmtpSettingsDto = {
+    configured: boolean;
+    from: string;
+    host: string;
+    /**
+     * Whether a password is stored (the password itself is write-only).
+     */
+    password_set: boolean;
+    port: number;
+    tls: 'starttls' | 'tls' | 'none';
+    updated_at: string | null;
+    username: string;
 };
 
 export type Service = {
@@ -1107,6 +1447,12 @@ export type StatusBody = {
     status: 'ok' | 'degraded' | 'unavailable';
 };
 
+export type TestNotificationChannelResponse = {
+    delivered: boolean;
+    duration_ms: number;
+    error?: string;
+};
+
 export type TmpfsUse = {
     container: string;
     destination: string;
@@ -1164,6 +1510,28 @@ export type UpdateApplicationRequest = {
     owner?: string;
 };
 
+export type UpdateNotificationChannelRequest = {
+    config: ChannelConfigDto;
+    enabled: boolean;
+    /**
+     * Event types to deliver (exact or prefix wildcard such as backup.*); empty or omitted = all.
+     */
+    events?: Array<string> | null;
+    min_severity?: 'info' | 'warning' | 'critical';
+    name: string;
+};
+
+export type UpdateSmtpSettingsRequest = {
+    /**
+     * Sender address, e.g. DBR2 <dbr2@example.com>.
+     */
+    from: string;
+    host: string;
+    port: number;
+    tls: 'starttls' | 'tls' | 'none';
+    username?: string;
+};
+
 export type User = {
     disabled: boolean;
     display_name: string;
@@ -1177,6 +1545,17 @@ export type User = {
 
 export type UsersOutputBody = {
     items: Array<User> | null;
+};
+
+export type VerifyRepositoryRequest = {
+    /**
+     * Default 10.
+     */
+    read_percent?: number;
+    /**
+     * Verify only this recovery point.
+     */
+    recovery_point_id?: string;
 };
 
 export type VersionBody = {
@@ -1227,6 +1606,10 @@ export type BackupSettingsDtoWritable = {
      * Null = automatic: quiesced when hooks are defined, otherwise live (crash-consistent).
      */
     consistency_mode: 'live' | 'quiesced' | 'offline' | null;
+    /**
+     * Detected PostgreSQL/Redis containers: logical (dumps only; their data volumes are skipped), volume (no dumps) or both (default).
+     */
+    database_strategy?: 'logical' | 'volume' | 'both';
     excluded_components: Array<string> | null;
     /**
      * Upper bound on quiesce; the agent dead-man switch resumes the application 10 minutes later.
@@ -1242,6 +1625,49 @@ export type BackupSettingsDtoWritable = {
      * Null = the default Repository.
      */
     repository_id: string | null;
+};
+
+export type CreateNotificationChannelRequestWritable = {
+    config: ChannelConfigDto;
+    enabled?: boolean;
+    /**
+     * Event types to deliver (exact or prefix wildcard such as backup.*); empty or omitted = all.
+     */
+    events?: Array<string> | null;
+    kind: 'email' | 'webhook';
+    min_severity?: 'info' | 'warning' | 'critical';
+    name: string;
+    /**
+     * Webhook signing secret (min. 16 characters). Requests then carry X-DBR2-Signature: sha256=<hex HMAC-SHA256(secret, X-DBR2-Timestamp + "." + body)>. On update: omit to keep, empty string to remove.
+     */
+    secret?: string;
+};
+
+export type UpdateNotificationChannelRequestWritable = {
+    config: ChannelConfigDto;
+    enabled: boolean;
+    /**
+     * Event types to deliver (exact or prefix wildcard such as backup.*); empty or omitted = all.
+     */
+    events?: Array<string> | null;
+    min_severity?: 'info' | 'warning' | 'critical';
+    name: string;
+    /**
+     * Webhook signing secret (min. 16 characters). Requests then carry X-DBR2-Signature: sha256=<hex HMAC-SHA256(secret, X-DBR2-Timestamp + "." + body)>. On update: omit to keep, empty string to remove.
+     */
+    secret?: string;
+};
+
+export type UpdateSmtpSettingsRequestWritable = {
+    /**
+     * Sender address, e.g. DBR2 <dbr2@example.com>.
+     */
+    from: string;
+    host: string;
+    password?: string;
+    port: number;
+    tls: 'starttls' | 'tls' | 'none';
+    username?: string;
 };
 
 export type ListAgentsData = {
@@ -2303,6 +2729,186 @@ export type GetApplicationComposeResponses = {
 
 export type GetApplicationComposeResponse = GetApplicationComposeResponses[keyof GetApplicationComposeResponses];
 
+export type DeleteContractData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/applications/{id}/contract';
+};
+
+export type DeleteContractErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type DeleteContractError = DeleteContractErrors[keyof DeleteContractErrors];
+
+export type DeleteContractResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type DeleteContractResponse = DeleteContractResponses[keyof DeleteContractResponses];
+
+export type GetContractData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/applications/{id}/contract';
+};
+
+export type GetContractErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type GetContractError = GetContractErrors[keyof GetContractErrors];
+
+export type GetContractResponses = {
+    /**
+     * OK
+     */
+    200: ContractDto;
+};
+
+export type GetContractResponse = GetContractResponses[keyof GetContractResponses];
+
+export type PutContractData = {
+    body: PutContractRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/applications/{id}/contract';
+};
+
+export type PutContractErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type PutContractError = PutContractErrors[keyof PutContractErrors];
+
+export type PutContractResponses = {
+    /**
+     * OK
+     */
+    200: ContractDto;
+};
+
+export type PutContractResponse = PutContractResponses[keyof PutContractResponses];
+
+export type AssignPolicyData = {
+    body: AssignPolicyRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/applications/{id}/policy';
+};
+
+export type AssignPolicyErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type AssignPolicyError = AssignPolicyErrors[keyof AssignPolicyErrors];
+
+export type AssignPolicyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type AssignPolicyResponse = AssignPolicyResponses[keyof AssignPolicyResponses];
+
 export type ListAuditEventsData = {
     body?: never;
     path?: never;
@@ -2707,6 +3313,193 @@ export type ListContainersResponses = {
 
 export type ListContainersResponse2 = ListContainersResponses[keyof ListContainersResponses];
 
+export type ListContractsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/contracts';
+};
+
+export type ListContractsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type ListContractsError = ListContractsErrors[keyof ListContractsErrors];
+
+export type ListContractsResponses = {
+    /**
+     * OK
+     */
+    200: ListContractsResponse;
+};
+
+export type ListContractsResponse2 = ListContractsResponses[keyof ListContractsResponses];
+
+export type ListEscrowDrillsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/escrow/drills';
+};
+
+export type ListEscrowDrillsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type ListEscrowDrillsError = ListEscrowDrillsErrors[keyof ListEscrowDrillsErrors];
+
+export type ListEscrowDrillsResponses = {
+    /**
+     * OK
+     */
+    200: ListEscrowDrillsResponse;
+};
+
+export type ListEscrowDrillsResponse2 = ListEscrowDrillsResponses[keyof ListEscrowDrillsResponses];
+
+export type StartEscrowDrillData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/escrow/drills';
+};
+
+export type StartEscrowDrillErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type StartEscrowDrillError = StartEscrowDrillErrors[keyof StartEscrowDrillErrors];
+
+export type StartEscrowDrillResponses = {
+    /**
+     * Created
+     */
+    201: DrillDto;
+};
+
+export type StartEscrowDrillResponse = StartEscrowDrillResponses[keyof StartEscrowDrillResponses];
+
+export type CompleteEscrowDrillData = {
+    body: CompleteEscrowDrillRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/escrow/drills/{id}/complete';
+};
+
+export type CompleteEscrowDrillErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type CompleteEscrowDrillError = CompleteEscrowDrillErrors[keyof CompleteEscrowDrillErrors];
+
+export type CompleteEscrowDrillResponses = {
+    /**
+     * OK
+     */
+    200: DrillDto;
+};
+
+export type CompleteEscrowDrillResponse = CompleteEscrowDrillResponses[keyof CompleteEscrowDrillResponses];
+
+export type GetEscrowHealthData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/escrow/health';
+};
+
+export type GetEscrowHealthErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type GetEscrowHealthError = GetEscrowHealthErrors[keyof GetEscrowHealthErrors];
+
+export type GetEscrowHealthResponses = {
+    /**
+     * OK
+     */
+    200: EscrowHealth;
+};
+
+export type GetEscrowHealthResponse = GetEscrowHealthResponses[keyof GetEscrowHealthResponses];
+
 export type ListEscrowRecipientsData = {
     body?: never;
     path?: never;
@@ -3048,6 +3841,309 @@ export type ListJobsResponses = {
 
 export type ListJobsResponse2 = ListJobsResponses[keyof ListJobsResponses];
 
+export type ListNotificationChannelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/notification-channels';
+};
+
+export type ListNotificationChannelsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type ListNotificationChannelsError = ListNotificationChannelsErrors[keyof ListNotificationChannelsErrors];
+
+export type ListNotificationChannelsResponses = {
+    /**
+     * OK
+     */
+    200: ListNotificationChannelsResponse;
+};
+
+export type ListNotificationChannelsResponse2 = ListNotificationChannelsResponses[keyof ListNotificationChannelsResponses];
+
+export type CreateNotificationChannelData = {
+    body: CreateNotificationChannelRequestWritable;
+    path?: never;
+    query?: never;
+    url: '/api/v1/notification-channels';
+};
+
+export type CreateNotificationChannelErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type CreateNotificationChannelError = CreateNotificationChannelErrors[keyof CreateNotificationChannelErrors];
+
+export type CreateNotificationChannelResponses = {
+    /**
+     * Created
+     */
+    201: NotificationChannelDto;
+};
+
+export type CreateNotificationChannelResponse = CreateNotificationChannelResponses[keyof CreateNotificationChannelResponses];
+
+export type DeleteNotificationChannelData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/notification-channels/{id}';
+};
+
+export type DeleteNotificationChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type DeleteNotificationChannelError = DeleteNotificationChannelErrors[keyof DeleteNotificationChannelErrors];
+
+export type DeleteNotificationChannelResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type DeleteNotificationChannelResponse = DeleteNotificationChannelResponses[keyof DeleteNotificationChannelResponses];
+
+export type GetNotificationChannelData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/notification-channels/{id}';
+};
+
+export type GetNotificationChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type GetNotificationChannelError = GetNotificationChannelErrors[keyof GetNotificationChannelErrors];
+
+export type GetNotificationChannelResponses = {
+    /**
+     * OK
+     */
+    200: NotificationChannelDto;
+};
+
+export type GetNotificationChannelResponse = GetNotificationChannelResponses[keyof GetNotificationChannelResponses];
+
+export type UpdateNotificationChannelData = {
+    body: UpdateNotificationChannelRequestWritable;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/notification-channels/{id}';
+};
+
+export type UpdateNotificationChannelErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type UpdateNotificationChannelError = UpdateNotificationChannelErrors[keyof UpdateNotificationChannelErrors];
+
+export type UpdateNotificationChannelResponses = {
+    /**
+     * OK
+     */
+    200: NotificationChannelDto;
+};
+
+export type UpdateNotificationChannelResponse = UpdateNotificationChannelResponses[keyof UpdateNotificationChannelResponses];
+
+export type ListNotificationDeliveriesData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        limit?: number;
+    };
+    url: '/api/v1/notification-channels/{id}/deliveries';
+};
+
+export type ListNotificationDeliveriesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type ListNotificationDeliveriesError = ListNotificationDeliveriesErrors[keyof ListNotificationDeliveriesErrors];
+
+export type ListNotificationDeliveriesResponses = {
+    /**
+     * OK
+     */
+    200: ListNotificationDeliveriesResponse;
+};
+
+export type ListNotificationDeliveriesResponse2 = ListNotificationDeliveriesResponses[keyof ListNotificationDeliveriesResponses];
+
+export type TestNotificationChannelData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/notification-channels/{id}/test';
+};
+
+export type TestNotificationChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type TestNotificationChannelError = TestNotificationChannelErrors[keyof TestNotificationChannelErrors];
+
+export type TestNotificationChannelResponses = {
+    /**
+     * OK
+     */
+    200: TestNotificationChannelResponse;
+};
+
+export type TestNotificationChannelResponse2 = TestNotificationChannelResponses[keyof TestNotificationChannelResponses];
+
 export type ListGroupMappingsData = {
     body?: never;
     path?: never;
@@ -3163,12 +4259,299 @@ export type RemoveGroupMappingResponses = {
 
 export type RemoveGroupMappingResponse = RemoveGroupMappingResponses[keyof RemoveGroupMappingResponses];
 
+export type ListPlatformBackupsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        limit?: number;
+    };
+    url: '/api/v1/platform/backups';
+};
+
+export type ListPlatformBackupsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type ListPlatformBackupsError = ListPlatformBackupsErrors[keyof ListPlatformBackupsErrors];
+
+export type ListPlatformBackupsResponses = {
+    /**
+     * OK
+     */
+    200: ListPlatformBackupsResponse;
+};
+
+export type ListPlatformBackupsResponse2 = ListPlatformBackupsResponses[keyof ListPlatformBackupsResponses];
+
+export type StartPlatformBackupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/platform/backups';
+};
+
+export type StartPlatformBackupErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type StartPlatformBackupError = StartPlatformBackupErrors[keyof StartPlatformBackupErrors];
+
+export type StartPlatformBackupResponses = {
+    /**
+     * Accepted
+     */
+    202: WorkflowOutBody;
+};
+
+export type StartPlatformBackupResponse = StartPlatformBackupResponses[keyof StartPlatformBackupResponses];
+
+export type ListPoliciesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/policies';
+};
+
+export type ListPoliciesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type ListPoliciesError = ListPoliciesErrors[keyof ListPoliciesErrors];
+
+export type ListPoliciesResponses = {
+    /**
+     * OK
+     */
+    200: ListOutBody;
+};
+
+export type ListPoliciesResponse = ListPoliciesResponses[keyof ListPoliciesResponses];
+
+export type CreatePolicyData = {
+    body: PolicyBody;
+    path?: never;
+    query?: never;
+    url: '/api/v1/policies';
+};
+
+export type CreatePolicyErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type CreatePolicyError = CreatePolicyErrors[keyof CreatePolicyErrors];
+
+export type CreatePolicyResponses = {
+    /**
+     * Created
+     */
+    201: PolicyDto;
+};
+
+export type CreatePolicyResponse = CreatePolicyResponses[keyof CreatePolicyResponses];
+
+export type DeletePolicyData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{id}';
+};
+
+export type DeletePolicyErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type DeletePolicyError = DeletePolicyErrors[keyof DeletePolicyErrors];
+
+export type DeletePolicyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type DeletePolicyResponse = DeletePolicyResponses[keyof DeletePolicyResponses];
+
+export type GetPolicyData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{id}';
+};
+
+export type GetPolicyErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type GetPolicyError = GetPolicyErrors[keyof GetPolicyErrors];
+
+export type GetPolicyResponses = {
+    /**
+     * OK
+     */
+    200: PolicyOutBody;
+};
+
+export type GetPolicyResponse = GetPolicyResponses[keyof GetPolicyResponses];
+
+export type UpdatePolicyData = {
+    body: PolicyBody;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{id}';
+};
+
+export type UpdatePolicyErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type UpdatePolicyError = UpdatePolicyErrors[keyof UpdatePolicyErrors];
+
+export type UpdatePolicyResponses = {
+    /**
+     * OK
+     */
+    200: PolicyDto;
+};
+
+export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
+
 export type ListRecoveryPointsData = {
     body?: never;
     path?: never;
     query?: {
         application_id?: string;
-        state?: 'pending' | 'committed' | 'failed' | 'missing' | 'deleting';
+        state?: 'pending' | 'committed' | 'failed' | 'missing' | 'deleting' | 'deleted';
         limit?: number;
     };
     url: '/api/v1/recovery-points';
@@ -3246,6 +4629,57 @@ export type GetRecoveryPointResponses = {
 };
 
 export type GetRecoveryPointResponse = GetRecoveryPointResponses[keyof GetRecoveryPointResponses];
+
+export type DeleteRecoveryPointData = {
+    body: DeleteRecoveryPointRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/recovery-points/{id}/delete';
+};
+
+export type DeleteRecoveryPointErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type DeleteRecoveryPointError = DeleteRecoveryPointErrors[keyof DeleteRecoveryPointErrors];
+
+export type DeleteRecoveryPointResponses = {
+    /**
+     * OK
+     */
+    200: RecoveryPointDto;
+};
+
+export type DeleteRecoveryPointResponse = DeleteRecoveryPointResponses[keyof DeleteRecoveryPointResponses];
 
 export type PreviewRestoreData = {
     body: RestoreBody;
@@ -3348,6 +4782,53 @@ export type StartRestoreResponses = {
 };
 
 export type StartRestoreResponse = StartRestoreResponses[keyof StartRestoreResponses];
+
+export type UndeleteRecoveryPointData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/recovery-points/{id}/undelete';
+};
+
+export type UndeleteRecoveryPointErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type UndeleteRecoveryPointError = UndeleteRecoveryPointErrors[keyof UndeleteRecoveryPointErrors];
+
+export type UndeleteRecoveryPointResponses = {
+    /**
+     * OK
+     */
+    200: RecoveryPointDto;
+};
+
+export type UndeleteRecoveryPointResponse = UndeleteRecoveryPointResponses[keyof UndeleteRecoveryPointResponses];
 
 export type ListRepositoriesData = {
     body?: never;
@@ -3470,6 +4951,57 @@ export type GetRepositoryResponses = {
 
 export type GetRepositoryResponse = GetRepositoryResponses[keyof GetRepositoryResponses];
 
+export type DeleteRepositoryData = {
+    body: DeleteRepositoryRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/repositories/{id}/delete';
+};
+
+export type DeleteRepositoryErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type DeleteRepositoryError = DeleteRepositoryErrors[keyof DeleteRepositoryErrors];
+
+export type DeleteRepositoryResponses = {
+    /**
+     * OK
+     */
+    200: RepositoryDto;
+};
+
+export type DeleteRepositoryResponse = DeleteRepositoryResponses[keyof DeleteRepositoryResponses];
+
 export type GetRepositoryEscrowPackageData = {
     body?: never;
     path: {
@@ -3560,6 +5092,53 @@ export type ConfirmRepositoryEscrowResponses = {
 
 export type ConfirmRepositoryEscrowResponse = ConfirmRepositoryEscrowResponses[keyof ConfirmRepositoryEscrowResponses];
 
+export type RegenerateRepositoryEscrowData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/repositories/{id}/escrow/regenerate';
+};
+
+export type RegenerateRepositoryEscrowErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type RegenerateRepositoryEscrowError = RegenerateRepositoryEscrowErrors[keyof RegenerateRepositoryEscrowErrors];
+
+export type RegenerateRepositoryEscrowResponses = {
+    /**
+     * OK
+     */
+    200: EscrowPkgOutBody;
+};
+
+export type RegenerateRepositoryEscrowResponse = RegenerateRepositoryEscrowResponses[keyof RegenerateRepositoryEscrowResponses];
+
 export type ReindexRepositoryData = {
     body?: never;
     path: {
@@ -3606,6 +5185,147 @@ export type ReindexRepositoryResponses = {
 };
 
 export type ReindexRepositoryResponse = ReindexRepositoryResponses[keyof ReindexRepositoryResponses];
+
+export type DesignateSystemRepositoryData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/repositories/{id}/system';
+};
+
+export type DesignateSystemRepositoryErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type DesignateSystemRepositoryError = DesignateSystemRepositoryErrors[keyof DesignateSystemRepositoryErrors];
+
+export type DesignateSystemRepositoryResponses = {
+    /**
+     * OK
+     */
+    200: RepositoryDto;
+};
+
+export type DesignateSystemRepositoryResponse = DesignateSystemRepositoryResponses[keyof DesignateSystemRepositoryResponses];
+
+export type UndeleteRepositoryData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/repositories/{id}/undelete';
+};
+
+export type UndeleteRepositoryErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type UndeleteRepositoryError = UndeleteRepositoryErrors[keyof UndeleteRepositoryErrors];
+
+export type UndeleteRepositoryResponses = {
+    /**
+     * OK
+     */
+    200: RepositoryDto;
+};
+
+export type UndeleteRepositoryResponse = UndeleteRepositoryResponses[keyof UndeleteRepositoryResponses];
+
+export type VerifyRepositoryData = {
+    body?: VerifyRepositoryRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/repositories/{id}/verify';
+};
+
+export type VerifyRepositoryErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Not Found
+     */
+    404: Problem;
+    /**
+     * Conflict
+     */
+    409: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type VerifyRepositoryError = VerifyRepositoryErrors[keyof VerifyRepositoryErrors];
+
+export type VerifyRepositoryResponses = {
+    /**
+     * Accepted
+     */
+    202: WorkflowOutBody;
+};
+
+export type VerifyRepositoryResponse = VerifyRepositoryResponses[keyof VerifyRepositoryResponses];
 
 export type ListRestoresData = {
     body?: never;
@@ -3768,6 +5488,80 @@ export type ListRolesResponses = {
 };
 
 export type ListRolesResponse = ListRolesResponses[keyof ListRolesResponses];
+
+export type GetSmtpSettingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/smtp';
+};
+
+export type GetSmtpSettingsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type GetSmtpSettingsError = GetSmtpSettingsErrors[keyof GetSmtpSettingsErrors];
+
+export type GetSmtpSettingsResponses = {
+    /**
+     * OK
+     */
+    200: SmtpSettingsDto;
+};
+
+export type GetSmtpSettingsResponse = GetSmtpSettingsResponses[keyof GetSmtpSettingsResponses];
+
+export type UpdateSmtpSettingsData = {
+    body: UpdateSmtpSettingsRequestWritable;
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/smtp';
+};
+
+export type UpdateSmtpSettingsErrors = {
+    /**
+     * Bad Request
+     */
+    400: Problem;
+    /**
+     * Unauthorized
+     */
+    401: Problem;
+    /**
+     * Forbidden
+     */
+    403: Problem;
+    /**
+     * Unprocessable Entity
+     */
+    422: Problem;
+    /**
+     * Internal Server Error
+     */
+    500: Problem;
+};
+
+export type UpdateSmtpSettingsError = UpdateSmtpSettingsErrors[keyof UpdateSmtpSettingsErrors];
+
+export type UpdateSmtpSettingsResponses = {
+    /**
+     * OK
+     */
+    200: SmtpSettingsDto;
+};
+
+export type UpdateSmtpSettingsResponse = UpdateSmtpSettingsResponses[keyof UpdateSmtpSettingsResponses];
 
 export type ListApiTokensData = {
     body?: never;

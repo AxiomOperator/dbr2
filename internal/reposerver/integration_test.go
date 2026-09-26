@@ -486,6 +486,97 @@ func TestReposerverIntegration(t *testing.T) {
 	if strings.Contains(p.log.String(), itRepoPW) {
 		t.Fatal("repository password appears in the reposerver log")
 	}
+
+	// --- Phase 9: repository password, state export → wipe → import
+	if code, m := p.call("GET", "/v1/repository-password", "", itToken); code != 200 || m["password"] != itRepoPW {
+		t.Fatalf("repository password: %d", code)
+	}
+	man2, err := snapshotDir(ctx, a1r.rep, src, data, tags, []string{"dbr2"})
+	if err != nil {
+		t.Fatalf("a1 snapshot before export: %v", err)
+	}
+	code, archive := p.raw("GET", "/v1/state-export", nil, itToken)
+	if code != 200 || len(archive) == 0 {
+		t.Fatalf("state export: %d %s", code, archive)
+	}
+	if strings.Contains(p.log.String(), itRepoPW) {
+		t.Fatal("repository password appears in the reposerver log")
+	}
+	p.stop()
+	if err := os.RemoveAll(stateDir); err != nil {
+		t.Fatal(err)
+	}
+	p.start()
+	for i := 0; ; i++ {
+		if c, err := net.Dial("tcp", p.mgmt); err == nil {
+			c.Close()
+			break
+		}
+		if i > 100 {
+			t.Fatalf("mgmt API did not come back\n%s", p.log)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if code, st := p.call("GET", "/v1/status", "", itToken); code != 200 || st["initialized"] != false || st["cert_sha256"] == fp {
+		t.Fatalf("status after wipe: %d %v", code, st)
+	}
+	if code, m := p.call("GET", "/v1/repository-password", "", itToken); code != 409 || m["code"] != "not_initialized" {
+		t.Fatalf("password after wipe: %d %v", code, m)
+	}
+	if code, body := p.raw("POST", "/v1/state-import", []byte("not a tar archive at all"), itToken); code != 400 || !strings.Contains(string(body), "invalid_state") {
+		t.Fatalf("bad import: %d %s", code, body)
+	}
+	code, body := p.raw("POST", "/v1/state-import", archive, itToken)
+	if code != 200 || !strings.Contains(string(body), `"initialized":true`) {
+		t.Fatalf("state import: %d %s\n%s", code, body, p.log)
+	}
+	st = p.waitRunning()
+	if st["cert_sha256"] != fp || st["splitter"] != "DYNAMIC-1M-BUZHASH" {
+		t.Fatalf("status after import: %v", st)
+	}
+	for _, f := range []string{"repository-password", "control-password", "tls.crt", "tls.key", "repository.json", "kopia/repository.config"} {
+		if fi, err := os.Stat(filepath.Join(stateDir, f)); err != nil || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("%s after import: %v %v", f, fi, err)
+		}
+	}
+	if code, body := p.raw("POST", "/v1/state-import", archive, itToken); code != 409 || !strings.Contains(string(body), "already_initialized") {
+		t.Fatalf("second import: %d %s", code, body)
+	}
+	// Clients reconnect with the same pinned fingerprint and see their data.
+	a1i := mustConnect(ctx, t, dir, url, fp, "agent", "a1", pw["agent@a1"])
+	im, err := snapshot.LoadSnapshot(ctx, a1i.rep, man2.ID)
+	if err != nil {
+		t.Fatalf("a1 load after import: %v", err)
+	}
+	if got, err := readFile(ctx, a1i.rep, im, "hello.txt"); err != nil || got != itFileBody {
+		t.Fatalf("data after import: %q %v", got, err)
+	}
+	mi := mustConnect(ctx, t, dir, url, fp, "maint", "dbr2", pw["maint@dbr2"])
+	if all, err := snapshot.ListSnapshotManifests(ctx, mi.rep, nil, nil); err != nil || !slices.Contains(all, man2.ID) {
+		t.Fatalf("maint list after import: %v %v", all, err)
+	}
+	// ACLs survived: a1 still cannot delete.
+	if err := deleteManifest(ctx, a1i.rep, man2.ID); err == nil {
+		t.Fatal("a1 deleted a snapshot after import")
+	}
+	if strings.Contains(p.log.String(), itRepoPW) {
+		t.Fatal("repository password appears in the reposerver log")
+	}
+}
+
+// raw performs a management call with a raw body and returns the raw reply.
+func (p *rsProc) raw(method, path string, body []byte, token string) (int, []byte) {
+	p.t.Helper()
+	req, _ := http.NewRequest(method, "http://"+p.mgmt+path, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-tar")
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
+	if err != nil {
+		p.t.Fatalf("%s %s: %v\n%s", method, path, err, p.log)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res.StatusCode, b
 }
 
 // syncBuffer is a bytes.Buffer safe for the child's output copier and the

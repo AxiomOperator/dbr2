@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
 
 // The permissions of the mock "Sign in with Microsoft" user (restore_operator).
 const READ_ONLY = ["application.read", "backup.read", "host.read", "policy.read", "repository.read", "restore.execute", "restore.read"];
-const ALL = [...READ_ONLY, "audit.read", "user.read", "user.manage", "host.manage"];
+const ALL = [...READ_ONLY, "audit.read", "user.read", "user.manage", "host.manage", "repository.manage"];
 
 beforeEach(() => {
   nav.pathname = "/";
@@ -32,10 +32,10 @@ describe("navigation model", () => {
     expect(labels(ALL)).toEqual([
       [null, ["Dashboard"]],
       ["Docker", ["Hosts", "Applications", "Containers", "Volumes"]],
-      ["Protection", ["Policies", "Jobs", "Recovery Points"]],
+      ["Protection", ["Policies", "Contracts", "Jobs", "Recovery Points"]],
       ["Recovery", ["Restore", "Restore Testing"]],
       ["Storage", ["Repositories", "Usage"]],
-      ["System", ["Agents", "Users", "Notifications", "Audit Log", "Settings"]],
+      ["System", ["Agents", "Users", "Notifications", "Platform protection", "Audit Log", "Settings"]],
     ]);
   });
 

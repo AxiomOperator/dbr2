@@ -587,6 +587,20 @@ Workflow ID `application/<id>`: the target application, or the source applicatio
 7. **Health check** (running, and healthy when a healthcheck is defined). **Commit** deletes the previous content; **any failure rolls back** to the previous data and containers.
 8. **Recovery history:** every attempt is recorded (`requested → running → succeeded | failed | rolled_back`), with its preview, steps, result document, audit and alerts.
 
+### Protection Policies, retention, contracts and verification (Phases 7–9, ADR-0018)
+
+* **Protection Policies:** a cron schedule (or preset) with a timezone, an optional consistency mode and Repository, and grandfather-father-son retention.
+  * One Temporal schedule per application, `backup/<id>`. The trigger starts `BackupWorkflow` on `application/<id>`.
+  * Overlaps are skipped and recorded (`backup.skipped`).
+* **Retention:** daily, as `maint@dbr2`: manifest first, then components. An application's latest recovery point is never deleted.
+* **Manual deletions:** recovery points and Repositories wait 7 days and can be undone (typed confirmation and reason).
+* **Recovery Contract** (v1.0 subset): maximum RPO and required components, evaluated every 5 minutes (`contract.violated` / `contract.satisfied`), and recorded in each manifest at capture time.
+* **Notifications:** email (SMTP) and HMAC-signed webhooks for outbox alerts, filtered by event pattern and severity, with retries and multi-instance-safe delivery. Agent offline/online alerts are included.
+* **Verification:** weekly and on demand. Every object is checked and a sample of files fully read; the recovery point becomes Verified or Verification Failed (critical alert).
+* **Escrow health:** checked hourly for recipients, confirmation, recipient drift, the 90-day re-confirmation and the annual drill. Packages can be regenerated, and drills are run through the console.
+* **Database-aware backups (Phase 8):** PostgreSQL and Redis are detected. Online dumps (`pg_dumpall` SQL with zstd; the Redis RDB plus AOF) run before quiescing and are validated. Strategy per application: logical, volume or both (the default).
+* **Platform self-protection (Phase 9, ADR-0008):** a daily age-encrypted Platform Recovery Bundle goes to the System Repository and to a separate bundle directory. Recovery uses `dbr2-server admin restore-platform` (runbook: `docs/operations/platform-recovery.md`).
+
 ### Recovery points (ADR-0004)
 
 * A recovery point is a set of tagged Kopia snapshots (config, volumes, bind mounts, database dumps, optional images) plus a versioned JSON **recovery manifest**. The manifest is stored in the Repository and written **last**, as the commit marker.

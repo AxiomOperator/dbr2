@@ -15,7 +15,7 @@ const confirmRepositoryEscrow = `-- name: ConfirmRepositoryEscrow :one
 UPDATE repositories SET escrow_confirmed_at = now(), escrow_confirmed_by = $3,
     status = CASE WHEN status = 'awaiting_escrow' THEN 'ready' ELSE status END, updated_at = now()
 WHERE id = $1 AND org_id = $2
-RETURNING id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at
+RETURNING id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at, delete_after, delete_reason, last_verified_at, is_system
 `
 
 type ConfirmRepositoryEscrowParams struct {
@@ -51,6 +51,10 @@ func (q *Queries) ConfirmRepositoryEscrow(ctx context.Context, arg ConfirmReposi
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.LastVerifiedAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -93,7 +97,7 @@ INSERT INTO repositories (org_id, name, description, backend, management_url, se
     kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids,
     escrow_confirm_hash, escrow_generated_at, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'awaiting_escrow', $11, $12, $13, $14, now(), $15)
-RETURNING id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at
+RETURNING id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at, delete_after, delete_reason, last_verified_at, is_system
 `
 
 type CreateRepositoryParams struct {
@@ -157,6 +161,10 @@ func (q *Queries) CreateRepository(ctx context.Context, arg CreateRepositoryPara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.LastVerifiedAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -193,7 +201,7 @@ func (q *Queries) GetAgentRepositoryAccess(ctx context.Context, arg GetAgentRepo
 }
 
 const getDefaultRepository = `-- name: GetDefaultRepository :one
-SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at FROM repositories WHERE org_id = $1 AND is_default AND status <> 'retired'
+SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at, delete_after, delete_reason, last_verified_at, is_system FROM repositories WHERE org_id = $1 AND is_default AND status <> 'retired'
 `
 
 func (q *Queries) GetDefaultRepository(ctx context.Context, orgID uuid.UUID) (Repository, error) {
@@ -223,12 +231,16 @@ func (q *Queries) GetDefaultRepository(ctx context.Context, orgID uuid.UUID) (Re
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.LastVerifiedAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getRepository = `-- name: GetRepository :one
-SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at FROM repositories WHERE id = $1 AND org_id = $2
+SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at, delete_after, delete_reason, last_verified_at, is_system FROM repositories WHERE id = $1 AND org_id = $2
 `
 
 type GetRepositoryParams struct {
@@ -263,12 +275,16 @@ func (q *Queries) GetRepository(ctx context.Context, arg GetRepositoryParams) (R
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.LastVerifiedAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getRepositoryByID = `-- name: GetRepositoryByID :one
-SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at FROM repositories WHERE id = $1
+SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at, delete_after, delete_reason, last_verified_at, is_system FROM repositories WHERE id = $1
 `
 
 func (q *Queries) GetRepositoryByID(ctx context.Context, id uuid.UUID) (Repository, error) {
@@ -298,6 +314,10 @@ func (q *Queries) GetRepositoryByID(ctx context.Context, id uuid.UUID) (Reposito
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.LastVerifiedAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -367,7 +387,7 @@ func (q *Queries) ListEscrowRecipients(ctx context.Context, orgID uuid.UUID) ([]
 }
 
 const listRepositories = `-- name: ListRepositories :many
-SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at FROM repositories WHERE org_id = $1 ORDER BY name
+SELECT id, org_id, name, description, backend, management_url, server_url, internal_server_url, cert_sha256, kopia_repository_id, splitter, status, is_default, escrow_package, escrow_recipient_ids, escrow_confirm_hash, escrow_generated_at, escrow_confirmed_at, escrow_confirmed_by, last_reindex_at, created_by, created_at, updated_at, delete_after, delete_reason, last_verified_at, is_system FROM repositories WHERE org_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListRepositories(ctx context.Context, orgID uuid.UUID) ([]Repository, error) {
@@ -403,6 +423,10 @@ func (q *Queries) ListRepositories(ctx context.Context, orgID uuid.UUID) ([]Repo
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeleteAfter,
+			&i.DeleteReason,
+			&i.LastVerifiedAt,
+			&i.IsSystem,
 		); err != nil {
 			return nil, err
 		}

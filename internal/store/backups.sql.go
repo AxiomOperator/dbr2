@@ -37,7 +37,7 @@ UPDATE recovery_points SET state = 'committed', status = $2, consistency_mode = 
     crash_consistent_only = $5, size_bytes = $6, component_count = $7, manifest = $8,
     manifest_snapshot_id = $9, error = NULL, committed_at = coalesce(committed_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at
+RETURNING id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details
 `
 
 type CommitRecoveryPointParams struct {
@@ -91,6 +91,12 @@ func (q *Queries) CommitRecoveryPoint(ctx context.Context, arg CommitRecoveryPoi
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
@@ -101,7 +107,7 @@ INSERT INTO recovery_points (id, org_id, repository_id, application_id, applicat
     consistency_mode, trigger, requested_by, workflow_id, run_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 ON CONFLICT (id) DO UPDATE SET updated_at = now()
-RETURNING id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at
+RETURNING id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details
 `
 
 type CreateRecoveryPointParams struct {
@@ -162,6 +168,12 @@ func (q *Queries) CreateRecoveryPoint(ctx context.Context, arg CreateRecoveryPoi
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
@@ -169,7 +181,7 @@ func (q *Queries) CreateRecoveryPoint(ctx context.Context, arg CreateRecoveryPoi
 const failRecoveryPoint = `-- name: FailRecoveryPoint :one
 UPDATE recovery_points SET state = 'failed', error = $2, updated_at = now()
 WHERE id = $1 AND state = 'pending'
-RETURNING id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at
+RETURNING id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details
 `
 
 type FailRecoveryPointParams struct {
@@ -206,12 +218,18 @@ func (q *Queries) FailRecoveryPoint(ctx context.Context, arg FailRecoveryPointPa
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
 
 const getApplicationBackupSettings = `-- name: GetApplicationBackupSettings :one
-SELECT application_id, repository_id, consistency_mode, max_quiesce_seconds, pre_hooks, post_hooks, optional_components, excluded_components, updated_by, updated_at FROM application_backup_settings WHERE application_id = $1
+SELECT application_id, repository_id, consistency_mode, max_quiesce_seconds, pre_hooks, post_hooks, optional_components, excluded_components, updated_by, updated_at, database_strategy FROM application_backup_settings WHERE application_id = $1
 `
 
 func (q *Queries) GetApplicationBackupSettings(ctx context.Context, applicationID uuid.UUID) (ApplicationBackupSetting, error) {
@@ -228,6 +246,7 @@ func (q *Queries) GetApplicationBackupSettings(ctx context.Context, applicationI
 		&i.ExcludedComponents,
 		&i.UpdatedBy,
 		&i.UpdatedAt,
+		&i.DatabaseStrategy,
 	)
 	return i, err
 }
@@ -252,7 +271,7 @@ func (q *Queries) GetHostSettings(ctx context.Context, agentID uuid.UUID) (HostS
 }
 
 const getPendingRecoveryPointForRun = `-- name: GetPendingRecoveryPointForRun :one
-SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points WHERE workflow_id = $1 AND run_id = $2 AND state = 'pending'
+SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points WHERE workflow_id = $1 AND run_id = $2 AND state = 'pending'
 ORDER BY created_at DESC LIMIT 1
 `
 
@@ -290,12 +309,18 @@ func (q *Queries) GetPendingRecoveryPointForRun(ctx context.Context, arg GetPend
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
 
 const getRecoveryPoint = `-- name: GetRecoveryPoint :one
-SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points WHERE id = $1 AND org_id = $2
+SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points WHERE id = $1 AND org_id = $2
 `
 
 type GetRecoveryPointParams struct {
@@ -332,12 +357,18 @@ func (q *Queries) GetRecoveryPoint(ctx context.Context, arg GetRecoveryPointPara
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
 
 const getRecoveryPointByID = `-- name: GetRecoveryPointByID :one
-SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points WHERE id = $1
+SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points WHERE id = $1
 `
 
 func (q *Queries) GetRecoveryPointByID(ctx context.Context, id string) (RecoveryPoint, error) {
@@ -369,6 +400,12 @@ func (q *Queries) GetRecoveryPointByID(ctx context.Context, id string) (Recovery
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
@@ -402,7 +439,7 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 }
 
 const lastCommittedRecoveryPoint = `-- name: LastCommittedRecoveryPoint :one
-SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points WHERE application_id = $1 AND state = 'committed'
+SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points WHERE application_id = $1 AND state = 'committed'
 ORDER BY created_at DESC LIMIT 1
 `
 
@@ -435,12 +472,18 @@ func (q *Queries) LastCommittedRecoveryPoint(ctx context.Context, applicationID 
 		&i.CreatedAt,
 		&i.CommittedAt,
 		&i.UpdatedAt,
+		&i.DeleteAfter,
+		&i.DeleteReason,
+		&i.DeleteRequestedBy,
+		&i.DeletedAt,
+		&i.VerifiedAt,
+		&i.VerificationDetails,
 	)
 	return i, err
 }
 
 const latestAttemptPerApplication = `-- name: LatestAttemptPerApplication :many
-SELECT DISTINCT ON (application_id) id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points
+SELECT DISTINCT ON (application_id) id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points
 WHERE org_id = $1
 ORDER BY application_id, created_at DESC
 `
@@ -480,6 +523,12 @@ func (q *Queries) LatestAttemptPerApplication(ctx context.Context, orgID uuid.UU
 			&i.CreatedAt,
 			&i.CommittedAt,
 			&i.UpdatedAt,
+			&i.DeleteAfter,
+			&i.DeleteReason,
+			&i.DeleteRequestedBy,
+			&i.DeletedAt,
+			&i.VerifiedAt,
+			&i.VerificationDetails,
 		); err != nil {
 			return nil, err
 		}
@@ -492,7 +541,7 @@ func (q *Queries) LatestAttemptPerApplication(ctx context.Context, orgID uuid.UU
 }
 
 const latestCommittedPerApplication = `-- name: LatestCommittedPerApplication :many
-SELECT DISTINCT ON (application_id) id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points
+SELECT DISTINCT ON (application_id) id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points
 WHERE org_id = $1 AND state = 'committed'
 ORDER BY application_id, created_at DESC
 `
@@ -532,6 +581,12 @@ func (q *Queries) LatestCommittedPerApplication(ctx context.Context, orgID uuid.
 			&i.CreatedAt,
 			&i.CommittedAt,
 			&i.UpdatedAt,
+			&i.DeleteAfter,
+			&i.DeleteReason,
+			&i.DeleteRequestedBy,
+			&i.DeletedAt,
+			&i.VerifiedAt,
+			&i.VerificationDetails,
 		); err != nil {
 			return nil, err
 		}
@@ -544,7 +599,7 @@ func (q *Queries) LatestCommittedPerApplication(ctx context.Context, orgID uuid.
 }
 
 const listApplicationBackupSettings = `-- name: ListApplicationBackupSettings :many
-SELECT s.application_id, s.repository_id, s.consistency_mode, s.max_quiesce_seconds, s.pre_hooks, s.post_hooks, s.optional_components, s.excluded_components, s.updated_by, s.updated_at FROM application_backup_settings s JOIN applications a ON a.id = s.application_id
+SELECT s.application_id, s.repository_id, s.consistency_mode, s.max_quiesce_seconds, s.pre_hooks, s.post_hooks, s.optional_components, s.excluded_components, s.updated_by, s.updated_at, s.database_strategy FROM application_backup_settings s JOIN applications a ON a.id = s.application_id
 WHERE a.org_id = $1
 `
 
@@ -568,6 +623,7 @@ func (q *Queries) ListApplicationBackupSettings(ctx context.Context, orgID uuid.
 			&i.ExcludedComponents,
 			&i.UpdatedBy,
 			&i.UpdatedAt,
+			&i.DatabaseStrategy,
 		); err != nil {
 			return nil, err
 		}
@@ -625,7 +681,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 }
 
 const listRecoveryPoints = `-- name: ListRecoveryPoints :many
-SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points
+SELECT id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at, delete_after, delete_reason, delete_requested_by, deleted_at, verified_at, verification_details FROM recovery_points
 WHERE org_id = $1
   AND ($3::uuid IS NULL OR application_id = $3)
   AND ($4::text IS NULL OR state = $4)
@@ -680,6 +736,12 @@ func (q *Queries) ListRecoveryPoints(ctx context.Context, arg ListRecoveryPoints
 			&i.CreatedAt,
 			&i.CommittedAt,
 			&i.UpdatedAt,
+			&i.DeleteAfter,
+			&i.DeleteReason,
+			&i.DeleteRequestedBy,
+			&i.DeletedAt,
+			&i.VerifiedAt,
+			&i.VerificationDetails,
 		); err != nil {
 			return nil, err
 		}
@@ -711,14 +773,14 @@ func (q *Queries) MarkMissingRecoveryPoints(ctx context.Context, arg MarkMissing
 
 const upsertApplicationBackupSettings = `-- name: UpsertApplicationBackupSettings :one
 INSERT INTO application_backup_settings (application_id, repository_id, consistency_mode, max_quiesce_seconds,
-    pre_hooks, post_hooks, optional_components, excluded_components, updated_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    pre_hooks, post_hooks, optional_components, excluded_components, updated_by, database_strategy)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (application_id) DO UPDATE SET repository_id = EXCLUDED.repository_id,
     consistency_mode = EXCLUDED.consistency_mode, max_quiesce_seconds = EXCLUDED.max_quiesce_seconds,
     pre_hooks = EXCLUDED.pre_hooks, post_hooks = EXCLUDED.post_hooks,
     optional_components = EXCLUDED.optional_components, excluded_components = EXCLUDED.excluded_components,
-    updated_by = EXCLUDED.updated_by, updated_at = now()
-RETURNING application_id, repository_id, consistency_mode, max_quiesce_seconds, pre_hooks, post_hooks, optional_components, excluded_components, updated_by, updated_at
+    database_strategy = EXCLUDED.database_strategy, updated_by = EXCLUDED.updated_by, updated_at = now()
+RETURNING application_id, repository_id, consistency_mode, max_quiesce_seconds, pre_hooks, post_hooks, optional_components, excluded_components, updated_by, updated_at, database_strategy
 `
 
 type UpsertApplicationBackupSettingsParams struct {
@@ -731,6 +793,7 @@ type UpsertApplicationBackupSettingsParams struct {
 	OptionalComponents []string
 	ExcludedComponents []string
 	UpdatedBy          *uuid.UUID
+	DatabaseStrategy   string
 }
 
 func (q *Queries) UpsertApplicationBackupSettings(ctx context.Context, arg UpsertApplicationBackupSettingsParams) (ApplicationBackupSetting, error) {
@@ -744,6 +807,7 @@ func (q *Queries) UpsertApplicationBackupSettings(ctx context.Context, arg Upser
 		arg.OptionalComponents,
 		arg.ExcludedComponents,
 		arg.UpdatedBy,
+		arg.DatabaseStrategy,
 	)
 	var i ApplicationBackupSetting
 	err := row.Scan(
@@ -757,6 +821,7 @@ func (q *Queries) UpsertApplicationBackupSettings(ctx context.Context, arg Upser
 		&i.ExcludedComponents,
 		&i.UpdatedBy,
 		&i.UpdatedAt,
+		&i.DatabaseStrategy,
 	)
 	return i, err
 }

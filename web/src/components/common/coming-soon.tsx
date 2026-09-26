@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { CalendarClockIcon, FlaskConicalIcon } from "lucide-react";
+import { FlaskConicalIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AccessDenied } from "@/components/common/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PERMISSION_POLICY_READ } from "@/lib/api/protection-schemas";
 import { PERMISSION_RESTORE_READ } from "@/lib/api/restore-schemas";
 
 /** An honest "not available yet" page: what arrives, in which phase, and what works today. */
@@ -63,44 +62,7 @@ function ComingSoon({
 
 const link = "underline underline-offset-4 text-foreground";
 
-/** Protection → Policies (Phase 7). */
-export function PoliciesPlaceholder() {
-  const me = useCurrentUser();
-  if (!hasPermission(me, PERMISSION_POLICY_READ)) {
-    return <AccessDenied what="Viewing protection policies" permission={PERMISSION_POLICY_READ} />;
-  }
-  return (
-    <ComingSoon
-      title="Policies"
-      lead="Protection Policies: when applications are backed up and how long recovery points are kept."
-      phase="Phase 7 (scheduling, retention & notifications)"
-      icon={<CalendarClockIcon aria-hidden="true" className="size-5" />}
-      arrives={[
-        "Schedules (cron, hourly, daily, weekly, monthly) run as Temporal schedules; overlapping runs are skipped and recorded",
-        "Retention at recovery-point level, with a deletion grace period (default 7 days) for manual deletions",
-        "Consistency mode and target Repositories per policy",
-        "Recovery Contract: maximum RPO and required components, reported as Satisfied or Violated",
-        "Notifications by email and webhook (backup failed or missed, restore finished, agent offline, RPO violated…)",
-      ]}
-      today={
-        <>
-          Back up on demand with “Back up now” on an{" "}
-          <Link className={link} href="/applications">
-            application
-          </Link>
-          ; its consistency mode, hooks and optional / excluded components are under the application&apos;s Backup
-          settings tab, and each host&apos;s backup window and concurrency under{" "}
-          <Link className={link} href="/hosts">
-            Hosts
-          </Link>
-          .
-        </>
-      }
-    />
-  );
-}
-
-/** Recovery → Restore Testing (Phase 9). */
+/** Recovery → Restore Testing (roadmap: later). */
 export function RestoreTestingPlaceholder() {
   const me = useCurrentUser();
   if (!hasPermission(me, PERMISSION_RESTORE_READ)) {
@@ -110,26 +72,29 @@ export function RestoreTestingPlaceholder() {
     <ComingSoon
       title="Restore Testing"
       lead="Proving that recovery points can actually be restored."
-      phase="Phase 9 (verification & platform self-protection)"
+      phase="a later release (see the roadmap)"
       icon={<FlaskConicalIcon aria-hidden="true" className="size-5" />}
       arrives={[
-        "Repository integrity verification (repository/{id}/verify)",
-        "Recovery point verification state: Unverified, Verified, Verification Failed",
-        "Escrow health checks and the annual escrow drill reminder",
-        "Platform self-backup and a tested platform recovery (dbr2 admin restore-platform)",
+        "Automatic, scheduled restore tests into an isolated sandbox host, destroyed afterwards",
+        "Evidence per test: health-check output and the measured restore time (RTO)",
+        "Results update the recovery point's verification state and the Recovery Contract",
       ]}
       today={
         <>
-          Test a recovery by{" "}
-          <Link className={link} href="/restores/new">
-            restoring a recovery point
-          </Link>{" "}
-          to a spare host (for example a disaster-recovery standby): alternate-host restores never touch the source
-          application. Results appear under{" "}
-          <Link className={link} href="/restores">
-            Restore
+          Every Repository is verified weekly (objects present, a share of the files read back and hash-checked);
+          start one with “Verify now” on{" "}
+          <Link className={link} href="/repositories">
+            Repositories
           </Link>
-          .
+          , and see each recovery point&apos;s verification state under{" "}
+          <Link className={link} href="/recovery-points">
+            Recovery Points
+          </Link>
+          . Escrow drills live on the Repositories page too. To test a full recovery,{" "}
+          <Link className={link} href="/restores/new">
+            restore a recovery point
+          </Link>{" "}
+          to a spare host: alternate-host restores never touch the source application.
         </>
       }
     />

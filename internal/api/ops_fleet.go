@@ -81,6 +81,7 @@ type ApplicationSummary struct {
 	Criticality     *string                `json:"criticality"`
 	LastSeenAt      time.Time              `json:"last_seen_at"`
 	MissingSince    *time.Time             `json:"missing_since" doc:"Set when the application disappeared from the host's latest inventory."`
+	PolicyID        *string                `json:"policy_id" doc:"Assigned Protection Policy (null = none)."`
 	Protection      *protection.Protection `json:"protection,omitempty" doc:"Protection status (protected, at_risk, failed, unprotected) with reasons, the latest recovery point and attempt, a running operation, and coverage: each component the application has now and whether the latest recovery point contains it."`
 }
 
@@ -104,6 +105,10 @@ func summary(a fleet.Application) ApplicationSummary {
 	s := ApplicationSummary{ID: r.ID.String(), Name: r.Name, DisplayName: r.DisplayName, Kind: r.Kind, HostID: r.AgentID.String(),
 		Hostname: r.Hostname, Source: "unknown", Owner: r.Owner, Environment: r.Environment, Criticality: r.Criticality,
 		LastSeenAt: r.LastSeenAt, MissingSince: r.MissingSince}
+	if r.PolicyID != nil {
+		pid := r.PolicyID.String()
+		s.PolicyID = &pid
+	}
 	if x := a.Analysis; x != nil {
 		s.Source, s.Services, s.Containers, s.Volumes, s.BindMounts = x.Source, len(x.Services), len(x.Containers), len(x.Volumes), len(x.BindMounts)
 		s.Dependencies, s.SecretsCount = len(x.Dependencies), x.SecretsCount

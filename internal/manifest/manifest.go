@@ -148,6 +148,8 @@ type Component struct {
 	FileName string `json:"file_name,omitempty"`
 	// Database describes database dump components (Phase 8 produces them).
 	Database *DatabaseDump `json:"database,omitempty"`
+	// Validation records the check performed on the captured data (dumps).
+	Validation string `json:"validation,omitempty"`
 }
 
 // DatabaseDump describes a logical database dump component.

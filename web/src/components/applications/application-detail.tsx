@@ -30,6 +30,8 @@ import { BackupSettingsCard } from "@/components/backups/backup-settings-card";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-dialog";
 import { EditMetadataDialog } from "@/components/applications/edit-metadata-dialog";
 import { UnprotectedData } from "@/components/applications/unprotected-data";
+import { ContractCard } from "@/components/policies/contract-card";
+import { PolicyAssignmentCard } from "@/components/policies/policy-assignment";
 import { ProtectionStatusBadge, RunningBadge } from "@/components/protection/protection-badges";
 import { ProtectionCard } from "@/components/protection/protection-card";
 import { ApplicationRestores } from "@/components/restores/restores-view";
@@ -274,7 +276,9 @@ function DetailTabs({ app: d }: { app: ApplicationDetail }) {
         </TabsContent>
       )}
       {canSettings && (
-        <TabsContent value="backup-settings" className="mt-4">
+        <TabsContent value="backup-settings" className="mt-4 space-y-6">
+          <PolicyAssignmentCard applicationId={d.id} applicationName={displayName(d)} />
+          <ContractCard app={d} />
           <BackupSettingsCard app={d} />
         </TabsContent>
       )}

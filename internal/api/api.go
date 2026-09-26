@@ -20,6 +20,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/docsui"
 	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
+	"github.com/AxiomOperator/dbr2/internal/notify"
 	"github.com/AxiomOperator/dbr2/internal/protection"
 	"github.com/AxiomOperator/dbr2/internal/version"
 )
@@ -58,6 +59,7 @@ type Deps struct {
 	Auth           *auth.Service
 	Fleet          *fleet.Service
 	Protection     *protection.Service
+	Notify         *notify.Service
 	Events         *events.Bus
 	Log            *slog.Logger
 	Ready          []ReadyCheck
@@ -127,6 +129,9 @@ func NewAPI(r chi.Router, d *Deps) huma.API {
 	registerRestore(a, d)
 	registerEvents(a, d)
 	registerFleetWide(a, d)
+	registerPlatform(a, d)
+	registerPolicies(a, d)
+	registerNotify(a, d)
 	return a
 }
 

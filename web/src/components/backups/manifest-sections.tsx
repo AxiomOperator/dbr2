@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Manifest, ManifestComponent, ManifestTopology } from "@/lib/api/protection-schemas";
+import { formatBytes } from "@/lib/format";
 
 export interface NestedComponent {
   component: ManifestComponent;
@@ -42,6 +43,8 @@ export function describeDatabase(d: NonNullable<ManifestComponent["database"]>):
   return `${ENGINE_LABEL[d.engine] ?? d.engine} dump (${d.format})${where ? ` of ${where}` : ""}`;
 }
 
+export const engineLabel = (engine: string): string => ENGINE_LABEL[engine] ?? engine;
+
 /** Database dump components of the manifest (logical backups, Phase 8). */
 export function DatabasesCard({ components }: { components: ManifestComponent[] }) {
   const dbs = components.filter((c) => c.database || c.kind === "database");
@@ -51,25 +54,62 @@ export function DatabasesCard({ components }: { components: ManifestComponent[] 
         <CardTitle>
           <h2>Databases</h2>
         </CardTitle>
-        <CardDescription>Logical database dumps recorded in the manifest.</CardDescription>
+        <CardDescription>
+          Logical database dumps recorded in the manifest (PostgreSQL <code>pg_dumpall</code>, Redis RDB), taken while
+          the database runs and validated before the recovery point is committed.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {dbs.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No database dumps: databases in this recovery point are captured with their volumes (crash-consistent
-            unless quiesced). Database-aware PostgreSQL and Redis dumps arrive with Phase 8.
+            unless quiesced). Detected PostgreSQL and Redis containers are dumped when the application&apos;s database
+            strategy is “logical” or “both”.
           </p>
         ) : (
-          <ul className="space-y-2 text-sm">
-            {dbs.map((c) => (
-              <li key={c.name} className="flex flex-wrap items-center gap-2">
-                <DatabaseIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-                <span className="font-mono text-xs">{c.name}</span>
-                {c.database && <span>{describeDatabase(c.database)}</span>}
-                <Badge variant={c.status === "succeeded" ? "secondary" : "destructive"}>{c.status}</Badge>
-              </li>
-            ))}
-          </ul>
+          <div className="rounded-lg border">
+            <Table aria-label="Database dumps">
+              <TableHeader>
+                <TableRow>
+                  {["Component", "Engine", "Format", "Taken from", "Validation", "Status", "Size"].map((h) => (
+                    <TableHead key={h} scope="col">
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dbs.map((c) => (
+                  <TableRow key={c.name}>
+                    <TableCell className="align-top">
+                      <span className="inline-flex items-center gap-1.5">
+                        <DatabaseIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+                        <span className="font-mono text-xs break-all">{c.name}</span>
+                      </span>
+                      {c.file_name && <div className="font-mono text-xs text-muted-foreground">{c.file_name}</div>}
+                      {c.error && <div className="mt-1 max-w-64 text-xs break-words whitespace-normal text-destructive">{c.error}</div>}
+                    </TableCell>
+                    <TableCell className="align-top">{c.database ? engineLabel(c.database.engine) : "—"}</TableCell>
+                    <TableCell className="align-top font-mono text-xs">{c.database?.format ?? "—"}</TableCell>
+                    <TableCell className="align-top text-xs whitespace-normal">
+                      {c.database?.service && <div>service {c.database.service}</div>}
+                      {c.database?.container && <div className="font-mono">{c.database.container}</div>}
+                      {!c.database?.service && !c.database?.container && "—"}
+                    </TableCell>
+                    <TableCell className="max-w-72 align-top text-xs break-words whitespace-normal">
+                      {c.validation || <span className="text-muted-foreground">Not recorded</span>}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Badge variant={c.status === "succeeded" ? "secondary" : c.status === "failed" ? "destructive" : "outline"}>
+                        {c.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="align-top tabular-nums">{formatBytes(c.size_bytes)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -99,7 +99,7 @@ func (s *Service) ProtectionFor(ctx context.Context, apps []fleet.Application) (
 		id := app.Record.ID
 		var bs BackupSettings
 		if row, ok := set[id]; ok {
-			bs = BackupSettings{OptionalComponents: row.OptionalComponents, ExcludedComponents: row.ExcludedComponents}
+			bs = BackupSettings{OptionalComponents: row.OptionalComponents, ExcludedComponents: row.ExcludedComponents, DatabaseStrategy: row.DatabaseStrategy}
 			_ = json.Unmarshal(row.PreHooks, &bs.PreHooks)
 		}
 		var ok *store.RecoveryPoint
