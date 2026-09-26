@@ -311,6 +311,24 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-26 — Enhancement — `dbr2-deploy.sh` start, stop and restart
+- **Notes:**
+  - **Owner request:** "please include a start/stop/restart".
+  - **Behaviour:**
+    - `stop [SERVICE…]` runs `compose stop`. It keeps containers, networks and volumes, and never runs `down`.
+    - `start [SERVICE…]` runs `up -d --no-build --no-recreate`: it never upgrades or recreates, and it refuses when the `dbr2_pgdata` volume is missing. It also brings back containers a manual `down` removed, from the existing volumes.
+    - `restart [SERVICE…]` restarts in place and fails fast, pointing to `start`, when the containers no longer exist.
+    - Stopping or restarting core services waits for running backups and restores (`--force` skips the wait). Health, migrations and proxy readiness are verified after `start` and `restart`. Service names are validated against the Compose file, and the one-shot jobs are excluded.
+  - **Dev stack test:**
+    - `restart dbr2-worker` ran after the idle check.
+    - The stack had been brought down (containers removed, volumes kept) while the test ran, most likely by the owner's new non-destructive `make dev-down`. `start` then recreated every container from the existing volumes, with health, migrations and readiness OK and all marker data intact.
+    - `stop` left every container `exited`, with nothing removed.
+  - **What the test uncovered:**
+    - **Slow restart after `down`:** `restart` against removed containers used to wait out the whole health timeout. It now fails fast; this is covered by a test.
+    - **My mistake:** my own chained test commands kept running after I stopped one step, and started the stack the owner had brought down. I stopped the chain, confirmed the data was intact, and returned the stack to its stopped state with `stop`.
+  - **Tests:** 28 CI tests in total (10 new for start, stop and restart).
+- **Files:** `deployments/docker-compose/{dbr2-deploy.sh,README.md}`, `docs/operations/upgrade.md`, `scripts/ci/test/test_dbr2_deploy.sh`, `deployments/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-26 — Feature / Fix — Non-destructive deploy and update script; `make dev-down` no longer wipes data
 - **Notes:**
   - **Owner request:** "a deploy/update script that is non-destructive".

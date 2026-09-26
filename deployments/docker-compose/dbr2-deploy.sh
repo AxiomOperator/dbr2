@@ -11,6 +11,12 @@
 #   ./dbr2-deploy.sh rollback [--restore-db]    previous image versions (and
 #                                               optionally the pre-update DB)
 #   ./dbr2-deploy.sh status                     versions, health, history
+#   ./dbr2-deploy.sh start   [SERVICE...]       start stopped services (never
+#                                               recreates or upgrades them)
+#   ./dbr2-deploy.sh stop    [SERVICE...]       stop services; containers,
+#                                               networks and volumes are kept
+#   ./dbr2-deploy.sh restart [SERVICE...]       restart in place
+#   (SERVICE: a Compose service, e.g. dbr2-worker; default: the whole stack)
 #
 # Version options (update): --release-manifest FILE|URL (release-manifest.json
 # of a DBR² release), --version V (the same tag for every DBR² image, e.g.
@@ -51,7 +57,7 @@ DATABASES=(dbr2 temporal temporal_visibility)
 ASSUME_YES=0 DRY_RUN=0 DEV=0 FORCE=0 RESTORE_DB=0
 WAIT_IDLE=900 HEALTH_TIMEOUT=600
 MANIFEST="" ALL_VERSION="" CHANNEL=""
-SETS=()
+SETS=() SERVICES=()
 
 # ---- output ---------------------------------------------------------------------
 
@@ -66,7 +72,7 @@ ok() { log "${G}ok${N}  $*"; }
 warn() { log "${Y}warning:${N} $*"; }
 die() { log "${R}error:${N} $*"; exit 1; }
 
-usage() { sed -n '4,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '4,46p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 # ---- helpers ----------------------------------------------------------------------
 
@@ -131,6 +137,7 @@ lock() {
 }
 
 record() { # action result details
+  mkdir -p "$STATE_DIR"
   printf '%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$1" "$2" "$3" >>"$STATE_DIR/history.tsv"
 }
 
@@ -337,11 +344,14 @@ wait_idle() {
   die "$n operation(s) still running after ${WAIT_IDLE}s; try later or pass --force"
 }
 
+# wait_healthy [SERVICE...] — default: every long-running service.
 wait_healthy() {
   local deadline=$((SECONDS + HEALTH_TIMEOUT)) s id st pending
+  local -a svcs=("$@")
+  ((${#svcs[@]})) || svcs=(postgres temporal "${APP_SERVICES[@]}")
   while :; do
     pending=()
-    for s in postgres temporal "${APP_SERVICES[@]}"; do
+    for s in "${svcs[@]}"; do
       id=$(compose ps -q "$s" 2>/dev/null | head -n1)
       if [[ -z $id ]]; then pending+=("$s:missing"); continue; fi
       st=$(docker inspect -f '{{.State.Status}}/{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id")
@@ -541,6 +551,130 @@ cmd_rollback() {
   die "rollback did not become healthy — see 'docker compose -p $PROJECT logs'"
 }
 
+# ---- lifecycle: start / stop / restart ----------------------------------------------------
+
+# One-shot jobs that exit by design; never started, stopped or health-checked
+# on their own.
+JOB_SERVICES=(temporal-schema temporal-namespace)
+
+# validate_services — the requested services must exist in the Compose file.
+validate_services() {
+  ((${#SERVICES[@]})) || return 0
+  local known s
+  known=$(compose config --services)
+  for s in "${SERVICES[@]}"; do
+    grep -qx -- "$s" <<<"$known" || die "unknown service '$s' (services: $(tr '\n' ' ' <<<"$known"))"
+    [[ " ${JOB_SERVICES[*]} " == *" $s "* ]] && die "$s is a one-shot job started by the stack itself"
+  done
+  return 0
+}
+
+# touches_operations — stopping these interrupts backups and restores.
+touches_operations() {
+  ((${#SERVICES[@]})) || return 0
+  local s
+  for s in "${SERVICES[@]}"; do
+    case $s in dbr2-server | dbr2-worker | dbr2-reposerver | temporal | postgres) return 0 ;; esac
+  done
+  return 1
+}
+
+# long_running — the requested services without one-shot jobs (or all).
+long_running() {
+  if ((${#SERVICES[@]})); then printf '%s\n' "${SERVICES[@]}"; fi
+}
+
+lifecycle_preflight() {
+  lock
+  check_tools
+  check_config
+  installed || die "no installation found (volume ${PROJECT}_pgdata); use '$0 install'"
+  check_volumes
+  validate_services
+}
+
+cmd_start() {
+  lifecycle_preflight
+  local what=${SERVICES[*]:-the DBR² stack}
+  step "Starting $what (existing containers are started as they are: no recreate, no upgrade)"
+  ((DRY_RUN)) && { log "dry run: stopping before any change"; return 0; }
+  # --no-recreate: a start never applies new images or configuration (that is update).
+  compose up -d --no-build --no-recreate ${SERVICES[@]+"${SERVICES[@]}"} >&2
+  local ok_=0 svcs=()
+  if ((${#SERVICES[@]})); then
+    mapfile -t svcs < <(long_running)
+    wait_healthy "${svcs[@]}" && ok_=1
+  else
+    verify && ok_=1
+  fi
+  if ((ok_)); then
+    record start ok "${what}"
+    ok "started"
+  else
+    record start failed "${what}"
+    die "not healthy after start — see '$0 status' and 'docker compose -p $PROJECT logs'"
+  fi
+}
+
+cmd_stop() {
+  lifecycle_preflight
+  local what=${SERVICES[*]:-the DBR² stack}
+  if touches_operations; then wait_idle; fi
+  if ! ((${#SERVICES[@]})); then
+    warn "stopping the whole stack: scheduled backups do not run while it is stopped (agents keep running; quiesced applications are resumed by their agents' leases)"
+  fi
+  confirm "Stop $what?" || die "aborted"
+  ((DRY_RUN)) && { log "dry run: stopping before any change"; return 0; }
+  step "Stopping $what (containers, networks and volumes are kept)"
+  compose stop ${SERVICES[@]+"${SERVICES[@]}"} >&2
+  record stop ok "$what"
+  ok "stopped — start again with: $0 start${SERVICES[*]:+ ${SERVICES[*]}}"
+}
+
+# missing_containers SERVICE... — prints services that have no container
+# (e.g. after `docker compose down`).
+missing_containers() {
+  local s
+  for s in "$@"; do
+    [[ -n $(compose ps -a -q "$s" 2>/dev/null) ]] || printf '%s\n' "$s"
+  done
+}
+
+cmd_restart() {
+  lifecycle_preflight
+  local what=${SERVICES[*]:-the DBR² stack} missing
+  if ((${#SERVICES[@]})); then
+    missing=$(missing_containers "${SERVICES[@]}")
+  else
+    missing=$(missing_containers postgres temporal "${APP_SERVICES[@]}")
+  fi
+  [[ -z $missing ]] || die "no container for: $(tr '\n' ' ' <<<"$missing")— the stack was brought down; use '$0 start'"
+  if touches_operations; then wait_idle; fi
+  confirm "Restart $what?" || die "aborted"
+  ((DRY_RUN)) && { log "dry run: stopping before any change"; return 0; }
+  step "Restarting $what in place (to apply new images or settings use: $0 update)"
+  if ((${#SERVICES[@]})); then
+    compose restart "${SERVICES[@]}" >&2
+  else
+    # Every long-running service; the one-shot jobs are not rerun.
+    compose restart postgres valkey temporal temporal-ui "${APP_SERVICES[@]}" >&2
+  fi
+  local ok_=0 svcs=()
+  if ((${#SERVICES[@]})); then
+    mapfile -t svcs < <(long_running)
+    wait_healthy "${svcs[@]}" && ok_=1
+  else
+    verify && ok_=1
+  fi
+  if ((ok_)); then
+    record restart ok "$what"
+    ok "restarted"
+  else
+    record restart failed "$what"
+    die "not healthy after restart — see '$0 status' and 'docker compose -p $PROJECT logs'"
+  fi
+}
+
 cmd_status() {
   check_tools
   step "Services"
@@ -578,7 +712,12 @@ main() {
       --channel) CHANNEL=$2; shift ;;
       --set) SETS+=("$2"); shift ;;
       -h | --help) usage; exit 0 ;;
-      *) die "unknown option $1 (see --help)" ;;
+      -*) die "unknown option $1 (see --help)" ;;
+      *)
+        [[ $cmd == start || $cmd == stop || $cmd == restart ]] || die "unexpected argument '$1' (see --help)"
+        [[ $1 =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "invalid service name '$1'"
+        SERVICES+=("$1")
+        ;;
     esac
     shift
   done
@@ -590,8 +729,11 @@ main() {
     backup) cmd_backup ;;
     rollback) cmd_rollback ;;
     status) cmd_status ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_restart ;;
     -h | --help | help) usage ;;
-    *) die "unknown command '$cmd' (check, install, update, backup, rollback, status)" ;;
+    *) die "unknown command '$cmd' (check, install, update, backup, rollback, status, start, stop, restart)" ;;
   esac
 }
 

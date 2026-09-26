@@ -88,6 +88,7 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
 ./dbr2-deploy.sh update --release-manifest release-manifest.json    # update to a release
 ./dbr2-deploy.sh rollback                                           # previous image versions
 ./dbr2-deploy.sh status
+./dbr2-deploy.sh stop | start | restart [SERVICE...]                # never removes containers or volumes
 ```
 
 State and backups live next to the Compose files in `.deploy/` and `backups/` (both git-ignored; `backups/` contains secrets, 0700).

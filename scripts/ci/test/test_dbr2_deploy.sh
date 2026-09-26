@@ -86,6 +86,31 @@ run_case "rollback --restore-db needs the typed confirmation even with --yes" no
   mkdir -p "$D/backups/20260101T000000Z-pre-update"; (cd "$D/backups/20260101T000000Z-pre-update" && : >versions.env && sha256sum versions.env >SHA256SUMS)
   ASSUME_YES=1; RESTORE_DB=1; cmd_rollback </dev/null'
 assert "  … and says how to confirm" output_contains "DBR2_DEPLOY_CONFIRM_RESTORE"
+LIFE='
+lock() { :; }; check_tools() { :; }; check_config() { :; }; check_volumes() { :; }; wait_idle() { echo idle >>"$D/calls"; }
+compose() {
+  case $1 in
+    config) printf "%s\n" postgres valkey temporal temporal-schema temporal-namespace temporal-ui dbr2-server dbr2-worker dbr2-reposerver dbr2-web proxy ;;
+    ps) [[ -n ${MISSING:-} ]] || echo c0ffee ;;
+    *) echo "$*" >>"$D/compose" ;;
+  esac
+}
+verify() { :; }; wait_healthy() { echo "health $*" >>"$D/calls"; }
+'
+run_case "start refuses without an installation (would start an empty platform)" nonzero in_lib "$LIFE"'installed() { return 1; }; cmd_start'
+run_case "start never recreates or upgrades: up -d --no-build --no-recreate" 0 in_lib "$LIFE"'installed() { return 0; }; cmd_start
+  grep -qx "up -d --no-build --no-recreate" "$D/compose"'
+run_case "stop keeps containers and volumes (compose stop, never down)" 0 in_lib "$LIFE"'installed() { return 0; }; ASSUME_YES=1; cmd_stop
+  grep -qx "stop" "$D/compose" && ! grep -q "down" "$D/compose" && grep -qx idle "$D/calls"'
+run_case "stopping only the web console does not wait for backups" 0 in_lib "$LIFE"'installed() { return 0; }; ASSUME_YES=1; SERVICES=(dbr2-web); cmd_stop
+  grep -qx "stop dbr2-web" "$D/compose" && [[ ! -e "$D/calls" ]]'
+run_case "restart of one service waits for operations and checks only that service" 0 in_lib "$LIFE"'installed() { return 0; }; ASSUME_YES=1; SERVICES=(dbr2-worker); cmd_restart
+  grep -qx "restart dbr2-worker" "$D/compose" && grep -qx idle "$D/calls" && grep -qx "health dbr2-worker" "$D/calls"'
+run_case "restart after the stack was brought down fails fast and points to start" nonzero in_lib "$LIFE"'installed() { return 0; }; ASSUME_YES=1; MISSING=1; SERVICES=(dbr2-worker); cmd_restart'
+assert "  … with guidance" output_contains "use"
+run_case "unknown services are refused" nonzero in_lib "$LIFE"'installed() { return 0; }; SERVICES=(nope); cmd_restart'
+run_case "one-shot jobs cannot be started on their own" nonzero in_lib "$LIFE"'installed() { return 0; }; SERVICES=(temporal-schema); cmd_start'
+run_case "service names are only accepted for start/stop/restart" nonzero bash "$DEPLOY" update dbr2-worker
 run_case "the script never contains destructive Docker commands" 0 bash -c "! grep -nE -- '(down -v|--volumes|volume (rm|prune)|system prune|image prune|--remove-orphans)' '$DEPLOY' | grep -v '^[0-9]*:#'"
 
 finish

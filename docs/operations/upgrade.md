@@ -108,6 +108,27 @@ Anything recorded after that backup is lost from the **index**: recovery points,
 
 For automation, set `DBR2_DEPLOY_CONFIRM_RESTORE="RESTORE DATABASE"` instead of typing it.
 
+## Starting, stopping and restarting
+
+```bash
+./dbr2-deploy.sh stop                      # the whole stack
+./dbr2-deploy.sh start
+./dbr2-deploy.sh restart                   # in place
+./dbr2-deploy.sh restart dbr2-worker       # one or more services
+./dbr2-deploy.sh stop dbr2-web             # e.g. take only the console down
+```
+
+| Command | What it does | What it never does |
+|---|---|---|
+| `stop [SERVICE…]` | `docker compose stop`. Waits for running backups and restores first when a core service is involved (server, worker, reposerver, Temporal, PostgreSQL); `--force` skips the wait. | Remove containers, networks or volumes (`down`) |
+| `start [SERVICE…]` | `up -d --no-build --no-recreate`, then verifies health (and migrations plus proxy readiness for the whole stack). Also recreates containers that a manual `docker compose down` removed, from the existing volumes. | Upgrade or recreate existing containers (that is `update`); start without the `dbr2_pgdata` volume |
+| `restart [SERVICE…]` | `docker compose restart` in place, then verifies. Waits for operations like `stop`. Fails fast (pointing to `start`) when the containers no longer exist. | Apply new images or settings (use `update`); rerun the one-shot Temporal schema and namespace jobs |
+
+- While the stack is stopped, scheduled backups don't run.
+- Agents keep running and reconnect when the gateway returns.
+- An application an agent quiesced is resumed by the agent's lease.
+- Service names are validated against the Compose file. The one-shot jobs (`temporal-schema`, `temporal-namespace`) are started by the stack itself.
+
 ## Other commands
 
 ```bash
