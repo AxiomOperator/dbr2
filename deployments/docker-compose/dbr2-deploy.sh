@@ -57,7 +57,10 @@ SETS=()
 
 if [[ -t 1 ]]; then B=$'\e[1m' R=$'\e[31m' G=$'\e[32m' Y=$'\e[33m' N=$'\e[0m'; else B="" R="" G="" Y="" N=""; fi
 # Messages go to stderr so functions can return values on stdout.
-log() { printf '%s\n' "$*" >&2; [[ -d $STATE_DIR ]] && printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$STATE_DIR/deploy.log" || true; }
+log() {
+  printf '%s\n' "$*" >&2
+  if [[ -d $STATE_DIR ]]; then printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$STATE_DIR/deploy.log" || true; fi
+}
 step() { log "${B}==> $*${N}"; }
 ok() { log "${G}ok${N}  $*"; }
 warn() { log "${Y}warning:${N} $*"; }

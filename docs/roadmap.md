@@ -331,6 +331,7 @@ Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix /
     - `rollback --restore-db` refused without confirmation. With it, it took a safety backup, and a marker added after the backup disappeared while the earlier one remained.
     - After the restore, all 33 tables were still owned by `dbr2`, the append-only audit triggers were still enforced, and the stack was healthy.
     - CI: 18 tests (`scripts/ci/test/test_dbr2_deploy.sh`, with Docker stubbed), including one that fails if the automatic rollback is removed (checked by mutation). shellcheck now also covers `deployments/docker-compose/*.sh`.
+    - **Follow-up fix:** the CI runner's shellcheck flagged SC2015 (`A && B || C`) in `log()`, which the local 0.11.0 did not. It is now an explicit `if`.
 - **Files:** `deployments/docker-compose/{dbr2-deploy.sh,README.md,.gitignore}`, `docs/operations/upgrade.md` (new), `Makefile`, `.github/workflows/ci.yml`, `scripts/ci/test/test_dbr2_deploy.sh`, `scripts/ci/README.md`, `deployments/CHANGELOG.md`, `docs/roadmap.md`
 
 ### 2026-09-25 — Feature — Phases 7, 8 and 9 complete (scheduling, retention, contracts, notifications; database-aware backups; verification and self-protection)
