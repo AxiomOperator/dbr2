@@ -5,9 +5,12 @@ All notable changes to the `deployment` component. Format: [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Fixed
+- `make dev-down` no longer deletes the development volumes (it ran `down -v`, which silently wiped the dev database and CA while the bind-mounted Repository storage survived, leaving the two out of step). Deleting dev data is now `make dev-reset CONFIRM=delete-dev-data`, which removes both together.
 - `compose.dev.yaml` builds with `network: host`: on hosts using systemd-resolved with an IPv6 upstream resolver, the default build network could not resolve DNS and `make dev-up` failed in `go mod download` / `npm ci`.
 
 ### Added
+- `docker-compose/dbr2-deploy.sh`: non-destructive `install`, `update` (release manifest, `--version`, `--channel edge`, `--set`), `rollback` (image versions; `--restore-db` with a typed confirmation and a safety backup), `backup`, `status` and `check`. Pre-flight checks (tools, secrets, NFS mount, disk space, data volumes), a verified pre-update backup (databases, `.env`, secrets, Compose files, checksums), pull before change, a wait for running backups and restores, health, migration and proxy readiness verification, automatic image rollback, lock and history. Runbook `docs/operations/upgrade.md`; CI tests `scripts/ci/test/test_dbr2_deploy.sh`.
+- Makefile: `dev-update`, `deploy-check`, `dev-reset CONFIRM=delete-dev-data`.
 - dbr2-worker: platform bundle directory bind mount `${DBR2_PLATFORM_BUNDLE_HOST_PATH:-./platform-bundles}:/var/lib/dbr2/platform-bundles` (a separate NFS export or directory that is not part of any Repository; owned by uid 65532) and `DBR2_PLATFORM_BUNDLE_KEEP` / `DBR2_PLATFORM_BACKUP_CRON`; dev compose runs the worker as the host user with `.dev/platform-bundles` (pre-created by `make dev-up`).
 - dbr2-reposerver: state volume, internal token, `DBR2_REPOSERVER_TLS_NAMES`, Kopia server published on `${DBR2_REPOSERVER_PORT:-51515}` (dev: loopback only), `stop_grace_period: 30s`; `make dev-up` pre-creates `.dev/reposerver-state`.
 - Root `.dockerignore`: `.dev`, secrets, `.env`, build output and `node_modules` no longer enter the service build context.

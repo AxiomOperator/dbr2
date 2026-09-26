@@ -305,6 +305,6 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck -x scripts/ci/*.sh scripts/ci/lib/*.sh scripts/ci/test/*.sh scripts/release/*.sh
+        run: shellcheck -x scripts/ci/*.sh scripts/ci/lib/*.sh scripts/ci/test/*.sh scripts/release/*.sh deployments/docker-compose/*.sh
       - name: Script test suite
         run: scripts/ci/test/run.sh

@@ -79,6 +79,19 @@ Single-site deployment (v1.0). The architecture is described in `docs/stack_info
 
 8. **Back up.** Once a host is approved and discovered, run **Back up now** on an application (or `dbr2 backup --app <name> --wait`). Per-application settings (consistency mode, hooks, maximum quiesce, optional or excluded components) and per-host limits (concurrent jobs, backup window) are in the console.
 
+## Install or update with `dbr2-deploy.sh` (recommended)
+
+`./dbr2-deploy.sh` wraps the steps above and never destroys data: no `down -v`, no volume removal, a backup before every update, images pulled before anything changes, and an automatic rollback of image versions when an update does not become healthy. The full runbook is `docs/operations/upgrade.md`.
+
+```bash
+./dbr2-deploy.sh install                                            # first installation (after mounting the NAS)
+./dbr2-deploy.sh update --release-manifest release-manifest.json    # update to a release
+./dbr2-deploy.sh rollback                                           # previous image versions
+./dbr2-deploy.sh status
+```
+
+State and backups live next to the Compose files in `.deploy/` and `backups/` (both git-ignored; `backups/` contains secrets, 0700).
+
 ## Entra ID
 
 1. Register an application.

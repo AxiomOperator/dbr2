@@ -3,3 +3,5 @@ secrets/
 certs/
 .env
 platform-bundles/
+.deploy/
+backups/

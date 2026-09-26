@@ -182,7 +182,7 @@ Builds throwaway git repositories in a temp directory and covers
 `check-dco.sh` (signed, unsigned, wrong signer, exempt, self-exemption, merges,
 bots), `finalize-changelogs.sh` / `release-manifest.sh` (moves entries,
 idempotent, empty `[Unreleased]` untouched, contract BUILD 0), the
-breaking-change version policy (`lib/semver.sh`) and `check-spdx.sh`. Run `shellcheck -x scripts/ci/*.sh scripts/ci/lib/*.sh
+breaking-change version policy (`lib/semver.sh`), `check-spdx.sh`, and the safety logic of `deployments/docker-compose/dbr2-deploy.sh` (version selection, `.env` editing, missing-volume refusal, pull failure, automatic rollback, restore confirmation; Docker is stubbed). Run `shellcheck -x scripts/ci/*.sh scripts/ci/lib/*.sh
 scripts/ci/test/*.sh scripts/release/*.sh` and `./bin/actionlint` before
 pushing workflow changes.
 

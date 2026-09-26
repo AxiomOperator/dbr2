@@ -31,7 +31,7 @@ name_agent      := dbr2-agent
 name_reposerver := dbr2-reposerver
 name_dbr2       := dbr2
 
-.PHONY: all build $(BINARIES) test test-integration lint fmt fmt-check vet generate versions \
+.PHONY: dev-update dev-reset deploy-check all build $(BINARIES) test test-integration lint fmt fmt-check vet generate versions \
         sqlc proto openapi check-generated tools web-install web-build web-test web-generate web-e2e \
         images dev-up dev-password dev-down clean help rpm rpm-test nfpm
 
@@ -155,8 +155,25 @@ dev-password: ## Print the master admin initial password of the running dev stac
 	@docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml \
 		cp dbr2-server:/var/lib/dbr2/master-admin-initial-password - | tar -xO
 
-dev-down: ## Stop the development stack and delete its volumes
+dev-down: ## Stop the development stack (keeps all data; see dev-reset)
+	docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml down
+
+dev-update: ## Rebuild and update the running dev stack non-destructively (backup, apply, verify)
+	deployments/docker-compose/dbr2-deploy.sh update --dev --yes
+
+dev-reset: ## DELETE all development data (volumes, mock Repository, bundles): make dev-reset CONFIRM=delete-dev-data
+	@if [ "$(CONFIRM)" != "delete-dev-data" ]; then \
+		echo "dev-reset deletes the dev database, CA, Repository storage and platform bundles."; \
+		echo "Run: make dev-reset CONFIRM=delete-dev-data"; exit 1; fi
 	docker compose -f deployments/docker-compose/compose.yaml -f deployments/docker-compose/compose.dev.yaml down -v
+	@# The mock Repository and reposerver state must go with the database, or the
+	@# reposerver stays initialized for a platform that no longer knows it.
+	docker run --rm -v $(CURDIR)/.dev:/dev-data docker.io/library/busybox:1.37 \
+		sh -c 'rm -rf /dev-data/repo/* /dev-data/repo/.[!.]* /dev-data/reposerver-state/* /dev-data/reposerver-state/.[!.]* /dev-data/platform-bundles/*'
+	@echo "Dev data deleted. Re-enroll the dev agent after 'make dev-up' (the CA is new)."
+
+deploy-check: ## Pre-flight checks of the Compose deployment (dbr2-deploy.sh check)
+	deployments/docker-compose/dbr2-deploy.sh check
 
 clean:
 	rm -rf $(BIN)

@@ -311,6 +311,28 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-26 — Feature / Fix — Non-destructive deploy and update script; `make dev-down` no longer wipes data
+- **Notes:**
+  - **Owner request:** "a deploy/update script that is non-destructive".
+  - **`deployments/docker-compose/dbr2-deploy.sh`** (runbook `docs/operations/upgrade.md`) has these commands: `check`, `install`, `update`, `backup`, `rollback`, `status`.
+    - **Never** runs `down -v`, removes volumes, networks, images or containers, uses `--remove-orphans`, or prunes.
+    - Refuses to update when `dbr2_pgdata` is missing (a wrong directory or project would start an empty platform). Refuses to install over an existing installation.
+    - **Update sequence:** pre-flight checks → plan and confirmation → **pull every image before changing anything** (a failed pull restores `.env`) → wait for running backups and restores (`--wait-idle`, or `--force`) → **pre-update backup** → `up -d` → verification. The backup covers the three databases (`pg_dump -Fc`, each checked with `pg_restore -l`), `.env`, secrets, the Compose files, the versions and checksums.
+    - **Verification:** every service healthy, no pending migrations, and readiness through the proxy. If it fails, the image versions are **rolled back automatically**.
+    - `rollback` restores the previous image versions. `--restore-db` restores the pre-update databases, but only after a typed `RESTORE DATABASE` (`--yes` does not cover it) and after taking a safety backup of the current databases; it keeps table ownership and says to reindex.
+    - A lock prevents concurrent runs, and every run is recorded in `.deploy/history.tsv`.
+    - Versions come from a release manifest, `--version`, `--channel edge` or `--set`.
+  - **Root cause of the repeated dev-data wipes:** `make dev-down` ran `docker compose down -v`. That deleted the dev database, CA and Caddy data, while the bind-mounted mock Repository and reposerver state survived, leaving an initialized reposerver the platform no longer knew.
+    - `dev-down` now only stops the stack.
+    - `make dev-reset CONFIRM=delete-dev-data` deletes both together.
+    - `make dev-update` runs the script against the dev stack.
+  - **Verification on the dev stack:**
+    - A dry run, then a real update: all checks passed, the marker data survived, and the backup checksums verified.
+    - `rollback --restore-db` refused without confirmation. With it, it took a safety backup, and a marker added after the backup disappeared while the earlier one remained.
+    - After the restore, all 33 tables were still owned by `dbr2`, the append-only audit triggers were still enforced, and the stack was healthy.
+    - CI: 18 tests (`scripts/ci/test/test_dbr2_deploy.sh`, with Docker stubbed), including one that fails if the automatic rollback is removed (checked by mutation). shellcheck now also covers `deployments/docker-compose/*.sh`.
+- **Files:** `deployments/docker-compose/{dbr2-deploy.sh,README.md,.gitignore}`, `docs/operations/upgrade.md` (new), `Makefile`, `.github/workflows/ci.yml`, `scripts/ci/test/test_dbr2_deploy.sh`, `scripts/ci/README.md`, `deployments/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-25 — Feature — Phases 7, 8 and 9 complete (scheduling, retention, contracts, notifications; database-aware backups; verification and self-protection)
 - **Notes:**
   - **ADR-0018 (new):** scheduling, retention, deletion grace, recovery contracts, notifications, verification, escrow health and the database strategy.
