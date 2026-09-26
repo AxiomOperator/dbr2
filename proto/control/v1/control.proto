@@ -52,7 +52,79 @@ service PlatformService {
   rpc IndexRecoveryPoints(IndexRecoveryPointsRequest) returns (IndexRecoveryPointsResponse);
   // RecordEvent records an audit event and alert on behalf of the worker.
   rpc RecordEvent(RecordEventRequest) returns (RecordEventResponse);
+  // PrepareRestore marks a requested restore running and returns its plan.
+  rpc PrepareRestore(PrepareRestoreRequest) returns (PrepareRestoreResponse);
+  // GrantRestoreAccess grants the target agent temporary READ on the
+  // source agent's snapshots (cross-host restore); RevokeRestoreAccess
+  // removes it (saga compensation).
+  rpc GrantRestoreAccess(GrantRestoreAccessRequest) returns (GrantRestoreAccessResponse);
+  rpc RevokeRestoreAccess(RevokeRestoreAccessRequest) returns (RevokeRestoreAccessResponse);
+  // UpdateRestore records progress (step) and the final outcome.
+  rpc UpdateRestore(UpdateRestoreRequest) returns (UpdateRestoreResponse);
 }
+
+message PrepareRestoreRequest {
+  string restore_id = 1;
+  string workflow_id = 2;
+  string run_id = 3;
+}
+
+message PrepareRestoreResponse {
+  string restore_id = 1;
+  string recovery_point_id = 2;
+  Repository repository = 3;
+  string source_agent_id = 4;
+  string target_agent_id = 5;
+  bool cross_host = 6;
+  repeated agent.v1.RestoreSpec components = 7;
+  // The config component snapshot (container re-creation); empty when not
+  // selected.
+  string config_snapshot_id = 8;
+  repeated agent.v1.PathRemap path_remaps = 9;
+  repeated agent.v1.ImageSpec images = 10;
+  repeated agent.v1.NetworkSpec networks = 11;
+  // Containers of the target application on the target host to stop
+  // before the data is swapped (in-place restore).
+  repeated string stop_container_ids = 12;
+  bool recreate_containers = 13;
+  repeated agent.v1.RestoreDatabaseCommand databases = 14;
+  uint32 health_timeout_seconds = 15;
+  // Dead-man lease for the stop (seconds).
+  uint32 lease_seconds = 16;
+  string target_application_id = 17;
+  // Container names that were running when the recovery point was captured
+  // (from the manifest topology, recorded before any quiesce): re-created
+  // containers in this set are started.
+  repeated string running_at_capture = 18;
+}
+
+message GrantRestoreAccessRequest {
+  string restore_id = 1;
+}
+
+message GrantRestoreAccessResponse {
+  string grant_id = 1;
+}
+
+message RevokeRestoreAccessRequest {
+  string restore_id = 1;
+  string grant_id = 2;
+}
+
+message RevokeRestoreAccessResponse {}
+
+message UpdateRestoreRequest {
+  string restore_id = 1;
+  // running | succeeded | failed | rolled_back
+  string state = 2;
+  // Current step (progress), e.g. "restore-data".
+  string step = 3;
+  // Result document (JSON): component, container and health outcomes.
+  bytes result_json = 4;
+  string error = 5;
+}
+
+message UpdateRestoreResponse {}
 
 // Repository describes how to reach a Repository.
 message Repository {

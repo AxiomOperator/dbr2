@@ -207,6 +207,8 @@ func (d *Deps) protErr(ctx context.Context, err error) error {
 		return nil
 	case errors.Is(err, protection.ErrNotFound), errors.Is(err, fleet.ErrNotFound):
 		return problem(http.StatusNotFound, CodeNotFound, "not found")
+	case errors.Is(err, protection.ErrForbidden):
+		return problem(http.StatusForbidden, CodeForbidden, err.Error())
 	case errors.Is(err, protection.ErrInvalid):
 		return problem(http.StatusBadRequest, CodeValidation, err.Error())
 	case errors.Is(err, protection.ErrConflict), errors.As(err, &busy):

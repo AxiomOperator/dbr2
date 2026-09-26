@@ -574,6 +574,19 @@ Workflow ID `application/<id>` (one operation per application; ADR-0011). Manual
 
 Consistency modes: **Automatic** (the default) means Quiesced when hooks are defined, otherwise Live (crash-consistent). The other modes are Live, Quiesced (pause) and Offline (stop). Orphaned components and seed passes are garbage-collected after 7 days by the `platform-orphan-gc` schedule. `dbr2 admin reindex --repository <name>` rebuilds the index from the manifests.
 
+### Restore workflow (Phase 5, ADR-0017)
+
+Workflow ID `application/<id>`: the target application, or the source application when the target has none. So a restore never overlaps a backup or another restore. It is started with `POST /api/v1/recovery-points/{id}/restores`, `dbr2 restore --rp <id>`, or the console's restore wizard.
+
+1. **Impact preview and collisions** (server, from the manifest topology and the target inventory). The preview lists containers stopped, volumes overwritten or created, bind paths replaced (after **path remapping**), containers re-created, networks created, images pulled and ports published. Anything that belongs to another application (a container name, port, network, volume or bind path) **blocks** the restore.
+2. **Production restores:** the target is tagged `environment: production`, or the restore overwrites a running application in place. They require `restore.production`, a **typed confirmation** (the application name) and a **reason** (ADR-0014).
+3. **Cross-host restores:** a temporary per-source READ grant for the target agent, revoked by compensation; the agent uses a fresh repository session.
+4. Pull missing images **by digest**; stop the target application (dead-man lease).
+5. Per component: restore into **staging** next to the target (`IgnorePermissionErrors = false`, sparse), apply and **verify the fsmeta record**, then swap it in and **keep the previous content**.
+6. Re-create missing containers and networks from the captured inspect documents; start the application; load database dumps (PostgreSQL SQL stream into `psql`; Redis RDB).
+7. **Health check** (running, and healthy when a healthcheck is defined). **Commit** deletes the previous content; **any failure rolls back** to the previous data and containers.
+8. **Recovery history:** every attempt is recorded (`requested → running → succeeded | failed | rolled_back`), with its preview, steps, result document, audit and alerts.
+
 ### Recovery points (ADR-0004)
 
 * A recovery point is a set of tagged Kopia snapshots (config, volumes, bind mounts, database dumps, optional images) plus a versioned JSON **recovery manifest**. The manifest is stored in the Repository and written **last**, as the commit marker.

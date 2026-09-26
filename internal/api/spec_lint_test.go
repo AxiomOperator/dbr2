@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"testing"
 
@@ -16,10 +17,12 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/version"
 )
 
+var pathParam = regexp.MustCompile(`\{([^}]+)\}`)
+
 // lintSpec enforces the API documentation rules (final_stack → Control
 // Plane): operationId, summary, description, tags, documented 401 on secured
 // operations, a valid permission on every x-dbr2-permission, and a four-part
-// info.version.
+// info.version, and every {param} in a path declared by its operation.
 func lintSpec(spec *huma.OpenAPI) []string {
 	var problems []string
 	if spec.Info == nil || !version.IsValid(spec.Info.Version) {
@@ -56,6 +59,17 @@ func lintSpec(spec *huma.OpenAPI) []string {
 			}
 			if secured && o.Responses["401"] == nil {
 				problems = append(problems, where+": secured operation does not document 401")
+			}
+			declared := map[string]bool{}
+			for _, prm := range o.Parameters {
+				if prm.In == "path" {
+					declared[prm.Name] = true
+				}
+			}
+			for _, m := range pathParam.FindAllStringSubmatch(path, -1) {
+				if !declared[m[1]] {
+					problems = append(problems, where+": path parameter {"+m[1]+"} is not declared (embedded input structs are not read)")
+				}
 			}
 			if perm, ok := o.Extensions[ExtPermission].(string); ok && !valid[perm] {
 				problems = append(problems, where+": unknown permission "+perm)

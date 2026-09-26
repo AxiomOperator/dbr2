@@ -153,17 +153,19 @@ Goal: remove the architectural unknowns before building.
 
 ## Phase 5 — Restore
 
-- [ ] Restore workflow: to the original host or an alternate host
-- [ ] **Restore impact preview**: containers stopped, volumes overwritten, ports and paths changed
-- [ ] **Restore collision detection**: names, networks, volumes and bound ports
-- [ ] Bind-mount path remapping
-- [ ] Create missing networks and volumes; pull images by digest (image digest enforcement)
-- [ ] Database restore from the logical dump or RDB file (PostgreSQL, Redis)
-- [ ] Restore into staging, then apply the `fsmeta` record (hardlinks, ACLs, extended attributes, full SELinux contexts, directory mtimes), verify, and swap in; `IgnorePermissionErrors = false`; sparse writing on (ADR-0006)
-- [ ] Start the application; health-check validation
-- [ ] `restore.production` enforcement plus **single-operator safeguards**: typed confirmation, mandatory reason (ADR-0014)
-- [ ] Recovery history: every restore attempt recorded, including failures
-- [ ] Restores claim the same `application/{id}` workflow ID, so they cannot overlap with backups
+- [x] Restore workflow: to the original host or an alternate host
+- [x] **Restore impact preview**: containers stopped, volumes overwritten, ports and paths changed
+- [x] **Restore collision detection**: names, networks, volumes and bound ports
+- [x] Bind-mount path remapping
+- [x] Create missing networks and volumes; pull images by digest (image digest enforcement)
+- [x] Database restore from the logical dump or RDB file (PostgreSQL, Redis). The restore side is implemented and integration-tested against real `postgres:18-alpine` and `redis:8-alpine`; dump **capture** arrives with Phase 8, in the formats fixed by ADR-0017
+- [x] Restore into staging, then apply the `fsmeta` record (hardlinks, ACLs, extended attributes, full SELinux contexts, directory mtimes), verify, and swap in; `IgnorePermissionErrors = false`; sparse writing on (ADR-0006)
+- [x] Start the application; health-check validation
+- [x] `restore.production` enforcement plus **single-operator safeguards**: typed confirmation, mandatory reason (ADR-0014)
+- [x] Recovery history: every restore attempt recorded, including failures
+- [x] Restores claim the same `application/{id}` workflow ID, so they cannot overlap with backups
+
+**Status: complete (2026-09-25).** ADR-0017. Verified end to end on the dev stack: in-place restore, restore of a deleted application with re-creation, automatic rollback on an unhealthy restore, cancellation, and re-creation from an Offline-mode recovery point.
 
 ## Phase 6 — Web console
 
@@ -300,6 +302,53 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Feature — Phase 5 (Restore) complete
+- **Notes:**
+  - **ADR-0017 (new):** restores claim `application/<id>`; impact preview with blocking collisions; production safeguards; staged restore with fsmeta verification, swap with the previous content kept, commit only after a healthy start, and rollback on any failure; formats for database dumps.
+  - **Server:**
+    - Impact preview and collision detection from the manifest topology and the target host's inventory: container names, published ports, networks, volumes, bind paths, missing external networks; path remapping; in-place vs alternate host.
+    - Production restores (target tagged production, or a running application overwritten in place) require `restore.production`, a typed confirmation and a reason.
+    - Recovery history in `restore_runs`, including failures and rollbacks.
+    - Cancel endpoint: cancellation runs the compensation.
+    - `PlatformService`: `PrepareRestore` re-validates before anything changes; per-source READ grants for cross-host restores; `UpdateRestore` records audit and alerts.
+  - **Worker:** `RestoreWorkflow`: grant → agent access → images by digest → stop (dead-man lease, 24 h) → staged restore → re-create containers → start → database dumps → health check → commit. A rollback saga covers any failure, and the grant is always revoked.
+  - **Agent:**
+    - `EnsureImages` (pull by digest, verify, tag).
+    - `RestoreComponents`: staging next to the target, Kopia with `IgnorePermissionErrors = false` and sparse writing, fsmeta Apply and Verify (hardlinks, xattrs/ACLs/SELinux, directory mtimes deepest first), root owner/mode/SELinux, free-space pre-check, and a journaled swap that keeps the previous content. It refuses to swap if the stop lease has already fired.
+    - `RecreateContainers` from the captured inspect documents, with remapped binds and networks created.
+    - `StartContainers`.
+    - `CheckHealth`: running, and healthy when a healthcheck exists, for 15 s. It fails early on exit, restart loops and sustained `unhealthy`, and returns log tails.
+    - `FinalizeRestore`: COMMIT or ROLLBACK, idempotent and crash-safe through the journal.
+    - `RestoreDatabase`: PostgreSQL SQL stream into `psql`; Redis RDB, refused when AOF is on.
+  - **Manifest schema 1, additive:** `topology`, component `file_name`, `database`.
+  - **API, CLI and console:**
+    - API: preview, start, list, get, cancel.
+    - CLI: `dbr2 restore` (prints the preview; `--confirm` and `--reason`) and `dbr2 restores`.
+    - Console: restore wizard (target, components, path remaps, impact preview, confirmation), Restores page and detail with a step indicator, the application's Restores tab, dashboard card. Web tests went from 146 to 186.
+  - **Found by the end-to-end run and fixed:**
+    1. **Workflow type name clash.** `backup.Workflow` and `restore.Workflow` both registered as "Workflow", so the worker panicked at start. They are renamed `BackupWorkflow` and `RestoreWorkflow`. A new test registers every workflow and activity on one registry, which the Temporal test environment enforces.
+       - A dev backup started under the old type name could not run and held the application's workflow ID. It was terminated: 4 history events, no activity had run, so no compensation was skipped. Dev only.
+    2. **Path parameters not bound.** Handlers embedding a path-parameter struct did not get `{id}` bound by Huma, which caused a 404. The fields are now explicit, and the spec lint fails when any `{param}` is undeclared (proven by reintroducing the bug).
+    3. **Offline-mode backups.** Their inspect documents say "exited", so re-created containers would never start. The worker now starts containers that were running according to the manifest topology, which is recorded before quiesce (`running_at_capture`).
+    4. **Containerised agent collided with itself.** The dev agent, running in a container that mounts host paths, collided with every bind path. Containers labelled `dbr2.role=agent` are now ignored for bind-path collisions.
+    5. **Unhealthy detected slowly.** The health check waited the whole 5-minute timeout on an `unhealthy` container; it now fails after 30 s of sustained `unhealthy`.
+  - **Verification on the dev stack (real Docker, real Kopia):**
+    1. **In place:** a deleted 20 MB blob and a tampered bind-mounted config file were restored with identical checksums; fsmeta applied with 0 verification mismatches; 26 s; no leftovers.
+    2. **Deleted application** (`compose down -v`): volume, network and container were re-created with their Compose labels and real environment, and the data matched.
+    3. **Rollback:** a recovery point whose data fails the app's healthcheck was restored; the restore ended `rolled_back`, and the app is healthy with its previous data.
+    4. **Cancel** during the stop step: the app was resumed and the restore recorded as `failed`.
+    5. **Offline-mode recovery point of a deleted app:** re-created and started.
+    - The safeguards were exercised: a missing confirmation was rejected with 400, and collisions blocked the restore.
+  - **Local dev note:** Docker builds on this machine can't resolve DNS (an unreachable IPv6 resolver inside build containers), so the dev images were built with `docker build --network host`. The Compose file is unchanged.
+  - **Deferred:**
+    - The two-person approval workflow and maintenance-window-aware restores ("Later").
+    - Restore to a new name or project.
+    - Registry credentials for image pulls; database credentials (Redis `requirepass`).
+    - Preserving the mtime of single-file bind mounts.
+    - `restorecon` for unlabelled paths.
+    - Pagination of `/restores`.
+- **Files:** `internal/{protection,agent,fsmeta,runtime,engine,manifest,api,audit}`, `workflows/{restore,backup,register.go,workflows_test.go}`, `cmd/{worker,dbr2}`, `proto/{agent,control}/v1`, `db/migrations/00004_restores.sql`, `db/queries/restores.sql`, `web/**`, `api/openapi.yaml`, component changelogs, `docs/adr/0017` (new), `docs/stack_info/final_stack.md`, `docs/threat_model.md` (T31–T33), `docs/dev/audit-events.md`, `docs/domain_model.md`, `README.md`, `docs/roadmap.md`
 
 ### 2026-09-25 — Fix — CI integration failure after the Phase 4 push
 - **Notes:**

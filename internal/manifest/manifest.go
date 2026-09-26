@@ -86,9 +86,14 @@ type Manifest struct {
 	Repository          RepositoryRef `json:"repository"`
 	Components          []Component   `json:"components"`
 	Images              []Image       `json:"images,omitempty"`
-	Contract            *Contract     `json:"contract,omitempty"`
-	Workflow            Workflow      `json:"workflow"`
-	Producer            Producer      `json:"producer"`
+	// Topology describes the application's containers, networks and
+	// volumes at capture time (used for restore previews and collision
+	// detection without reading the config component). Added in schema 1
+	// (additive); absent in manifests written before Phase 5.
+	Topology *Topology `json:"topology,omitempty"`
+	Contract *Contract `json:"contract,omitempty"`
+	Workflow Workflow  `json:"workflow"`
+	Producer Producer  `json:"producer"`
 }
 
 // Application identifies the protected application.
@@ -138,6 +143,77 @@ type Component struct {
 	SELinuxContext string    `json:"selinux_context,omitempty"`
 	Parent         string    `json:"parent,omitempty"`
 	CaptureMethod  string    `json:"capture_method,omitempty"`
+	// FileName is set for components stored as a single stream (single-file
+	// bind mounts, database dumps, fsmeta records).
+	FileName string `json:"file_name,omitempty"`
+	// Database describes database dump components (Phase 8 produces them).
+	Database *DatabaseDump `json:"database,omitempty"`
+}
+
+// DatabaseDump describes a logical database dump component.
+type DatabaseDump struct {
+	// postgresql | redis
+	Engine string `json:"engine"`
+	// PostgreSQL: "pg_dumpall-sql-zstd" (plain SQL, zstd-compressed);
+	// Redis: "rdb" (the RDB file, uncompressed).
+	Format string `json:"format"`
+	// Service and container name the dump was taken from.
+	Service   string `json:"service,omitempty"`
+	Container string `json:"container,omitempty"`
+}
+
+// Topology is the application's shape at capture time (no secrets).
+type Topology struct {
+	Containers []TopologyContainer `json:"containers"`
+	Networks   []TopologyNetwork   `json:"networks,omitempty"`
+	Volumes    []TopologyVolume    `json:"volumes,omitempty"`
+}
+
+// TopologyContainer is one container.
+type TopologyContainer struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Service  string          `json:"service,omitempty"`
+	Image    string          `json:"image"`
+	State    string          `json:"state"`
+	Ports    []TopologyPort  `json:"ports,omitempty"`
+	Mounts   []TopologyMount `json:"mounts,omitempty"`
+	Networks []string        `json:"networks,omitempty"`
+}
+
+// TopologyPort is a published port.
+type TopologyPort struct {
+	ContainerPort string `json:"container_port"`
+	Protocol      string `json:"protocol"`
+	HostIP        string `json:"host_ip,omitempty"`
+	HostPort      string `json:"host_port,omitempty"`
+}
+
+// TopologyMount is a container mount.
+type TopologyMount struct {
+	Type        string `json:"type"`
+	Name        string `json:"name,omitempty"`
+	Source      string `json:"source,omitempty"`
+	Destination string `json:"destination"`
+	RW          bool   `json:"rw"`
+}
+
+// TopologyNetwork is a network the application uses.
+type TopologyNetwork struct {
+	Name       string            `json:"name"`
+	Driver     string            `json:"driver"`
+	External   bool              `json:"external,omitempty"`
+	Internal   bool              `json:"internal,omitempty"`
+	Attachable bool              `json:"attachable,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
+// TopologyVolume is a named volume the application uses.
+type TopologyVolume struct {
+	Name     string            `json:"name"`
+	Driver   string            `json:"driver"`
+	External bool              `json:"external,omitempty"`
+	Labels   map[string]string `json:"labels,omitempty"`
 }
 
 // Image is an image reference used by the application.

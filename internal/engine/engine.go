@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"time"
 )
 
@@ -85,6 +86,24 @@ type RestoreOptions struct {
 	Parallel         int
 }
 
+// DirEntry is one entry of a snapshot directory.
+type DirEntry struct {
+	Name string
+	// Mode carries the type bits (os.ModeDir, os.ModeSymlink, …) and the
+	// permission bits including setuid/setgid/sticky.
+	Mode    os.FileMode
+	Size    int64
+	ModTime time.Time
+	UID     uint32
+	GID     uint32
+}
+
+// IsDir reports whether the entry is a directory.
+func (e DirEntry) IsDir() bool { return e.Mode.IsDir() }
+
+// IsRegular reports whether the entry is a regular file.
+func (e DirEntry) IsRegular() bool { return e.Mode.IsRegular() }
+
 // ErrCanceled is returned when a snapshot was cancelled; nothing is saved.
 var ErrCanceled = errors.New("engine: snapshot canceled; nothing was saved")
 
@@ -107,6 +126,11 @@ type Repository interface {
 	RestorePath(ctx context.Context, id, targetDir string, opts RestoreOptions) error
 	// OpenStream opens the single file of a stream snapshot.
 	OpenStream(ctx context.Context, id, fileName string) (io.ReadCloser, error)
+	// OpenFile opens the regular file at relPath (slash-separated, relative
+	// to the snapshot root) of a directory snapshot.
+	OpenFile(ctx context.Context, id, relPath string) (io.ReadCloser, error)
+	// ListDir lists the directory at relPath ("" or "." = the root).
+	ListDir(ctx context.Context, id, relPath string) ([]DirEntry, error)
 	// Close releases the session.
 	Close(ctx context.Context) error
 }

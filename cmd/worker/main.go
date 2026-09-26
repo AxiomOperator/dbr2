@@ -31,6 +31,7 @@ import (
 	"github.com/AxiomOperator/dbr2/workflows/backup"
 	"github.com/AxiomOperator/dbr2/workflows/diag"
 	"github.com/AxiomOperator/dbr2/workflows/hosts"
+	"github.com/AxiomOperator/dbr2/workflows/restore"
 )
 
 const binary = "dbr2-worker"
@@ -100,9 +101,10 @@ func run() error {
 	platform := controlv1.NewPlatformServiceClient(ctrlConn)
 	maint := backup.NewMaintSessions(platform, cfg.InternalToken, cfg.StateDir)
 	defer maint.Close()
+	dispatcher := &agentcmd.Dispatcher{Control: gwControl, Token: cfg.InternalToken}
 	workflows.Register(w, &diag.Activities{}, &hosts.Activities{Control: gwControl, Token: cfg.InternalToken},
-		&backup.Activities{Agent: &agentcmd.Dispatcher{Control: gwControl, Token: cfg.InternalToken}, Platform: platform,
-			Token: cfg.InternalToken, Maint: maint})
+		&backup.Activities{Agent: dispatcher, Platform: platform, Token: cfg.InternalToken, Maint: maint},
+		&restore.Activities{Agent: dispatcher, Platform: platform, Token: cfg.InternalToken})
 	go ensureSchedules(ctx, c, cfg, log)
 
 	var healthy atomic.Bool

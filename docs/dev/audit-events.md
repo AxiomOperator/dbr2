@@ -70,3 +70,8 @@ Events are stored in the append-only `audit_events` table, where UPDATE, DELETE 
 | `quiesce.resume_failed` | The agent could not resume an application (critical alert). Agent actor. |
 | `quiesce.lease_warning` | Quiesced longer than 80% of its lease (warning alert). Agent actor. |
 | `alert.acknowledged` | An alert was acknowledged. |
+| `restore.requested` | Restore requested (reason, target, mode, production flag, components, remaps). |
+| `restore.succeeded` | Restore committed after a healthy start (info alert). System actor. |
+| `restore.rolled_back` | Restore failed and the previous data and containers were put back (warning alert). System actor. |
+| `restore.cancel_requested` | Cancellation of a running restore requested (compensation rolls it back). |
+| `restore.failed` | Restore failed before changing anything, or its rollback failed (critical alert). System actor. |

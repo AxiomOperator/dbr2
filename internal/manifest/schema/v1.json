@@ -57,6 +57,33 @@
         "properties": { "service": { "type": "string" }, "ref": { "type": "string" }, "digest": { "type": "string" } }
       }
     },
+    "topology": {
+      "type": "object",
+      "description": "Containers, networks and volumes at capture time (no secrets). Optional: absent before Phase 5.",
+      "required": ["containers"],
+      "properties": {
+        "containers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "image", "state"],
+            "properties": {
+              "id": { "type": "string" }, "name": { "type": "string" }, "service": { "type": "string" },
+              "image": { "type": "string" }, "state": { "type": "string" },
+              "ports": { "type": "array", "items": { "type": "object", "required": ["container_port", "protocol"],
+                "properties": { "container_port": { "type": "string" }, "protocol": { "type": "string" }, "host_ip": { "type": "string" }, "host_port": { "type": "string" } } } },
+              "mounts": { "type": "array", "items": { "type": "object", "required": ["type", "destination", "rw"],
+                "properties": { "type": { "type": "string" }, "name": { "type": "string" }, "source": { "type": "string" }, "destination": { "type": "string" }, "rw": { "type": "boolean" } } } },
+              "networks": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "networks": { "type": "array", "items": { "type": "object", "required": ["name", "driver"],
+          "properties": { "name": { "type": "string" }, "driver": { "type": "string" }, "external": { "type": "boolean" }, "internal": { "type": "boolean" }, "attachable": { "type": "boolean" }, "labels": { "type": "object", "additionalProperties": { "type": "string" } } } } },
+        "volumes": { "type": "array", "items": { "type": "object", "required": ["name", "driver"],
+          "properties": { "name": { "type": "string" }, "driver": { "type": "string" }, "external": { "type": "boolean" }, "labels": { "type": "object", "additionalProperties": { "type": "string" } } } } }
+      }
+    },
     "contract": {
       "type": "object",
       "required": ["satisfied"],
@@ -97,7 +124,18 @@
         "mode": { "type": "string" },
         "selinux_context": { "type": "string" },
         "parent": { "type": "string", "description": "fsmeta components: the filesystem component they describe." },
-        "capture_method": { "enum": ["live", "snapshot"] }
+        "capture_method": { "enum": ["live", "snapshot"] },
+        "file_name": { "type": "string", "description": "Single-stream components: the file name inside the snapshot." },
+        "database": {
+          "type": "object",
+          "required": ["engine", "format"],
+          "properties": {
+            "engine": { "enum": ["postgresql", "redis"] },
+            "format": { "type": "string" },
+            "service": { "type": "string" },
+            "container": { "type": "string" }
+          }
+        }
       },
       "if": { "properties": { "status": { "const": "succeeded" } } },
       "then": { "required": ["snapshot_id", "snapshot_source"] }

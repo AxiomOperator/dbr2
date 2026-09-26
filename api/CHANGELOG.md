@@ -5,6 +5,7 @@ All notable changes to the `api` component. Format: [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Restores: `POST /recovery-points/{id}/restore-preview`, `POST /recovery-points/{id}/restores` (202; 403 without `restore.production` for production restores; 400 without typed confirmation or reason; 409 when blocked by collisions), `GET /restores`, `GET /restores/{id}` (preview and result). Additive only.
 - Repositories: `GET/POST /repositories`, `GET /repositories/{id}` (live status, `usage_by_host`), `GET /repositories/{id}/escrow-package`, `POST /repositories/{id}/escrow/confirm`, `POST /repositories/{id}/reindex` (202); escrow recipients `GET/POST /escrow/recipients`, `DELETE /escrow/recipients/{id}`.
 - Backups: `POST /applications/{id}/backups` (202; 409 while an operation runs or the Repository is not ready), `GET/PUT /applications/{id}/backup-settings`, `GET /recovery-points`, `GET /recovery-points/{id}` (with manifest), `GET /alerts`, `POST /alerts/{id}/acknowledge`; host limits `GET/PUT /agents/{id}/settings`. Additive only.
 - Hosts: `GET /agents`, `GET /agents/{id}`, `POST /agents/{id}/{approve,suspend,resume,revoke}` (reason required), `POST /agents/{id}/discover` (202), `GET /agents/{id}/inventory` (secrets masked), registration tokens (`GET`/`POST`/`DELETE /agents/registration-tokens`; token and join command shown once).

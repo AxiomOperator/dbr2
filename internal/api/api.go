@@ -122,6 +122,7 @@ func NewAPI(r chi.Router, d *Deps) huma.API {
 	registerAudit(a, d)
 	registerFleet(a, d)
 	registerProtection(a, d)
+	registerRestore(a, d)
 	return a
 }
 

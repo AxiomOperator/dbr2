@@ -134,6 +134,545 @@ func (x *DispatchResponse) GetUpdate() *v1.CommandUpdate {
 	return nil
 }
 
+type PrepareRestoreRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RestoreId     string                 `protobuf:"bytes,1,opt,name=restore_id,json=restoreId,proto3" json:"restore_id,omitempty"`
+	WorkflowId    string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	RunId         string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PrepareRestoreRequest) Reset() {
+	*x = PrepareRestoreRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareRestoreRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareRestoreRequest) ProtoMessage() {}
+
+func (x *PrepareRestoreRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareRestoreRequest.ProtoReflect.Descriptor instead.
+func (*PrepareRestoreRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PrepareRestoreRequest) GetRestoreId() string {
+	if x != nil {
+		return x.RestoreId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreRequest) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+type PrepareRestoreResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RestoreId       string                 `protobuf:"bytes,1,opt,name=restore_id,json=restoreId,proto3" json:"restore_id,omitempty"`
+	RecoveryPointId string                 `protobuf:"bytes,2,opt,name=recovery_point_id,json=recoveryPointId,proto3" json:"recovery_point_id,omitempty"`
+	Repository      *Repository            `protobuf:"bytes,3,opt,name=repository,proto3" json:"repository,omitempty"`
+	SourceAgentId   string                 `protobuf:"bytes,4,opt,name=source_agent_id,json=sourceAgentId,proto3" json:"source_agent_id,omitempty"`
+	TargetAgentId   string                 `protobuf:"bytes,5,opt,name=target_agent_id,json=targetAgentId,proto3" json:"target_agent_id,omitempty"`
+	CrossHost       bool                   `protobuf:"varint,6,opt,name=cross_host,json=crossHost,proto3" json:"cross_host,omitempty"`
+	Components      []*v1.RestoreSpec      `protobuf:"bytes,7,rep,name=components,proto3" json:"components,omitempty"`
+	// The config component snapshot (container re-creation); empty when not
+	// selected.
+	ConfigSnapshotId string            `protobuf:"bytes,8,opt,name=config_snapshot_id,json=configSnapshotId,proto3" json:"config_snapshot_id,omitempty"`
+	PathRemaps       []*v1.PathRemap   `protobuf:"bytes,9,rep,name=path_remaps,json=pathRemaps,proto3" json:"path_remaps,omitempty"`
+	Images           []*v1.ImageSpec   `protobuf:"bytes,10,rep,name=images,proto3" json:"images,omitempty"`
+	Networks         []*v1.NetworkSpec `protobuf:"bytes,11,rep,name=networks,proto3" json:"networks,omitempty"`
+	// Containers of the target application on the target host to stop
+	// before the data is swapped (in-place restore).
+	StopContainerIds     []string                     `protobuf:"bytes,12,rep,name=stop_container_ids,json=stopContainerIds,proto3" json:"stop_container_ids,omitempty"`
+	RecreateContainers   bool                         `protobuf:"varint,13,opt,name=recreate_containers,json=recreateContainers,proto3" json:"recreate_containers,omitempty"`
+	Databases            []*v1.RestoreDatabaseCommand `protobuf:"bytes,14,rep,name=databases,proto3" json:"databases,omitempty"`
+	HealthTimeoutSeconds uint32                       `protobuf:"varint,15,opt,name=health_timeout_seconds,json=healthTimeoutSeconds,proto3" json:"health_timeout_seconds,omitempty"`
+	// Dead-man lease for the stop (seconds).
+	LeaseSeconds        uint32 `protobuf:"varint,16,opt,name=lease_seconds,json=leaseSeconds,proto3" json:"lease_seconds,omitempty"`
+	TargetApplicationId string `protobuf:"bytes,17,opt,name=target_application_id,json=targetApplicationId,proto3" json:"target_application_id,omitempty"`
+	// Container names that were running when the recovery point was captured
+	// (from the manifest topology, recorded before any quiesce): re-created
+	// containers in this set are started.
+	RunningAtCapture []string `protobuf:"bytes,18,rep,name=running_at_capture,json=runningAtCapture,proto3" json:"running_at_capture,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *PrepareRestoreResponse) Reset() {
+	*x = PrepareRestoreResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareRestoreResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareRestoreResponse) ProtoMessage() {}
+
+func (x *PrepareRestoreResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareRestoreResponse.ProtoReflect.Descriptor instead.
+func (*PrepareRestoreResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PrepareRestoreResponse) GetRestoreId() string {
+	if x != nil {
+		return x.RestoreId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreResponse) GetRecoveryPointId() string {
+	if x != nil {
+		return x.RecoveryPointId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreResponse) GetRepository() *Repository {
+	if x != nil {
+		return x.Repository
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetSourceAgentId() string {
+	if x != nil {
+		return x.SourceAgentId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreResponse) GetTargetAgentId() string {
+	if x != nil {
+		return x.TargetAgentId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreResponse) GetCrossHost() bool {
+	if x != nil {
+		return x.CrossHost
+	}
+	return false
+}
+
+func (x *PrepareRestoreResponse) GetComponents() []*v1.RestoreSpec {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetConfigSnapshotId() string {
+	if x != nil {
+		return x.ConfigSnapshotId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreResponse) GetPathRemaps() []*v1.PathRemap {
+	if x != nil {
+		return x.PathRemaps
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetImages() []*v1.ImageSpec {
+	if x != nil {
+		return x.Images
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetNetworks() []*v1.NetworkSpec {
+	if x != nil {
+		return x.Networks
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetStopContainerIds() []string {
+	if x != nil {
+		return x.StopContainerIds
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetRecreateContainers() bool {
+	if x != nil {
+		return x.RecreateContainers
+	}
+	return false
+}
+
+func (x *PrepareRestoreResponse) GetDatabases() []*v1.RestoreDatabaseCommand {
+	if x != nil {
+		return x.Databases
+	}
+	return nil
+}
+
+func (x *PrepareRestoreResponse) GetHealthTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.HealthTimeoutSeconds
+	}
+	return 0
+}
+
+func (x *PrepareRestoreResponse) GetLeaseSeconds() uint32 {
+	if x != nil {
+		return x.LeaseSeconds
+	}
+	return 0
+}
+
+func (x *PrepareRestoreResponse) GetTargetApplicationId() string {
+	if x != nil {
+		return x.TargetApplicationId
+	}
+	return ""
+}
+
+func (x *PrepareRestoreResponse) GetRunningAtCapture() []string {
+	if x != nil {
+		return x.RunningAtCapture
+	}
+	return nil
+}
+
+type GrantRestoreAccessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RestoreId     string                 `protobuf:"bytes,1,opt,name=restore_id,json=restoreId,proto3" json:"restore_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrantRestoreAccessRequest) Reset() {
+	*x = GrantRestoreAccessRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantRestoreAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantRestoreAccessRequest) ProtoMessage() {}
+
+func (x *GrantRestoreAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantRestoreAccessRequest.ProtoReflect.Descriptor instead.
+func (*GrantRestoreAccessRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GrantRestoreAccessRequest) GetRestoreId() string {
+	if x != nil {
+		return x.RestoreId
+	}
+	return ""
+}
+
+type GrantRestoreAccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GrantId       string                 `protobuf:"bytes,1,opt,name=grant_id,json=grantId,proto3" json:"grant_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrantRestoreAccessResponse) Reset() {
+	*x = GrantRestoreAccessResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantRestoreAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantRestoreAccessResponse) ProtoMessage() {}
+
+func (x *GrantRestoreAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantRestoreAccessResponse.ProtoReflect.Descriptor instead.
+func (*GrantRestoreAccessResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GrantRestoreAccessResponse) GetGrantId() string {
+	if x != nil {
+		return x.GrantId
+	}
+	return ""
+}
+
+type RevokeRestoreAccessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RestoreId     string                 `protobuf:"bytes,1,opt,name=restore_id,json=restoreId,proto3" json:"restore_id,omitempty"`
+	GrantId       string                 `protobuf:"bytes,2,opt,name=grant_id,json=grantId,proto3" json:"grant_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeRestoreAccessRequest) Reset() {
+	*x = RevokeRestoreAccessRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeRestoreAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeRestoreAccessRequest) ProtoMessage() {}
+
+func (x *RevokeRestoreAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeRestoreAccessRequest.ProtoReflect.Descriptor instead.
+func (*RevokeRestoreAccessRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RevokeRestoreAccessRequest) GetRestoreId() string {
+	if x != nil {
+		return x.RestoreId
+	}
+	return ""
+}
+
+func (x *RevokeRestoreAccessRequest) GetGrantId() string {
+	if x != nil {
+		return x.GrantId
+	}
+	return ""
+}
+
+type RevokeRestoreAccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeRestoreAccessResponse) Reset() {
+	*x = RevokeRestoreAccessResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeRestoreAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeRestoreAccessResponse) ProtoMessage() {}
+
+func (x *RevokeRestoreAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeRestoreAccessResponse.ProtoReflect.Descriptor instead.
+func (*RevokeRestoreAccessResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{7}
+}
+
+type UpdateRestoreRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RestoreId string                 `protobuf:"bytes,1,opt,name=restore_id,json=restoreId,proto3" json:"restore_id,omitempty"`
+	// running | succeeded | failed | rolled_back
+	State string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	// Current step (progress), e.g. "restore-data".
+	Step string `protobuf:"bytes,3,opt,name=step,proto3" json:"step,omitempty"`
+	// Result document (JSON): component, container and health outcomes.
+	ResultJson    []byte `protobuf:"bytes,4,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRestoreRequest) Reset() {
+	*x = UpdateRestoreRequest{}
+	mi := &file_control_v1_control_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRestoreRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRestoreRequest) ProtoMessage() {}
+
+func (x *UpdateRestoreRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRestoreRequest.ProtoReflect.Descriptor instead.
+func (*UpdateRestoreRequest) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UpdateRestoreRequest) GetRestoreId() string {
+	if x != nil {
+		return x.RestoreId
+	}
+	return ""
+}
+
+func (x *UpdateRestoreRequest) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *UpdateRestoreRequest) GetStep() string {
+	if x != nil {
+		return x.Step
+	}
+	return ""
+}
+
+func (x *UpdateRestoreRequest) GetResultJson() []byte {
+	if x != nil {
+		return x.ResultJson
+	}
+	return nil
+}
+
+func (x *UpdateRestoreRequest) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type UpdateRestoreResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRestoreResponse) Reset() {
+	*x = UpdateRestoreResponse{}
+	mi := &file_control_v1_control_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRestoreResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRestoreResponse) ProtoMessage() {}
+
+func (x *UpdateRestoreResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_control_v1_control_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRestoreResponse.ProtoReflect.Descriptor instead.
+func (*UpdateRestoreResponse) Descriptor() ([]byte, []int) {
+	return file_control_v1_control_proto_rawDescGZIP(), []int{9}
+}
+
 // Repository describes how to reach a Repository.
 type Repository struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -155,7 +694,7 @@ type Repository struct {
 
 func (x *Repository) Reset() {
 	*x = Repository{}
-	mi := &file_control_v1_control_proto_msgTypes[2]
+	mi := &file_control_v1_control_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -167,7 +706,7 @@ func (x *Repository) String() string {
 func (*Repository) ProtoMessage() {}
 
 func (x *Repository) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[2]
+	mi := &file_control_v1_control_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -180,7 +719,7 @@ func (x *Repository) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Repository.ProtoReflect.Descriptor instead.
 func (*Repository) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{2}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Repository) GetId() string {
@@ -248,7 +787,7 @@ type PrepareBackupRequest struct {
 
 func (x *PrepareBackupRequest) Reset() {
 	*x = PrepareBackupRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[3]
+	mi := &file_control_v1_control_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -260,7 +799,7 @@ func (x *PrepareBackupRequest) String() string {
 func (*PrepareBackupRequest) ProtoMessage() {}
 
 func (x *PrepareBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[3]
+	mi := &file_control_v1_control_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -273,7 +812,7 @@ func (x *PrepareBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareBackupRequest.ProtoReflect.Descriptor instead.
 func (*PrepareBackupRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{3}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PrepareBackupRequest) GetApplicationId() string {
@@ -346,7 +885,7 @@ type PrepareBackupResponse struct {
 
 func (x *PrepareBackupResponse) Reset() {
 	*x = PrepareBackupResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[4]
+	mi := &file_control_v1_control_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -358,7 +897,7 @@ func (x *PrepareBackupResponse) String() string {
 func (*PrepareBackupResponse) ProtoMessage() {}
 
 func (x *PrepareBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[4]
+	mi := &file_control_v1_control_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -371,7 +910,7 @@ func (x *PrepareBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareBackupResponse.ProtoReflect.Descriptor instead.
 func (*PrepareBackupResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{4}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PrepareBackupResponse) GetRecoveryPointId() string {
@@ -490,7 +1029,7 @@ type EnsureAgentAccessRequest struct {
 
 func (x *EnsureAgentAccessRequest) Reset() {
 	*x = EnsureAgentAccessRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[5]
+	mi := &file_control_v1_control_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -502,7 +1041,7 @@ func (x *EnsureAgentAccessRequest) String() string {
 func (*EnsureAgentAccessRequest) ProtoMessage() {}
 
 func (x *EnsureAgentAccessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[5]
+	mi := &file_control_v1_control_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -515,7 +1054,7 @@ func (x *EnsureAgentAccessRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureAgentAccessRequest.ProtoReflect.Descriptor instead.
 func (*EnsureAgentAccessRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{5}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EnsureAgentAccessRequest) GetAgentId() string {
@@ -549,7 +1088,7 @@ type EnsureAgentAccessResponse struct {
 
 func (x *EnsureAgentAccessResponse) Reset() {
 	*x = EnsureAgentAccessResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[6]
+	mi := &file_control_v1_control_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -561,7 +1100,7 @@ func (x *EnsureAgentAccessResponse) String() string {
 func (*EnsureAgentAccessResponse) ProtoMessage() {}
 
 func (x *EnsureAgentAccessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[6]
+	mi := &file_control_v1_control_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -574,7 +1113,7 @@ func (x *EnsureAgentAccessResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureAgentAccessResponse.ProtoReflect.Descriptor instead.
 func (*EnsureAgentAccessResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{6}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *EnsureAgentAccessResponse) GetUsername() string {
@@ -606,7 +1145,7 @@ type CompleteBackupRequest struct {
 
 func (x *CompleteBackupRequest) Reset() {
 	*x = CompleteBackupRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[7]
+	mi := &file_control_v1_control_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -618,7 +1157,7 @@ func (x *CompleteBackupRequest) String() string {
 func (*CompleteBackupRequest) ProtoMessage() {}
 
 func (x *CompleteBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[7]
+	mi := &file_control_v1_control_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +1170,7 @@ func (x *CompleteBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteBackupRequest.ProtoReflect.Descriptor instead.
 func (*CompleteBackupRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{7}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CompleteBackupRequest) GetRecoveryPointId() string {
@@ -677,7 +1216,7 @@ type CompleteBackupResponse struct {
 
 func (x *CompleteBackupResponse) Reset() {
 	*x = CompleteBackupResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[8]
+	mi := &file_control_v1_control_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +1228,7 @@ func (x *CompleteBackupResponse) String() string {
 func (*CompleteBackupResponse) ProtoMessage() {}
 
 func (x *CompleteBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[8]
+	mi := &file_control_v1_control_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -702,7 +1241,7 @@ func (x *CompleteBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteBackupResponse.ProtoReflect.Descriptor instead.
 func (*CompleteBackupResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{8}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{16}
 }
 
 type GetRepositoryRequest struct {
@@ -714,7 +1253,7 @@ type GetRepositoryRequest struct {
 
 func (x *GetRepositoryRequest) Reset() {
 	*x = GetRepositoryRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[9]
+	mi := &file_control_v1_control_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -726,7 +1265,7 @@ func (x *GetRepositoryRequest) String() string {
 func (*GetRepositoryRequest) ProtoMessage() {}
 
 func (x *GetRepositoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[9]
+	mi := &file_control_v1_control_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -739,7 +1278,7 @@ func (x *GetRepositoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRepositoryRequest.ProtoReflect.Descriptor instead.
 func (*GetRepositoryRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{9}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetRepositoryRequest) GetRepositoryId() string {
@@ -758,7 +1297,7 @@ type GetRepositoryResponse struct {
 
 func (x *GetRepositoryResponse) Reset() {
 	*x = GetRepositoryResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[10]
+	mi := &file_control_v1_control_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -770,7 +1309,7 @@ func (x *GetRepositoryResponse) String() string {
 func (*GetRepositoryResponse) ProtoMessage() {}
 
 func (x *GetRepositoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[10]
+	mi := &file_control_v1_control_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -783,7 +1322,7 @@ func (x *GetRepositoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRepositoryResponse.ProtoReflect.Descriptor instead.
 func (*GetRepositoryResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{10}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetRepositoryResponse) GetRepository() *Repository {
@@ -801,7 +1340,7 @@ type ListRepositoriesRequest struct {
 
 func (x *ListRepositoriesRequest) Reset() {
 	*x = ListRepositoriesRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[11]
+	mi := &file_control_v1_control_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -813,7 +1352,7 @@ func (x *ListRepositoriesRequest) String() string {
 func (*ListRepositoriesRequest) ProtoMessage() {}
 
 func (x *ListRepositoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[11]
+	mi := &file_control_v1_control_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -826,7 +1365,7 @@ func (x *ListRepositoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRepositoriesRequest.ProtoReflect.Descriptor instead.
 func (*ListRepositoriesRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{11}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{19}
 }
 
 type ListRepositoriesResponse struct {
@@ -838,7 +1377,7 @@ type ListRepositoriesResponse struct {
 
 func (x *ListRepositoriesResponse) Reset() {
 	*x = ListRepositoriesResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[12]
+	mi := &file_control_v1_control_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -850,7 +1389,7 @@ func (x *ListRepositoriesResponse) String() string {
 func (*ListRepositoriesResponse) ProtoMessage() {}
 
 func (x *ListRepositoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[12]
+	mi := &file_control_v1_control_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -863,7 +1402,7 @@ func (x *ListRepositoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRepositoriesResponse.ProtoReflect.Descriptor instead.
 func (*ListRepositoriesResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{12}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListRepositoriesResponse) GetRepositories() []*Repository {
@@ -886,7 +1425,7 @@ type IndexRecoveryPointsRequest struct {
 
 func (x *IndexRecoveryPointsRequest) Reset() {
 	*x = IndexRecoveryPointsRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[13]
+	mi := &file_control_v1_control_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -898,7 +1437,7 @@ func (x *IndexRecoveryPointsRequest) String() string {
 func (*IndexRecoveryPointsRequest) ProtoMessage() {}
 
 func (x *IndexRecoveryPointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[13]
+	mi := &file_control_v1_control_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -911,7 +1450,7 @@ func (x *IndexRecoveryPointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexRecoveryPointsRequest.ProtoReflect.Descriptor instead.
 func (*IndexRecoveryPointsRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{13}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *IndexRecoveryPointsRequest) GetRepositoryId() string {
@@ -945,7 +1484,7 @@ type IndexedRecoveryPoint struct {
 
 func (x *IndexedRecoveryPoint) Reset() {
 	*x = IndexedRecoveryPoint{}
-	mi := &file_control_v1_control_proto_msgTypes[14]
+	mi := &file_control_v1_control_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -957,7 +1496,7 @@ func (x *IndexedRecoveryPoint) String() string {
 func (*IndexedRecoveryPoint) ProtoMessage() {}
 
 func (x *IndexedRecoveryPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[14]
+	mi := &file_control_v1_control_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +1509,7 @@ func (x *IndexedRecoveryPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexedRecoveryPoint.ProtoReflect.Descriptor instead.
 func (*IndexedRecoveryPoint) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{14}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *IndexedRecoveryPoint) GetManifestJson() []byte {
@@ -997,7 +1536,7 @@ type IndexRecoveryPointsResponse struct {
 
 func (x *IndexRecoveryPointsResponse) Reset() {
 	*x = IndexRecoveryPointsResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[15]
+	mi := &file_control_v1_control_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1009,7 +1548,7 @@ func (x *IndexRecoveryPointsResponse) String() string {
 func (*IndexRecoveryPointsResponse) ProtoMessage() {}
 
 func (x *IndexRecoveryPointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[15]
+	mi := &file_control_v1_control_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1022,7 +1561,7 @@ func (x *IndexRecoveryPointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexRecoveryPointsResponse.ProtoReflect.Descriptor instead.
 func (*IndexRecoveryPointsResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{15}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *IndexRecoveryPointsResponse) GetUpserted() uint32 {
@@ -1056,7 +1595,7 @@ type RecordEventRequest struct {
 
 func (x *RecordEventRequest) Reset() {
 	*x = RecordEventRequest{}
-	mi := &file_control_v1_control_proto_msgTypes[16]
+	mi := &file_control_v1_control_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1068,7 +1607,7 @@ func (x *RecordEventRequest) String() string {
 func (*RecordEventRequest) ProtoMessage() {}
 
 func (x *RecordEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[16]
+	mi := &file_control_v1_control_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1081,7 +1620,7 @@ func (x *RecordEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEventRequest.ProtoReflect.Descriptor instead.
 func (*RecordEventRequest) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{16}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RecordEventRequest) GetType() string {
@@ -1134,7 +1673,7 @@ type RecordEventResponse struct {
 
 func (x *RecordEventResponse) Reset() {
 	*x = RecordEventResponse{}
-	mi := &file_control_v1_control_proto_msgTypes[17]
+	mi := &file_control_v1_control_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1685,7 @@ func (x *RecordEventResponse) String() string {
 func (*RecordEventResponse) ProtoMessage() {}
 
 func (x *RecordEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_control_v1_control_proto_msgTypes[17]
+	mi := &file_control_v1_control_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1698,7 @@ func (x *RecordEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEventResponse.ProtoReflect.Descriptor instead.
 func (*RecordEventResponse) Descriptor() ([]byte, []int) {
-	return file_control_v1_control_proto_rawDescGZIP(), []int{17}
+	return file_control_v1_control_proto_rawDescGZIP(), []int{25}
 }
 
 var File_control_v1_control_proto protoreflect.FileDescriptor
@@ -1173,7 +1712,59 @@ const file_control_v1_control_proto_rawDesc = "" +
 	"\acommand\x18\x02 \x01(\v2\x11.agent.v1.CommandR\acommand\x123\n" +
 	"\x16wait_for_agent_seconds\x18\x03 \x01(\rR\x13waitForAgentSeconds\"C\n" +
 	"\x10DispatchResponse\x12/\n" +
-	"\x06update\x18\x01 \x01(\v2\x17.agent.v1.CommandUpdateR\x06update\"\xdf\x01\n" +
+	"\x06update\x18\x01 \x01(\v2\x17.agent.v1.CommandUpdateR\x06update\"n\n" +
+	"\x15PrepareRestoreRequest\x12\x1d\n" +
+	"\n" +
+	"restore_id\x18\x01 \x01(\tR\trestoreId\x12\x1f\n" +
+	"\vworkflow_id\x18\x02 \x01(\tR\n" +
+	"workflowId\x12\x15\n" +
+	"\x06run_id\x18\x03 \x01(\tR\x05runId\"\xe1\x06\n" +
+	"\x16PrepareRestoreResponse\x12\x1d\n" +
+	"\n" +
+	"restore_id\x18\x01 \x01(\tR\trestoreId\x12*\n" +
+	"\x11recovery_point_id\x18\x02 \x01(\tR\x0frecoveryPointId\x126\n" +
+	"\n" +
+	"repository\x18\x03 \x01(\v2\x16.control.v1.RepositoryR\n" +
+	"repository\x12&\n" +
+	"\x0fsource_agent_id\x18\x04 \x01(\tR\rsourceAgentId\x12&\n" +
+	"\x0ftarget_agent_id\x18\x05 \x01(\tR\rtargetAgentId\x12\x1d\n" +
+	"\n" +
+	"cross_host\x18\x06 \x01(\bR\tcrossHost\x125\n" +
+	"\n" +
+	"components\x18\a \x03(\v2\x15.agent.v1.RestoreSpecR\n" +
+	"components\x12,\n" +
+	"\x12config_snapshot_id\x18\b \x01(\tR\x10configSnapshotId\x124\n" +
+	"\vpath_remaps\x18\t \x03(\v2\x13.agent.v1.PathRemapR\n" +
+	"pathRemaps\x12+\n" +
+	"\x06images\x18\n" +
+	" \x03(\v2\x13.agent.v1.ImageSpecR\x06images\x121\n" +
+	"\bnetworks\x18\v \x03(\v2\x15.agent.v1.NetworkSpecR\bnetworks\x12,\n" +
+	"\x12stop_container_ids\x18\f \x03(\tR\x10stopContainerIds\x12/\n" +
+	"\x13recreate_containers\x18\r \x01(\bR\x12recreateContainers\x12>\n" +
+	"\tdatabases\x18\x0e \x03(\v2 .agent.v1.RestoreDatabaseCommandR\tdatabases\x124\n" +
+	"\x16health_timeout_seconds\x18\x0f \x01(\rR\x14healthTimeoutSeconds\x12#\n" +
+	"\rlease_seconds\x18\x10 \x01(\rR\fleaseSeconds\x122\n" +
+	"\x15target_application_id\x18\x11 \x01(\tR\x13targetApplicationId\x12,\n" +
+	"\x12running_at_capture\x18\x12 \x03(\tR\x10runningAtCapture\":\n" +
+	"\x19GrantRestoreAccessRequest\x12\x1d\n" +
+	"\n" +
+	"restore_id\x18\x01 \x01(\tR\trestoreId\"7\n" +
+	"\x1aGrantRestoreAccessResponse\x12\x19\n" +
+	"\bgrant_id\x18\x01 \x01(\tR\agrantId\"V\n" +
+	"\x1aRevokeRestoreAccessRequest\x12\x1d\n" +
+	"\n" +
+	"restore_id\x18\x01 \x01(\tR\trestoreId\x12\x19\n" +
+	"\bgrant_id\x18\x02 \x01(\tR\agrantId\"\x1d\n" +
+	"\x1bRevokeRestoreAccessResponse\"\x96\x01\n" +
+	"\x14UpdateRestoreRequest\x12\x1d\n" +
+	"\n" +
+	"restore_id\x18\x01 \x01(\tR\trestoreId\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\x12\x12\n" +
+	"\x04step\x18\x03 \x01(\tR\x04step\x12\x1f\n" +
+	"\vresult_json\x18\x04 \x01(\fR\n" +
+	"resultJson\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\x17\n" +
+	"\x15UpdateRestoreResponse\"\xdf\x01\n" +
 	"\n" +
 	"Repository\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -1259,7 +1850,7 @@ const file_control_v1_control_proto_rawDesc = "" +
 	"\x0ealert_severity\x18\x06 \x01(\tR\ralertSeverity\"\x15\n" +
 	"\x13RecordEventResponse2`\n" +
 	"\x15GatewayControlService\x12G\n" +
-	"\bDispatch\x12\x1b.control.v1.DispatchRequest\x1a\x1c.control.v1.DispatchResponse0\x012\x8f\x05\n" +
+	"\bDispatch\x12\x1b.control.v1.DispatchRequest\x1a\x1c.control.v1.DispatchResponse0\x012\x8b\b\n" +
 	"\x0fPlatformService\x12T\n" +
 	"\rPrepareBackup\x12 .control.v1.PrepareBackupRequest\x1a!.control.v1.PrepareBackupResponse\x12`\n" +
 	"\x11EnsureAgentAccess\x12$.control.v1.EnsureAgentAccessRequest\x1a%.control.v1.EnsureAgentAccessResponse\x12W\n" +
@@ -1267,7 +1858,11 @@ const file_control_v1_control_proto_rawDesc = "" +
 	"\rGetRepository\x12 .control.v1.GetRepositoryRequest\x1a!.control.v1.GetRepositoryResponse\x12]\n" +
 	"\x10ListRepositories\x12#.control.v1.ListRepositoriesRequest\x1a$.control.v1.ListRepositoriesResponse\x12f\n" +
 	"\x13IndexRecoveryPoints\x12&.control.v1.IndexRecoveryPointsRequest\x1a'.control.v1.IndexRecoveryPointsResponse\x12N\n" +
-	"\vRecordEvent\x12\x1e.control.v1.RecordEventRequest\x1a\x1f.control.v1.RecordEventResponseBEZCgithub.com/AxiomOperator/dbr2/internal/agentpb/control/v1;controlv1b\x06proto3"
+	"\vRecordEvent\x12\x1e.control.v1.RecordEventRequest\x1a\x1f.control.v1.RecordEventResponse\x12W\n" +
+	"\x0ePrepareRestore\x12!.control.v1.PrepareRestoreRequest\x1a\".control.v1.PrepareRestoreResponse\x12c\n" +
+	"\x12GrantRestoreAccess\x12%.control.v1.GrantRestoreAccessRequest\x1a&.control.v1.GrantRestoreAccessResponse\x12f\n" +
+	"\x13RevokeRestoreAccess\x12&.control.v1.RevokeRestoreAccessRequest\x1a'.control.v1.RevokeRestoreAccessResponse\x12T\n" +
+	"\rUpdateRestore\x12 .control.v1.UpdateRestoreRequest\x1a!.control.v1.UpdateRestoreResponseBEZCgithub.com/AxiomOperator/dbr2/internal/agentpb/control/v1;controlv1b\x06proto3"
 
 var (
 	file_control_v1_control_proto_rawDescOnce sync.Once
@@ -1281,62 +1876,89 @@ func file_control_v1_control_proto_rawDescGZIP() []byte {
 	return file_control_v1_control_proto_rawDescData
 }
 
-var file_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_control_v1_control_proto_goTypes = []any{
 	(*DispatchRequest)(nil),             // 0: control.v1.DispatchRequest
 	(*DispatchResponse)(nil),            // 1: control.v1.DispatchResponse
-	(*Repository)(nil),                  // 2: control.v1.Repository
-	(*PrepareBackupRequest)(nil),        // 3: control.v1.PrepareBackupRequest
-	(*PrepareBackupResponse)(nil),       // 4: control.v1.PrepareBackupResponse
-	(*EnsureAgentAccessRequest)(nil),    // 5: control.v1.EnsureAgentAccessRequest
-	(*EnsureAgentAccessResponse)(nil),   // 6: control.v1.EnsureAgentAccessResponse
-	(*CompleteBackupRequest)(nil),       // 7: control.v1.CompleteBackupRequest
-	(*CompleteBackupResponse)(nil),      // 8: control.v1.CompleteBackupResponse
-	(*GetRepositoryRequest)(nil),        // 9: control.v1.GetRepositoryRequest
-	(*GetRepositoryResponse)(nil),       // 10: control.v1.GetRepositoryResponse
-	(*ListRepositoriesRequest)(nil),     // 11: control.v1.ListRepositoriesRequest
-	(*ListRepositoriesResponse)(nil),    // 12: control.v1.ListRepositoriesResponse
-	(*IndexRecoveryPointsRequest)(nil),  // 13: control.v1.IndexRecoveryPointsRequest
-	(*IndexedRecoveryPoint)(nil),        // 14: control.v1.IndexedRecoveryPoint
-	(*IndexRecoveryPointsResponse)(nil), // 15: control.v1.IndexRecoveryPointsResponse
-	(*RecordEventRequest)(nil),          // 16: control.v1.RecordEventRequest
-	(*RecordEventResponse)(nil),         // 17: control.v1.RecordEventResponse
-	(*v1.Command)(nil),                  // 18: agent.v1.Command
-	(*v1.CommandUpdate)(nil),            // 19: agent.v1.CommandUpdate
-	(*v1.ComponentSpec)(nil),            // 20: agent.v1.ComponentSpec
-	(*v1.Hook)(nil),                     // 21: agent.v1.Hook
+	(*PrepareRestoreRequest)(nil),       // 2: control.v1.PrepareRestoreRequest
+	(*PrepareRestoreResponse)(nil),      // 3: control.v1.PrepareRestoreResponse
+	(*GrantRestoreAccessRequest)(nil),   // 4: control.v1.GrantRestoreAccessRequest
+	(*GrantRestoreAccessResponse)(nil),  // 5: control.v1.GrantRestoreAccessResponse
+	(*RevokeRestoreAccessRequest)(nil),  // 6: control.v1.RevokeRestoreAccessRequest
+	(*RevokeRestoreAccessResponse)(nil), // 7: control.v1.RevokeRestoreAccessResponse
+	(*UpdateRestoreRequest)(nil),        // 8: control.v1.UpdateRestoreRequest
+	(*UpdateRestoreResponse)(nil),       // 9: control.v1.UpdateRestoreResponse
+	(*Repository)(nil),                  // 10: control.v1.Repository
+	(*PrepareBackupRequest)(nil),        // 11: control.v1.PrepareBackupRequest
+	(*PrepareBackupResponse)(nil),       // 12: control.v1.PrepareBackupResponse
+	(*EnsureAgentAccessRequest)(nil),    // 13: control.v1.EnsureAgentAccessRequest
+	(*EnsureAgentAccessResponse)(nil),   // 14: control.v1.EnsureAgentAccessResponse
+	(*CompleteBackupRequest)(nil),       // 15: control.v1.CompleteBackupRequest
+	(*CompleteBackupResponse)(nil),      // 16: control.v1.CompleteBackupResponse
+	(*GetRepositoryRequest)(nil),        // 17: control.v1.GetRepositoryRequest
+	(*GetRepositoryResponse)(nil),       // 18: control.v1.GetRepositoryResponse
+	(*ListRepositoriesRequest)(nil),     // 19: control.v1.ListRepositoriesRequest
+	(*ListRepositoriesResponse)(nil),    // 20: control.v1.ListRepositoriesResponse
+	(*IndexRecoveryPointsRequest)(nil),  // 21: control.v1.IndexRecoveryPointsRequest
+	(*IndexedRecoveryPoint)(nil),        // 22: control.v1.IndexedRecoveryPoint
+	(*IndexRecoveryPointsResponse)(nil), // 23: control.v1.IndexRecoveryPointsResponse
+	(*RecordEventRequest)(nil),          // 24: control.v1.RecordEventRequest
+	(*RecordEventResponse)(nil),         // 25: control.v1.RecordEventResponse
+	(*v1.Command)(nil),                  // 26: agent.v1.Command
+	(*v1.CommandUpdate)(nil),            // 27: agent.v1.CommandUpdate
+	(*v1.RestoreSpec)(nil),              // 28: agent.v1.RestoreSpec
+	(*v1.PathRemap)(nil),                // 29: agent.v1.PathRemap
+	(*v1.ImageSpec)(nil),                // 30: agent.v1.ImageSpec
+	(*v1.NetworkSpec)(nil),              // 31: agent.v1.NetworkSpec
+	(*v1.RestoreDatabaseCommand)(nil),   // 32: agent.v1.RestoreDatabaseCommand
+	(*v1.ComponentSpec)(nil),            // 33: agent.v1.ComponentSpec
+	(*v1.Hook)(nil),                     // 34: agent.v1.Hook
 }
 var file_control_v1_control_proto_depIdxs = []int32{
-	18, // 0: control.v1.DispatchRequest.command:type_name -> agent.v1.Command
-	19, // 1: control.v1.DispatchResponse.update:type_name -> agent.v1.CommandUpdate
-	2,  // 2: control.v1.PrepareBackupResponse.repository:type_name -> control.v1.Repository
-	20, // 3: control.v1.PrepareBackupResponse.components:type_name -> agent.v1.ComponentSpec
-	21, // 4: control.v1.PrepareBackupResponse.pre_hooks:type_name -> agent.v1.Hook
-	21, // 5: control.v1.PrepareBackupResponse.post_hooks:type_name -> agent.v1.Hook
-	2,  // 6: control.v1.GetRepositoryResponse.repository:type_name -> control.v1.Repository
-	2,  // 7: control.v1.ListRepositoriesResponse.repositories:type_name -> control.v1.Repository
-	14, // 8: control.v1.IndexRecoveryPointsRequest.recovery_points:type_name -> control.v1.IndexedRecoveryPoint
-	0,  // 9: control.v1.GatewayControlService.Dispatch:input_type -> control.v1.DispatchRequest
-	3,  // 10: control.v1.PlatformService.PrepareBackup:input_type -> control.v1.PrepareBackupRequest
-	5,  // 11: control.v1.PlatformService.EnsureAgentAccess:input_type -> control.v1.EnsureAgentAccessRequest
-	7,  // 12: control.v1.PlatformService.CompleteBackup:input_type -> control.v1.CompleteBackupRequest
-	9,  // 13: control.v1.PlatformService.GetRepository:input_type -> control.v1.GetRepositoryRequest
-	11, // 14: control.v1.PlatformService.ListRepositories:input_type -> control.v1.ListRepositoriesRequest
-	13, // 15: control.v1.PlatformService.IndexRecoveryPoints:input_type -> control.v1.IndexRecoveryPointsRequest
-	16, // 16: control.v1.PlatformService.RecordEvent:input_type -> control.v1.RecordEventRequest
-	1,  // 17: control.v1.GatewayControlService.Dispatch:output_type -> control.v1.DispatchResponse
-	4,  // 18: control.v1.PlatformService.PrepareBackup:output_type -> control.v1.PrepareBackupResponse
-	6,  // 19: control.v1.PlatformService.EnsureAgentAccess:output_type -> control.v1.EnsureAgentAccessResponse
-	8,  // 20: control.v1.PlatformService.CompleteBackup:output_type -> control.v1.CompleteBackupResponse
-	10, // 21: control.v1.PlatformService.GetRepository:output_type -> control.v1.GetRepositoryResponse
-	12, // 22: control.v1.PlatformService.ListRepositories:output_type -> control.v1.ListRepositoriesResponse
-	15, // 23: control.v1.PlatformService.IndexRecoveryPoints:output_type -> control.v1.IndexRecoveryPointsResponse
-	17, // 24: control.v1.PlatformService.RecordEvent:output_type -> control.v1.RecordEventResponse
-	17, // [17:25] is the sub-list for method output_type
-	9,  // [9:17] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	26, // 0: control.v1.DispatchRequest.command:type_name -> agent.v1.Command
+	27, // 1: control.v1.DispatchResponse.update:type_name -> agent.v1.CommandUpdate
+	10, // 2: control.v1.PrepareRestoreResponse.repository:type_name -> control.v1.Repository
+	28, // 3: control.v1.PrepareRestoreResponse.components:type_name -> agent.v1.RestoreSpec
+	29, // 4: control.v1.PrepareRestoreResponse.path_remaps:type_name -> agent.v1.PathRemap
+	30, // 5: control.v1.PrepareRestoreResponse.images:type_name -> agent.v1.ImageSpec
+	31, // 6: control.v1.PrepareRestoreResponse.networks:type_name -> agent.v1.NetworkSpec
+	32, // 7: control.v1.PrepareRestoreResponse.databases:type_name -> agent.v1.RestoreDatabaseCommand
+	10, // 8: control.v1.PrepareBackupResponse.repository:type_name -> control.v1.Repository
+	33, // 9: control.v1.PrepareBackupResponse.components:type_name -> agent.v1.ComponentSpec
+	34, // 10: control.v1.PrepareBackupResponse.pre_hooks:type_name -> agent.v1.Hook
+	34, // 11: control.v1.PrepareBackupResponse.post_hooks:type_name -> agent.v1.Hook
+	10, // 12: control.v1.GetRepositoryResponse.repository:type_name -> control.v1.Repository
+	10, // 13: control.v1.ListRepositoriesResponse.repositories:type_name -> control.v1.Repository
+	22, // 14: control.v1.IndexRecoveryPointsRequest.recovery_points:type_name -> control.v1.IndexedRecoveryPoint
+	0,  // 15: control.v1.GatewayControlService.Dispatch:input_type -> control.v1.DispatchRequest
+	11, // 16: control.v1.PlatformService.PrepareBackup:input_type -> control.v1.PrepareBackupRequest
+	13, // 17: control.v1.PlatformService.EnsureAgentAccess:input_type -> control.v1.EnsureAgentAccessRequest
+	15, // 18: control.v1.PlatformService.CompleteBackup:input_type -> control.v1.CompleteBackupRequest
+	17, // 19: control.v1.PlatformService.GetRepository:input_type -> control.v1.GetRepositoryRequest
+	19, // 20: control.v1.PlatformService.ListRepositories:input_type -> control.v1.ListRepositoriesRequest
+	21, // 21: control.v1.PlatformService.IndexRecoveryPoints:input_type -> control.v1.IndexRecoveryPointsRequest
+	24, // 22: control.v1.PlatformService.RecordEvent:input_type -> control.v1.RecordEventRequest
+	2,  // 23: control.v1.PlatformService.PrepareRestore:input_type -> control.v1.PrepareRestoreRequest
+	4,  // 24: control.v1.PlatformService.GrantRestoreAccess:input_type -> control.v1.GrantRestoreAccessRequest
+	6,  // 25: control.v1.PlatformService.RevokeRestoreAccess:input_type -> control.v1.RevokeRestoreAccessRequest
+	8,  // 26: control.v1.PlatformService.UpdateRestore:input_type -> control.v1.UpdateRestoreRequest
+	1,  // 27: control.v1.GatewayControlService.Dispatch:output_type -> control.v1.DispatchResponse
+	12, // 28: control.v1.PlatformService.PrepareBackup:output_type -> control.v1.PrepareBackupResponse
+	14, // 29: control.v1.PlatformService.EnsureAgentAccess:output_type -> control.v1.EnsureAgentAccessResponse
+	16, // 30: control.v1.PlatformService.CompleteBackup:output_type -> control.v1.CompleteBackupResponse
+	18, // 31: control.v1.PlatformService.GetRepository:output_type -> control.v1.GetRepositoryResponse
+	20, // 32: control.v1.PlatformService.ListRepositories:output_type -> control.v1.ListRepositoriesResponse
+	23, // 33: control.v1.PlatformService.IndexRecoveryPoints:output_type -> control.v1.IndexRecoveryPointsResponse
+	25, // 34: control.v1.PlatformService.RecordEvent:output_type -> control.v1.RecordEventResponse
+	3,  // 35: control.v1.PlatformService.PrepareRestore:output_type -> control.v1.PrepareRestoreResponse
+	5,  // 36: control.v1.PlatformService.GrantRestoreAccess:output_type -> control.v1.GrantRestoreAccessResponse
+	7,  // 37: control.v1.PlatformService.RevokeRestoreAccess:output_type -> control.v1.RevokeRestoreAccessResponse
+	9,  // 38: control.v1.PlatformService.UpdateRestore:output_type -> control.v1.UpdateRestoreResponse
+	27, // [27:39] is the sub-list for method output_type
+	15, // [15:27] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_control_v1_control_proto_init() }
@@ -1350,7 +1972,7 @@ func file_control_v1_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_control_v1_control_proto_rawDesc), len(file_control_v1_control_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

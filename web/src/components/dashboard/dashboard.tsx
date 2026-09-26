@@ -6,6 +6,7 @@ import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AlertsCard } from "@/components/backups/alerts";
 import { PlatformStatusCard } from "@/components/dashboard/platform-status-card";
 import { ProtectionOverviewCard } from "@/components/dashboard/protection-overview-card";
+import { RecentRestoresCard } from "@/components/restores/restores-view";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { PERMISSION_APPLICATION_READ } from "@/lib/api/fleet-schemas";
 import { PERMISSION_BACKUP_READ } from "@/lib/api/protection-schemas";
+import { PERMISSION_RESTORE_READ } from "@/lib/api/restore-schemas";
 import { API_DOCS_PATH } from "@/lib/version";
 
 export function Dashboard() {
@@ -52,8 +54,8 @@ export function Dashboard() {
             <p>
               Add your Docker hosts under <strong>Hosts</strong>, approve them, and DBR² discovers
               their applications, including data that no volume protects. Then create a
-              Repository (with two escrow recipients) and back applications up; restores arrive
-              in a later phase.
+              Repository (with two escrow recipients), back applications up, and restore a
+              recovery point in place or to another host.
             </p>
             <a
               href={API_DOCS_PATH}
@@ -69,6 +71,7 @@ export function Dashboard() {
         <PlatformStatusCard />
         {hasPermission(me, PERMISSION_APPLICATION_READ) && <ProtectionOverviewCard />}
         {hasPermission(me, PERMISSION_BACKUP_READ) && <AlertsCard />}
+        {hasPermission(me, PERMISSION_RESTORE_READ) && <RecentRestoresCard />}
       </div>
     </div>
   );

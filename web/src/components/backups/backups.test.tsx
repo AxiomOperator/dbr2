@@ -286,9 +286,19 @@ describe("recovery points", () => {
         return Promise.resolve(Response.json({ items: [RP_COMMITTED, RP_PARTIAL, RP_FAILED] }));
       }),
     );
-    renderWithQuery(<ApplicationBackups applicationId={APP_ID} />);
+    renderWithQuery(
+      <CurrentUserProvider me={meWith(["backup.read", "restore.execute"])}>
+        <ApplicationBackups applicationId={APP_ID} />
+      </CurrentUserProvider>,
+    );
     const table = await screen.findByRole("table", { name: "Recovery points of this application" });
     const rows = within(table).getAllByRole("row").slice(1);
+    // Restore… only for committed recovery points (restore.execute).
+    expect(within(rows[0]!).getByRole("link", { name: `Restore ${RP_ID}` })).toHaveAttribute(
+      "href",
+      `/recovery-points/${RP_ID}/restore`,
+    );
+    expect(within(rows[2]!).queryByRole("link", { name: /^Restore / })).not.toBeInTheDocument();
     expect(rows.map((r) => r.getAttribute("data-rp-state"))).toEqual(["committed", "committed", "failed"]);
     expect(within(rows[0]!).getByRole("link", { name: RP_ID })).toHaveAttribute("href", `/recovery-points/${RP_ID}`);
     expect(within(rows[0]!).getByText("Quiesced")).toBeInTheDocument();
@@ -299,6 +309,17 @@ describe("recovery points", () => {
       "href",
       `/recovery-points?application=${APP_ID}`,
     );
+  });
+
+  it("hides Restore… without restore.execute", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json({ items: [RP_COMMITTED] }))));
+    renderWithQuery(
+      <CurrentUserProvider me={meWith(["backup.read"])}>
+        <ApplicationBackups applicationId={APP_ID} />
+      </CurrentUserProvider>,
+    );
+    await screen.findByRole("table", { name: "Recovery points of this application" });
+    expect(screen.queryByRole("link", { name: /^Restore / })).not.toBeInTheDocument();
   });
 
   it("formats component ownership", () => {

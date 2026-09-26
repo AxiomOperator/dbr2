@@ -22,6 +22,7 @@ Each ADR records one significant decision: its context, the decision, and its co
 | [0014](0014-single-operator-and-team-operation.md) | Operable by one person, ready for teams | Accepted |
 | [0015](0015-component-versioning-and-changelogs.md) | Per-component versioning (`MAJOR.MINOR.BUGFIX.BUILD`) and changelogs | Accepted |
 | [0016](0016-agent-enrollment-and-pki.md) | Agent enrollment, PKI and the gateway endpoint | Accepted |
+| [0017](0017-restore-staging-swap-and-rollback.md) | Restore: staging, swap and rollback | Accepted |
 
 ## Template
 

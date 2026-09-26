@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronRightIcon, HistoryIcon } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
@@ -36,6 +36,7 @@ import {
   type RecoveryPoint,
 } from "@/lib/api/protection-schemas";
 import { useRecoveryPoint } from "@/lib/api/hooks";
+import { PERMISSION_RESTORE_EXECUTE } from "@/lib/api/restore-schemas";
 import { formatBytes, formatDateTime } from "@/lib/format";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -234,6 +235,7 @@ function ManifestJson({ manifest }: { manifest: unknown }) {
 }
 
 function DetailBody({ id }: { id: string }) {
+  const me = useCurrentUser();
   const rp = useRecoveryPoint(id);
 
   if (rp.isPending) return <RowsSkeleton label="Loading recovery point…" />;
@@ -254,12 +256,19 @@ function DetailBody({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">Recovery point</h1>
-        <p className="inline-flex flex-wrap items-center gap-2 font-mono text-sm text-muted-foreground">
-          {d.id}
-          <CopyButton value={d.id} label="recovery point ID" />
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">Recovery point</h1>
+          <p className="inline-flex flex-wrap items-center gap-2 font-mono text-sm text-muted-foreground">
+            {d.id}
+            <CopyButton value={d.id} label="recovery point ID" />
+          </p>
+        </div>
+        {d.state === "committed" && hasPermission(me, PERMISSION_RESTORE_EXECUTE) && (
+          <Link href={`/recovery-points/${d.id}/restore`} className={buttonVariants({ size: "sm" })}>
+            <HistoryIcon aria-hidden="true" /> Restore…
+          </Link>
+        )}
       </div>
       {d.error && (
         <Alert variant="destructive">

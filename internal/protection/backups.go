@@ -43,7 +43,7 @@ func (s *Service) StartBackup(ctx context.Context, p *auth.Principal, appID uuid
 	if s.temporal == nil {
 		return "", errors.New("workflow engine unavailable")
 	}
-	run, err := temporalx.StartApplicationOperation(ctx, s.temporal, s.opts.TaskQueue, appID.String(), backup.Workflow,
+	run, err := temporalx.StartApplicationOperation(ctx, s.temporal, s.opts.TaskQueue, appID.String(), backup.BackupWorkflow,
 		backup.Input{ApplicationID: appID.String(), Trigger: "manual", RequestedBy: p.UserID.String(), ConsistencyMode: mode})
 	if err != nil {
 		return "", err
@@ -268,6 +268,7 @@ func buildPlan(app fleet.Application, agent fleet.Agent, set BackupSettings) (*p
 	if inv != nil {
 		seed.Source.RuntimeVersion = inv.Host.Runtime + " " + inv.Host.EngineVersion
 	}
+	seed.Topology = buildTopology(x, inv)
 	for _, im := range x.Images {
 		d := ""
 		if len(im.Digests) > 0 {

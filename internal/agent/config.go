@@ -84,6 +84,7 @@ const (
 	leasesFile = "leases.json"
 	reposDir   = "repositories"
 	tmpDir     = "tmp"
+	restoreDir = "restores"
 )
 
 func (c *Config) path(name string) string { return filepath.Join(c.StateDir, name) }

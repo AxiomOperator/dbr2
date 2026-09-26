@@ -894,3 +894,10 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
     ],
   ];
 }
+
+/** Read access to the recovery points for the other mock modules (mock-restore.mjs). */
+export const protectionData = {
+  recoveryPoints,
+  /** Lets pending recovery points commit (they finish lazily when read). */
+  advance,
+};

@@ -5,6 +5,9 @@ All notable changes to the `worker` component. Format: [Keep a Changelog](https:
 ## [Unreleased]
 
 ### Added
+- Workflows renamed `BackupWorkflow` / `RestoreWorkflow` (unique Temporal type names); a registration test catches duplicate workflow or activity names. Re-created containers are started from the manifest topology (`running_at_capture`), not the captured inspect state.
+- **Restore workflow** (`restore.Workflow` on `application/<id>`): cross-host grant (revoked by compensation) → agent access → images by digest → stop the target (dead-man lease) → staged restore with fsmeta verification and swap → re-create containers → start → database dumps → health check → commit; any failure after the stop runs `FinalizeRestore(ROLLBACK)` and records `rolled_back`.
+- Manifests include `topology` and per-component `file_name`.
 - **Backup workflow (Phase 4):** `backup.Workflow` on `application/<id>`: prepare → agent access → seed pass → pre hooks → quiesce (lease = max quiesce + 10 min) → protect → resume → post hooks → commit. Resume and post hooks are saga compensations (success, failure, cancellation); quiesce-window activities are bounded by the maximum quiesce and wait for cancellation; a failed resume raises `application.not_resumed`; an agent auto-resume fails the run.
 - Commit as `maint@dbr2`: every component snapshot is checked (source `agent@<agent id>`, `dbr2-rp`/`dbr2-component` tags, complete) before the manifest is written last, pinned; idempotent on retry.
 - `OrphanGC` workflow (schedule `platform-orphan-gc`, `DBR2_ORPHAN_GC_CRON`, grace `DBR2_ORPHAN_GRACE` = 7 days) and `Reindex` workflow (`repository/<id>/reindex`; trusts only manifests from `maint@dbr2`).

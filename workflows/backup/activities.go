@@ -175,6 +175,7 @@ type ManifestSeed struct {
 	Application manifest.Application `json:"application"`
 	Source      manifest.Source      `json:"source"`
 	Images      []manifest.Image     `json:"images,omitempty"`
+	Topology    *manifest.Topology   `json:"topology,omitempty"`
 }
 
 // BuildManifest assembles the manifest from the plan and component results.
@@ -186,7 +187,7 @@ func BuildManifest(in CommitInput, now time.Time) (*manifest.Manifest, error) {
 	m := &manifest.Manifest{
 		SchemaVersion: manifest.SchemaVersion, RecoveryPointID: in.Plan.RecoveryPointId, CreatedAt: now.UTC(),
 		ConsistencyMode: in.Plan.ConsistencyMode, QuiesceStartedAt: in.QuiesceStartedAt, QuiesceEndedAt: in.QuiesceEndedAt,
-		Application: seed.Application, Source: seed.Source, Images: seed.Images,
+		Application: seed.Application, Source: seed.Source, Images: seed.Images, Topology: seed.Topology,
 		Repository: manifest.RepositoryRef{ID: in.Plan.Repository.GetId(), Name: in.Plan.Repository.GetName()},
 		Workflow:   manifest.Workflow{WorkflowID: in.WorkflowID, RunID: in.RunID, Trigger: in.Trigger},
 		Producer:   manifest.Producer{Component: string(version.Worker), Version: version.Of(version.Worker)},
@@ -201,7 +202,7 @@ func BuildManifest(in CommitInput, now time.Time) (*manifest.Manifest, error) {
 		c := manifest.Component{Name: r.Name, Kind: kindName(r.Kind), Required: r.Required, Status: r.Status, Error: r.Error,
 			SnapshotID: r.SnapshotId, RootObjectID: r.RootObjectId, SnapshotSource: r.Source, SizeBytes: r.SizeBytes, Files: r.Files,
 			StartedAt: time.UnixMilli(r.StartedUnixMs).UTC(), FinishedAt: time.UnixMilli(r.FinishedUnixMs).UTC(),
-			Path: r.Path, VolumeName: r.VolumeName, Mode: r.Mode, SELinuxContext: r.SelinuxContext, Parent: r.Parent, CaptureMethod: r.CaptureMethod}
+			Path: r.Path, VolumeName: r.VolumeName, Mode: r.Mode, SELinuxContext: r.SelinuxContext, Parent: r.Parent, CaptureMethod: r.CaptureMethod, FileName: r.FileName}
 		if c.Kind == manifest.KindVolume || c.Kind == manifest.KindBindMount {
 			uid, gid := r.OwnerUid, r.OwnerGid
 			c.OwnerUID, c.OwnerGID = &uid, &gid

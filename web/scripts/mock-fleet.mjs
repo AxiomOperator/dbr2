@@ -6,8 +6,10 @@
 //
 // Seed data:
 //   hosts         docker-prod-01 (active, connected), docker-edge-02 (active,
-//                 offline, outdated, Docker unreachable), build-runner-03
-//                 (pending), legacy-db (suspended), old-host (revoked)
+//                 offline, outdated, Docker unreachable), docker-dr-03
+//                 (active, empty disaster-recovery standby: the clean
+//                 alternate restore target), build-runner-03 (pending),
+//                 legacy-db (suspended), old-host (revoked)
 //   applications  shop (Compose, original, 2 high + 1 low unprotected paths,
 //                 external NFS volume, locally built image), mft-pg
 //                 (container, RECONSTRUCTED), redis-cache / nginx-proxy
@@ -33,6 +35,7 @@ const EDGE = "8b2e61c4-0f3a-4d59-b7e8-6c1a2d3e4f02";
 const RUNNER = "c47a9e10-5d2b-4e8f-a1c3-9b8d7e6f5a03";
 const LEGACY = "d5f1b2a3-6e7c-4a8d-9f0e-1a2b3c4d5e04";
 const OLD = "e6a2c3b4-7f8d-4b9e-8a1f-2b3c4d5e6f05";
+const DR = "f7b3d4c5-8a9e-4c0f-9b2a-3c4d5e6f7a06";
 
 function agent(over) {
   return {
@@ -71,6 +74,16 @@ const agents = [
     docker_version: null,
     health_error: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock",
     certificate_not_after: iso(10 * DAY),
+  }),
+  agent({
+    id: DR,
+    hostname: "docker-dr-03",
+    status: "active",
+    status_reason: "disaster-recovery standby (restore target)",
+    connected: true,
+    latency_ms: 9,
+    enrolled_at: iso(-12 * DAY),
+    approved_at: iso(-12 * DAY + 10 * MIN),
   }),
   agent({
     id: RUNNER,

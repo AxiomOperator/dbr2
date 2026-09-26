@@ -57,6 +57,7 @@ Recovery Plan 1──* Stage 1──* (Application | Consistency Group)
 | **Recovery Manifest** | A versioned JSON document describing an RP and its components | Stored in the Repository (authoritative) and indexed in PostgreSQL |
 | **Escrow Recipient** | An age public key that every Repository password is sealed to | v1.0 requires two, held by two people offline (ADR-0008) |
 | **Alert** | A notification raised by the platform (backup failed, Partial recovery point, auto-resume, not resumed) | Stored in the notification outbox until acknowledged |
+| **Restore Run** | One attempt to restore a Recovery Point to a host | ID `rs_<ULID>`; claims the application's workflow ID; states requested → running → succeeded, failed or rolled back; records its impact preview, reason and result (ADR-0017) |
 | **Backup Job** | One execution of the backup workflow for an Application | A Temporal workflow with ID `application/{id}` (ADR-0011). It produces 0 or 1 RP. |
 
 ### Recovery

@@ -5,6 +5,7 @@ All notable changes to the `agent-protocol` component. Format: [Keep a Changelog
 ## [Unreleased]
 
 ### Added
+- Additive (Phase 5): `EnsureImages`, `RestoreComponents` (`RestoreSpec`, `PathRemap`), `RecreateContainers` (`NetworkSpec`), `StartContainers`, `CheckHealth`, `FinalizeRestore` (`FinalizeAction`), `RestoreDatabase` and their results; `ComponentResult.file_name`. Control: `PrepareRestore`, `GrantRestoreAccess`, `RevokeRestoreAccess`, `UpdateRestore`.
 - Additive (non-breaking, Phase 4): commands `ConfigureRepository`, `Quiesce` (dead-man lease), `Resume`, `RunHooks`, `SnapshotComponents` (with `ComponentSpec`, seed flag) and their results; `AgentEvent` (agent → gateway); `Welcome.max_concurrent_jobs`. Internal `control.v1.PlatformService` for dbr2-worker.
 - Additive (non-breaking): `Command` (discover, echo), `CommandUpdate` with `CommandState`, `CommandAck`, `Reject`, `InventoryReport`, `HealthReport`, heartbeat `echo_unix_ms`; `EnrollmentService` (`GetCA`, `Enroll`, `Renew`). Internal `control.v1.GatewayControlService.Dispatch` for dbr2-worker.
 - Component scaffold (Phase 1).

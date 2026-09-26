@@ -10,7 +10,11 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 
+	"github.com/AxiomOperator/dbr2/workflows"
+	"github.com/AxiomOperator/dbr2/workflows/backup"
 	"github.com/AxiomOperator/dbr2/workflows/diag"
+	"github.com/AxiomOperator/dbr2/workflows/hosts"
+	"github.com/AxiomOperator/dbr2/workflows/restore"
 )
 
 func run(t *testing.T, in diag.SelfTestInput, beforeRun func(env *testsuite.TestWorkflowEnvironment)) (*testsuite.TestWorkflowEnvironment, *int) {
@@ -62,4 +66,19 @@ func TestCompensationRunsOnCancel(t *testing.T) {
 	if *released != 1 {
 		t.Fatalf("release ran %d times after cancel", *released)
 	}
+}
+
+// TestRegisterAllOnOneWorker registers every workflow and activity on a
+// single registry, as dbr2-worker does: duplicate workflow or activity type
+// names (e.g. two packages exporting "Workflow") panic here instead of at
+// worker start-up.
+func TestRegisterAllOnOneWorker(t *testing.T) {
+	var s testsuite.WorkflowTestSuite
+	env := s.NewTestWorkflowEnvironment()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("registration panicked: %v", r)
+		}
+	}()
+	workflows.Register(env, &diag.Activities{}, &hosts.Activities{}, &backup.Activities{}, &restore.Activities{})
 }

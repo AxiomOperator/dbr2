@@ -68,6 +68,16 @@ import {
   type UpdateBackupSettingsRequest,
   type UpdateHostSettingsRequest,
 } from "./protection-schemas";
+import {
+  PreviewSchema,
+  RestoreBodySchema,
+  RestoreRunListSchema,
+  RestoreRunSchema,
+  StartRestoreBodySchema,
+  type RestoreBody,
+  type RestoreState,
+  type StartRestoreBody,
+} from "./restore-schemas";
 
 /** Host status transitions that take a `{reason}` body. */
 export type AgentAction = "approve" | "suspend" | "resume" | "revoke";
@@ -280,6 +290,44 @@ export const api = {
       body: UpdateHostSettingsRequestSchema.parse(req),
       schema: HostSettingsSchema,
     }),
+
+  // --- Restores (Phase 5) --------------------------------------------------
+
+  /** Impact preview and collision detection; changes nothing. */
+  restorePreview: (recoveryPointId: string, req: RestoreBody, signal?: AbortSignal) =>
+    apiRequest(`/recovery-points/${seg(recoveryPointId)}/restore-preview`, {
+      method: "POST",
+      body: RestoreBodySchema.parse(req),
+      schema: PreviewSchema,
+      signal,
+    }),
+
+  /**
+   * 202 with the new run. 409 when blocked by collisions or another operation;
+   * 403 for a production restore without `restore.production`; 400 without
+   * the typed confirmation or reason of a production restore.
+   */
+  startRestore: (recoveryPointId: string, req: StartRestoreBody) =>
+    apiRequest(`/recovery-points/${seg(recoveryPointId)}/restores`, {
+      method: "POST",
+      body: StartRestoreBodySchema.parse(req),
+      schema: RestoreRunSchema,
+    }),
+
+  restores: async (
+    params: { applicationId?: string | null; state?: RestoreState | null; limit?: number },
+    signal?: AbortSignal,
+  ) =>
+    (
+      await apiRequest("/restores", {
+        schema: RestoreRunListSchema,
+        query: { application_id: params.applicationId, state: params.state, limit: params.limit },
+        signal,
+      })
+    ).items,
+
+  restore: (id: string, signal?: AbortSignal) =>
+    apiRequest(`/restores/${seg(id)}`, { schema: RestoreRunSchema, signal }),
 };
 
 /** TanStack Query keys, centralised so invalidation stays consistent. */
@@ -312,4 +360,9 @@ export const queryKeys = {
   alertsAll: ["alerts"] as const,
   alerts: (all: boolean) => ["alerts", { all }] as const,
   hostSettings: (agentId: string) => ["agents", agentId, "settings"] as const,
+  restorePreview: (recoveryPointId: string, body: RestoreBody) => ["restore-preview", recoveryPointId, body] as const,
+  restoresAll: ["restores"] as const,
+  restores: (filters: { applicationId?: string | null; state?: string | null }) =>
+    ["restores", "list", { applicationId: filters.applicationId ?? null, state: filters.state ?? null }] as const,
+  restore: (id: string) => ["restores", "detail", id] as const,
 };

@@ -298,6 +298,39 @@ type Repository struct {
 	UpdatedAt          time.Time
 }
 
+type RestoreRun struct {
+	ID                  string
+	OrgID               uuid.UUID
+	RecoveryPointID     string
+	RepositoryID        uuid.UUID
+	SourceApplicationID uuid.UUID
+	ApplicationName     string
+	SourceAgentID       uuid.UUID
+	SourceHostname      string
+	TargetAgentID       uuid.UUID
+	TargetHostname      string
+	TargetApplicationID *uuid.UUID
+	Mode                string
+	Production          bool
+	Components          []string
+	PathRemaps          json.RawMessage
+	Preview             json.RawMessage
+	Reason              *string
+	RequestedBy         *uuid.UUID
+	RequestedByDisplay  string
+	State               string
+	Step                *string
+	Result              json.RawMessage
+	Error               *string
+	WorkflowID          *string
+	RunID               *string
+	GrantID             *string
+	CreatedAt           time.Time
+	StartedAt           *time.Time
+	FinishedAt          *time.Time
+	UpdatedAt           time.Time
+}
+
 type Session struct {
 	ID         []byte
 	UserID     uuid.UUID

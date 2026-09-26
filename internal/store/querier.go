@@ -36,6 +36,8 @@ type Querier interface {
 	CreateRegistrationToken(ctx context.Context, arg CreateRegistrationTokenParams) (CreateRegistrationTokenRow, error)
 	CreateRepository(ctx context.Context, arg CreateRepositoryParams) (Repository, error)
 	// SPDX-License-Identifier: Apache-2.0
+	CreateRestoreRun(ctx context.Context, arg CreateRestoreRunParams) (RestoreRun, error)
+	// SPDX-License-Identifier: Apache-2.0
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	DeleteAgentRepositoryAccessForAgent(ctx context.Context, agentID uuid.UUID) error
 	DeleteAgentSession(ctx context.Context, arg DeleteAgentSessionParams) error
@@ -51,6 +53,7 @@ type Querier interface {
 	EnableTOTP(ctx context.Context, arg EnableTOTPParams) error
 	EnqueueNotification(ctx context.Context, arg EnqueueNotificationParams) error
 	FailRecoveryPoint(ctx context.Context, arg FailRecoveryPointParams) (RecoveryPoint, error)
+	FinishRestoreRun(ctx context.Context, arg FinishRestoreRunParams) (RestoreRun, error)
 	GetActiveAPIToken(ctx context.Context, tokenHash []byte) (GetActiveAPITokenRow, error)
 	GetActiveSession(ctx context.Context, id []byte) (GetActiveSessionRow, error)
 	GetAgent(ctx context.Context, id uuid.UUID) (Agent, error)
@@ -72,6 +75,8 @@ type Querier interface {
 	GetRecoveryPointByID(ctx context.Context, id string) (RecoveryPoint, error)
 	GetRepository(ctx context.Context, arg GetRepositoryParams) (Repository, error)
 	GetRepositoryByID(ctx context.Context, id uuid.UUID) (Repository, error)
+	GetRestoreRun(ctx context.Context, arg GetRestoreRunParams) (RestoreRun, error)
+	GetRestoreRunByID(ctx context.Context, id string) (RestoreRun, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByOIDC(ctx context.Context, arg GetUserByOIDCParams) (User, error)
 	InsertAgentCertificate(ctx context.Context, arg InsertAgentCertificateParams) error
@@ -94,6 +99,7 @@ type Querier interface {
 	ListRecoveryPoints(ctx context.Context, arg ListRecoveryPointsParams) ([]RecoveryPoint, error)
 	ListRegistrationTokens(ctx context.Context, orgID uuid.UUID) ([]ListRegistrationTokensRow, error)
 	ListRepositories(ctx context.Context, orgID uuid.UUID) ([]Repository, error)
+	ListRestoreRuns(ctx context.Context, arg ListRestoreRunsParams) ([]RestoreRun, error)
 	ListUserAPITokens(ctx context.Context, userID uuid.UUID) ([]ListUserAPITokensRow, error)
 	// SPDX-License-Identifier: Apache-2.0
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]ListUserRolesRow, error)
@@ -118,7 +124,11 @@ type Querier interface {
 	SetPendingTOTP(ctx context.Context, arg SetPendingTOTPParams) error
 	SetRegistrationTokenAgent(ctx context.Context, arg SetRegistrationTokenAgentParams) error
 	SetRepositoryReindexed(ctx context.Context, id uuid.UUID) error
+	SetRestoreGrant(ctx context.Context, arg SetRestoreGrantParams) error
+	SetRestoreStep(ctx context.Context, arg SetRestoreStepParams) error
+	SetRestoreWorkflow(ctx context.Context, arg SetRestoreWorkflowParams) error
 	SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) error
+	StartRestoreRun(ctx context.Context, arg StartRestoreRunParams) (RestoreRun, error)
 	TouchAPIToken(ctx context.Context, id uuid.UUID) error
 	TouchAgentSession(ctx context.Context, arg TouchAgentSessionParams) error
 	TouchSession(ctx context.Context, id []byte) error

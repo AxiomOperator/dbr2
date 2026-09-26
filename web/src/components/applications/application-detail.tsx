@@ -29,6 +29,7 @@ import { BackupSettingsCard } from "@/components/backups/backup-settings-card";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-dialog";
 import { EditMetadataDialog } from "@/components/applications/edit-metadata-dialog";
 import { UnprotectedData } from "@/components/applications/unprotected-data";
+import { ApplicationRestores } from "@/components/restores/restores-view";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -48,6 +49,7 @@ import {
   PERMISSION_BACKUP_READ,
   PERMISSION_POLICY_READ,
 } from "@/lib/api/protection-schemas";
+import { PERMISSION_RESTORE_READ } from "@/lib/api/restore-schemas";
 import { formatDateTime, formatRelative } from "@/lib/format";
 
 function Meta({ label, children }: { label: string; children: ReactNode }) {
@@ -186,7 +188,16 @@ function DetailTabs({ app: d }: { app: ApplicationDetail }) {
   const a = d.analysis;
   const canBackups = hasPermission(me, PERMISSION_BACKUP_READ);
   const canSettings = hasPermission(me, PERMISSION_POLICY_READ);
-  const first = a ? "resources" : canBackups ? "backups" : canSettings ? "backup-settings" : null;
+  const canRestores = hasPermission(me, PERMISSION_RESTORE_READ);
+  const first = a
+    ? "resources"
+    : canBackups
+      ? "backups"
+      : canRestores
+        ? "restores"
+        : canSettings
+          ? "backup-settings"
+          : null;
   if (!first) return null;
 
   return (
@@ -196,6 +207,7 @@ function DetailTabs({ app: d }: { app: ApplicationDetail }) {
         {a && <TabsTrigger value="containers">Containers ({d.containers_detail.length})</TabsTrigger>}
         {a && <TabsTrigger value="compose">Compose</TabsTrigger>}
         {canBackups && <TabsTrigger value="backups">Backups</TabsTrigger>}
+        {canRestores && <TabsTrigger value="restores">Restores</TabsTrigger>}
         {canSettings && <TabsTrigger value="backup-settings">Backup settings</TabsTrigger>}
       </TabsList>
       {a && (
@@ -234,6 +246,11 @@ function DetailTabs({ app: d }: { app: ApplicationDetail }) {
       {canBackups && (
         <TabsContent value="backups" className="mt-4">
           <ApplicationBackups applicationId={d.id} />
+        </TabsContent>
+      )}
+      {canRestores && (
+        <TabsContent value="restores" className="mt-4">
+          <ApplicationRestores applicationId={d.id} />
         </TabsContent>
       )}
       {canSettings && (

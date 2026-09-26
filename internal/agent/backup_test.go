@@ -476,7 +476,7 @@ func TestSnapshotComponents(t *testing.T) {
 		t.Fatalf("volume %+v", v)
 	}
 	if fm.Name != "fsmeta:volume:data" || fm.Kind != agentv1.ComponentKind_COMPONENT_KIND_FSMETA || fm.Parent != "volume:data" ||
-		!fm.Required || fm.Status != manifest.ComponentSucceeded {
+		!fm.Required || fm.Status != manifest.ComponentSucceeded || fm.FileName != fsmeta.FileName || v.FileName != "" {
 		t.Fatalf("fsmeta %+v", fm)
 	}
 	if db.Status != manifest.ComponentSkipped || db.Error != "not supported until Phase 8" {
@@ -602,8 +602,8 @@ func TestSnapshotSingleFileBindMount(t *testing.T) {
 	u := e.run(t, snapCmd("rp_6", false, comps...))
 	succeeded(t, u)
 	res := u.GetSnapshotComponents().Components
-	if res[0].Status != manifest.ComponentSucceeded || res[0].Mode != "0644" || res[0].Files != 1 ||
-		res[1].Name != "fsmeta:bind:nginx.conf" || res[1].Status != manifest.ComponentSucceeded {
+	if res[0].Status != manifest.ComponentSucceeded || res[0].Mode != "0644" || res[0].Files != 1 || res[0].FileName != "nginx.conf" ||
+		res[1].Name != "fsmeta:bind:nginx.conf" || res[1].Status != manifest.ComponentSucceeded || res[1].FileName != fsmeta.FileName {
 		t.Fatalf("results %+v", res)
 	}
 	rc, err := e.repo.OpenStream(context.Background(), res[0].SnapshotId, "nginx.conf")

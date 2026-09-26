@@ -369,3 +369,12 @@ func (m *leaseManager) resume(ctx context.Context, leaseID string) (*agentv1.Res
 	m.log.Info("application resumed", "lease_id", leaseID, "application_id", l.ApplicationID, "containers", len(resumed))
 	return &agentv1.ResumeResult{ResumedContainerIds: resumed}, nil
 }
+
+// autoResumed reports whether lease id exists and the dead-man switch has
+// already resumed its application.
+func (m *leaseManager) autoResumed(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	l := m.leases[id]
+	return l != nil && !l.active()
+}

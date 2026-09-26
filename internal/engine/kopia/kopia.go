@@ -16,8 +16,10 @@ import (
 	"io"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -338,4 +340,71 @@ func (r *repository) OpenStream(ctx context.Context, id, fileName string) (io.Re
 		return nil, fmt.Errorf("%s is not a file", fileName)
 	}
 	return f.Open(ctx)
+}
+
+// entryAt walks relPath (slash-separated) from the snapshot root.
+func (r *repository) entryAt(ctx context.Context, id, relPath string) (fs.Entry, error) {
+	m, err := r.load(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	root, err := snapshotfs.SnapshotRoot(r.rep, m)
+	if err != nil {
+		return nil, err
+	}
+	clean := path.Clean("/" + relPath)
+	var e fs.Entry = root
+	for _, name := range strings.Split(strings.TrimPrefix(clean, "/"), "/") {
+		if name == "" {
+			continue
+		}
+		dir, ok := e.(fs.Directory)
+		if !ok {
+			return nil, fmt.Errorf("%s: not a directory: %w", relPath, os.ErrNotExist)
+		}
+		child, err := dir.Child(ctx, name)
+		if err != nil {
+			if errors.Is(err, fs.ErrEntryNotFound) {
+				return nil, fmt.Errorf("%s: %w", relPath, os.ErrNotExist)
+			}
+			return nil, err
+		}
+		e = child
+	}
+	return e, nil
+}
+
+func (r *repository) OpenFile(ctx context.Context, id, relPath string) (io.ReadCloser, error) {
+	e, err := r.entryAt(ctx, id, relPath)
+	if err != nil {
+		return nil, err
+	}
+	f, ok := e.(fs.File)
+	if !ok || !e.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", relPath)
+	}
+	return f.Open(ctx)
+}
+
+func (r *repository) ListDir(ctx context.Context, id, relPath string) ([]engine.DirEntry, error) {
+	e, err := r.entryAt(ctx, id, relPath)
+	if err != nil {
+		return nil, err
+	}
+	dir, ok := e.(fs.Directory)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a directory", relPath)
+	}
+	var out []engine.DirEntry
+	err = fs.IterateEntries(ctx, dir, func(_ context.Context, c fs.Entry) error {
+		o := c.Owner()
+		out = append(out, engine.DirEntry{Name: c.Name(), Mode: c.Mode(), Size: c.Size(), ModTime: c.ModTime(),
+			UID: o.UserID, GID: o.GroupID})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }

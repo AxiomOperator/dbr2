@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys } from "./endpoints";
 import type { RecoveryPointState } from "./protection-schemas";
+import { isActiveRestore, type RestoreBody, type RestoreState } from "./restore-schemas";
 
 export function useMe() {
   return useQuery({
@@ -176,5 +177,47 @@ export function useHostSettings(agentId: string, options: { enabled?: boolean } 
     queryKey: queryKeys.hostSettings(agentId),
     queryFn: ({ signal }) => api.hostSettings(agentId, signal),
     enabled: options.enabled ?? true,
+  });
+}
+
+// --- Restores (Phase 5) ------------------------------------------------------
+
+/** Restore detail refresh interval while the workflow runs. */
+export const RESTORE_POLL_MS = 3_000;
+/** Restore list refresh interval (faster while any listed restore runs). */
+export const RESTORES_REFRESH_MS = 15_000;
+/** Page size of restore lists (the API has no cursor; newest first). */
+export const RESTORES_LIMIT = 200;
+
+export function useRestores(
+  filters: { applicationId?: string | null; state?: RestoreState | null },
+  options: { enabled?: boolean; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.restores(filters),
+    queryFn: ({ signal }) => api.restores({ ...filters, limit: options.limit ?? RESTORES_LIMIT }, signal),
+    refetchInterval: (q) =>
+      q.state.data?.some((r) => isActiveRestore(r.state)) ? RESTORE_POLL_MS : RESTORES_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useRestore(id: string) {
+  return useQuery({
+    queryKey: queryKeys.restore(id),
+    queryFn: ({ signal }) => api.restore(id, signal),
+    refetchInterval: (q) => (q.state.data && isActiveRestore(q.state.data.state) ? RESTORE_POLL_MS : false),
+  });
+}
+
+/** The impact preview for `body`; re-runs whenever the body changes. */
+export function useRestorePreview(recoveryPointId: string, body: RestoreBody, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.restorePreview(recoveryPointId, body),
+    queryFn: ({ signal }) => api.restorePreview(recoveryPointId, body, signal),
+    enabled: options.enabled ?? true,
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }

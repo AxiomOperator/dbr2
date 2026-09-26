@@ -58,10 +58,15 @@ type Agent struct {
 	// Tests substitute a filesystem repository.
 	OpenRepository func(ctx context.Context, c engine.ServerConnection) (engine.Repository, error)
 
-	repos   *repoCache
-	leases  *leaseManager
-	jobs    *limiter
-	pending []*agentv1.AgentEvent // events raised while disconnected (guarded by mu)
+	repos    *repoCache
+	leases   *leaseManager
+	jobs     *limiter
+	restores *restoreStore
+	pending  []*agentv1.AgentEvent // events raised while disconnected (guarded by mu)
+	// healthPoll is the CheckHealth polling interval (tests); zero = 1 s.
+	healthPoll time.Duration
+	// unhealthyGrace overrides unhealthyGrace (tests).
+	unhealthyGrace time.Duration
 }
 
 type outbound struct {
@@ -103,6 +108,7 @@ func (a *Agent) init() error {
 	a.journal = j
 	a.repos = &repoCache{entries: map[string]*repoEntry{}}
 	a.jobs = newLimiter(defaultMaxJobs)
+	a.restores = newRestoreStore(a.cfg.path(restoreDir))
 	lm, err := openLeases(a.cfg.path(leasesFile), a.control, a.event, a.log)
 	if err != nil {
 		return fmt.Errorf("open quiesce leases: %w", err)
@@ -175,6 +181,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer a.journal.Close()
 	defer a.repos.closeAll()
 	_ = os.RemoveAll(a.cfg.path(tmpDir)) // staging left by a crash
+	a.cleanupRestores()
 	// Dead-man switch first: expired leases resume before anything else.
 	a.leases.start(ctx)
 	go a.periodic(ctx)
@@ -366,6 +373,20 @@ func kindOf(c *agentv1.Command) string {
 		return "run_hooks"
 	case *agentv1.Command_SnapshotComponents:
 		return "snapshot_components"
+	case *agentv1.Command_EnsureImages:
+		return "ensure_images"
+	case *agentv1.Command_RestoreComponents:
+		return "restore_components"
+	case *agentv1.Command_RecreateContainers:
+		return "recreate_containers"
+	case *agentv1.Command_StartContainers:
+		return "start_containers"
+	case *agentv1.Command_CheckHealth:
+		return "check_health"
+	case *agentv1.Command_FinalizeRestore:
+		return "finalize_restore"
+	case *agentv1.Command_RestoreDatabase:
+		return "restore_database"
 	}
 	return "unknown"
 }
@@ -421,6 +442,14 @@ func (a *Agent) execute(ctx context.Context, c *agentv1.Command) *agentv1.Comman
 		u := update(c.CommandId, agentv1.CommandState_COMMAND_STATE_FAILED)
 		u.Error, u.Retryable = err.Error(), retryable
 		return u
+	}
+	// finish maps an error to a terminal update; restore commands attach
+	// their (partial) result either way.
+	finish := func(err error) *agentv1.CommandUpdate {
+		if err != nil {
+			return fail(err, !isPermanent(err))
+		}
+		return update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
 	}
 	switch k := c.Kind.(type) {
 	case *agentv1.Command_Echo:
@@ -480,6 +509,55 @@ func (a *Agent) execute(ctx context.Context, c *agentv1.Command) *agentv1.Comman
 		}
 		u := update(c.CommandId, agentv1.CommandState_COMMAND_STATE_SUCCEEDED)
 		u.Result = &agentv1.CommandUpdate_SnapshotComponents{SnapshotComponents: res}
+		return u
+	case *agentv1.Command_EnsureImages:
+		res, err := a.ensureImages(ctx, c.CommandId, k.EnsureImages)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_EnsureImages{EnsureImages: res}
+		}
+		return u
+	case *agentv1.Command_RestoreComponents:
+		res, err := a.restoreComponents(ctx, c.CommandId, k.RestoreComponents)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_RestoreComponents{RestoreComponents: res}
+		}
+		return u
+	case *agentv1.Command_RecreateContainers:
+		res, err := a.recreateContainers(ctx, k.RecreateContainers)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_RecreateContainers{RecreateContainers: res}
+		}
+		return u
+	case *agentv1.Command_StartContainers:
+		res, err := a.startContainers(ctx, k.StartContainers)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_StartContainers{StartContainers: res}
+		}
+		return u
+	case *agentv1.Command_CheckHealth:
+		res, err := a.checkHealth(ctx, k.CheckHealth)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_CheckHealth{CheckHealth: res}
+		}
+		return u
+	case *agentv1.Command_FinalizeRestore:
+		res, err := a.finalizeRestore(ctx, k.FinalizeRestore)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_FinalizeRestore{FinalizeRestore: res}
+		}
+		return u
+	case *agentv1.Command_RestoreDatabase:
+		res, err := a.restoreDatabase(ctx, c.CommandId, k.RestoreDatabase)
+		u := finish(err)
+		if res != nil {
+			u.Result = &agentv1.CommandUpdate_RestoreDatabase{RestoreDatabase: res}
+		}
 		return u
 	}
 	return fail(fmt.Errorf("unsupported command %T (upgrade the agent)", c.Kind), false)

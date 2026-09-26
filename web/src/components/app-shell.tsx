@@ -21,6 +21,7 @@ import {
 import { api } from "@/lib/api/endpoints";
 import { PERMISSION_APPLICATION_READ, PERMISSION_HOST_READ } from "@/lib/api/fleet-schemas";
 import { PERMISSION_BACKUP_READ, PERMISSION_REPOSITORY_READ } from "@/lib/api/protection-schemas";
+import { PERMISSION_RESTORE_READ } from "@/lib/api/restore-schemas";
 import { PERMISSION_AUDIT_READ } from "@/lib/api/schemas";
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/lib/version";
@@ -71,6 +72,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       label: "Recovery points",
       match: "/recovery-points",
       visible: hasPermission(me, PERMISSION_BACKUP_READ),
+    },
+    {
+      href: "/restores",
+      label: "Restores",
+      match: "/restores",
+      visible: hasPermission(me, PERMISSION_RESTORE_READ),
     },
     {
       href: "/alerts",

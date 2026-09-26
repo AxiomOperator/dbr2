@@ -71,6 +71,12 @@ const (
 	QuiesceResumeFailed      = "quiesce.resume_failed"
 	QuiesceLeaseWarning      = "quiesce.lease_warning"
 	AlertAcknowledged        = "alert.acknowledged"
+	// Phase 5: restores.
+	RestoreRequested       = "restore.requested"
+	RestoreSucceeded       = "restore.succeeded"
+	RestoreFailed          = "restore.failed"
+	RestoreRolledBack      = "restore.rolled_back"
+	RestoreCancelRequested = "restore.cancel_requested"
 )
 
 // Result values.

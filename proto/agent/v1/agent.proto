@@ -112,7 +112,242 @@ message Command {
     ResumeCommand resume = 14;
     RunHooksCommand run_hooks = 15;
     SnapshotComponentsCommand snapshot_components = 16;
+    EnsureImagesCommand ensure_images = 17;
+    RestoreComponentsCommand restore_components = 18;
+    RecreateContainersCommand recreate_containers = 19;
+    StartContainersCommand start_containers = 20;
+    CheckHealthCommand check_health = 21;
+    FinalizeRestoreCommand finalize_restore = 22;
+    RestoreDatabaseCommand restore_database = 23;
   }
+}
+
+// ---- Restore (Phase 5, ADR-0006) -------------------------------------------
+
+// ImageSpec is an image the restored application needs.
+message ImageSpec {
+  // Reference as configured, e.g. "postgres:18".
+  string ref = 1;
+  // Content digest recorded at capture ("sha256:…"); empty = no enforcement.
+  string digest = 2;
+}
+
+// EnsureImagesCommand makes sure every image is present locally. Missing
+// images are pulled BY DIGEST (repo@sha256:…) and tagged with ref, so the
+// restored application runs exactly the captured image.
+message EnsureImagesCommand {
+  repeated ImageSpec images = 1;
+}
+
+// ImageResult is the outcome for one image.
+message ImageResult {
+  string ref = 1;
+  string digest = 2;
+  // present | pulled | failed
+  string status = 3;
+  string error = 4;
+}
+
+// EnsureImagesResult lists every image outcome.
+message EnsureImagesResult {
+  repeated ImageResult images = 1;
+}
+
+// PathRemap rewrites a host path prefix (bind-mount path remapping).
+message PathRemap {
+  string from = 1;
+  string to = 2;
+}
+
+// RestoreSpec is one component to restore.
+message RestoreSpec {
+  // Component name from the manifest, e.g. "volume:shop_data".
+  string name = 1;
+  ComponentKind kind = 2;
+  string snapshot_id = 3;
+  // The component's fsmeta snapshot (volumes and bind mounts).
+  string fsmeta_snapshot_id = 4;
+  // Bind mounts: the (remapped) host path to restore to.
+  string target_path = 5;
+  // Volumes: the volume to restore into (created when missing).
+  string volume_name = 6;
+  string volume_driver = 7;
+  map<string, string> volume_labels = 8;
+  // Single-stream component: the file name inside the snapshot (single-file
+  // bind mounts). Empty = directory snapshot.
+  string file_name = 9;
+  // Root ownership, mode and SELinux context recorded at capture.
+  uint32 owner_uid = 10;
+  uint32 owner_gid = 11;
+  string mode = 12;
+  string selinux_context = 13;
+}
+
+// RestoreComponentsCommand restores components into STAGING next to each
+// target, applies the fsmeta record (hardlinks, ACLs, xattrs, SELinux,
+// directory mtimes), verifies, then swaps each staging directory in. The
+// previous content is kept (".dbr2-old-<restore_id>") until
+// FinalizeRestore. Any failure rolls back the swaps done by this command.
+// Config components restore the captured Compose/env files to their
+// (remapped) paths the same way.
+message RestoreComponentsCommand {
+  string repository_id = 1;
+  string restore_id = 2;
+  repeated RestoreSpec components = 3;
+  repeated PathRemap path_remaps = 4;
+  // Open a dedicated repository session and close it afterwards (required
+  // after a cross-host READ grant: Kopia checks ACLs at session open).
+  bool fresh_session = 5;
+}
+
+// RestoreComponentResult is the outcome for one component.
+message RestoreComponentResult {
+  string name = 1;
+  // restored | failed | skipped
+  string status = 2;
+  string error = 3;
+  string target_path = 4;
+  int64 bytes = 5;
+  int64 files = 6;
+  // fsmeta entries applied and verification mismatches.
+  int64 metadata_applied = 7;
+  int64 verify_mismatches = 8;
+  // Where the previous content was moved ("" = the target did not exist).
+  string previous_path = 9;
+  bool created_volume = 10;
+}
+
+// RestoreComponentsResult lists every component outcome.
+message RestoreComponentsResult {
+  repeated RestoreComponentResult components = 1;
+}
+
+// NetworkSpec is a network the application needs.
+message NetworkSpec {
+  string name = 1;
+  string driver = 2;
+  map<string, string> labels = 3;
+  bool internal = 4;
+  bool attachable = 5;
+  // External networks are never created; a missing one fails the command.
+  bool external = 6;
+}
+
+// RecreateContainersCommand recreates containers that do not exist on the
+// host from the inspect documents staged in the config component
+// (containers/<id>.json), after creating missing networks. Existing
+// containers (same name) are left alone. Containers are created, not
+// started.
+message RecreateContainersCommand {
+  string repository_id = 1;
+  string restore_id = 2;
+  string config_snapshot_id = 3;
+  repeated NetworkSpec networks = 4;
+  repeated PathRemap path_remaps = 5;
+  bool fresh_session = 6;
+}
+
+// RecreatedContainer is one container outcome.
+message RecreatedContainer {
+  string name = 1;
+  // created | existing | failed
+  string status = 2;
+  string container_id = 3;
+  // It was running at capture (StartContainers should start it).
+  bool was_running = 4;
+  string error = 5;
+}
+
+// RecreateContainersResult lists containers and created networks.
+message RecreateContainersResult {
+  repeated RecreatedContainer containers = 1;
+  repeated string created_networks = 2;
+}
+
+// StartContainersCommand starts containers (idempotent).
+message StartContainersCommand {
+  string restore_id = 1;
+  repeated string container_ids = 2;
+}
+
+// StartContainersResult reports started containers.
+message StartContainersResult {
+  repeated string started = 1;
+}
+
+// CheckHealthCommand waits until every container is running (and healthy
+// when it defines a healthcheck) for stable_seconds, or times out.
+message CheckHealthCommand {
+  repeated string container_ids = 1;
+  uint32 timeout_seconds = 2;
+  uint32 stable_seconds = 3;
+}
+
+// ContainerHealth is one container's final state.
+message ContainerHealth {
+  string container_id = 1;
+  string name = 2;
+  string state = 3;
+  // healthy | unhealthy | starting | none
+  string health = 4;
+  bool ok = 5;
+  int32 exit_code = 6;
+  // Last log lines when not ok (secrets are the application's concern).
+  string log_tail = 7;
+}
+
+// CheckHealthResult reports every container.
+message CheckHealthResult {
+  bool ok = 1;
+  repeated ContainerHealth containers = 2;
+}
+
+// FinalizeAction ends a restore.
+enum FinalizeAction {
+  FINALIZE_ACTION_UNSPECIFIED = 0;
+  // Delete the previous content kept by RestoreComponents.
+  FINALIZE_ACTION_COMMIT = 1;
+  // Stop the application, swap the previous content back, remove
+  // containers and networks this restore created, and start restart_ids.
+  FINALIZE_ACTION_ROLLBACK = 2;
+}
+
+// FinalizeRestoreCommand commits or rolls back a restore (idempotent; the
+// agent journals every swap under its state directory).
+message FinalizeRestoreCommand {
+  string restore_id = 1;
+  FinalizeAction action = 2;
+  repeated string restart_container_ids = 3;
+}
+
+// FinalizeRestoreResult reports what was done.
+message FinalizeRestoreResult {
+  int32 paths_committed = 1;
+  int32 paths_rolled_back = 2;
+  repeated string removed_containers = 3;
+  bool already_finalized = 4;
+}
+
+// RestoreDatabaseCommand loads a logical dump into a running container:
+// PostgreSQL "pg_dumpall-sql-zstd" is streamed into psql; a Redis "rdb" file
+// replaces the dump file in the data directory while the container is
+// stopped, then the container is started.
+message RestoreDatabaseCommand {
+  string repository_id = 1;
+  string restore_id = 2;
+  string name = 3;
+  string snapshot_id = 4;
+  string file_name = 5;
+  string engine = 6;
+  string format = 7;
+  string container_id = 8;
+  bool fresh_session = 9;
+}
+
+// RestoreDatabaseResult reports the load.
+message RestoreDatabaseResult {
+  int64 bytes = 1;
+  string output = 2;
 }
 
 // ConfigureRepositoryCommand gives the agent its Kopia identity for one
@@ -285,6 +520,8 @@ message ComponentResult {
   string parent = 19;
   // live | snapshot (filesystem snapshot used; ADR-0005)
   string capture_method = 20;
+  // Single-stream components: the file name inside the snapshot.
+  string file_name = 21;
 }
 
 // SnapshotComponentsResult lists every component outcome.
@@ -331,6 +568,13 @@ message CommandUpdate {
     ResumeResult resume = 13;
     RunHooksResult run_hooks = 14;
     SnapshotComponentsResult snapshot_components = 15;
+    EnsureImagesResult ensure_images = 16;
+    RestoreComponentsResult restore_components = 17;
+    RecreateContainersResult recreate_containers = 18;
+    StartContainersResult start_containers = 19;
+    CheckHealthResult check_health = 20;
+    FinalizeRestoreResult finalize_restore = 21;
+    RestoreDatabaseResult restore_database = 22;
   }
 }
 

@@ -679,6 +679,27 @@ components:
       required:
         - code
       type: object
+    Collision:
+      additionalProperties: false
+      properties:
+        detail:
+          type: string
+        kind:
+          enum:
+            - container_name
+            - port
+            - network
+            - volume
+            - bind_path
+            - dependency
+          type: string
+        name:
+          type: string
+      required:
+        - kind
+        - name
+        - detail
+      type: object
     ComposeDTO:
       additionalProperties: false
       properties:
@@ -1555,6 +1576,18 @@ components:
       required:
         - items
       type: object
+    List-restoresResponse:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RestoreRunDTO"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
     LiveDTO:
       additionalProperties: false
       properties:
@@ -1748,6 +1781,17 @@ components:
         - current_password
         - new_password
       type: object
+    PathRemap:
+      additionalProperties: false
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+      required:
+        - from
+        - to
+      type: object
     Port:
       additionalProperties: false
       properties:
@@ -1762,6 +1806,174 @@ components:
       required:
         - container_port
         - protocol
+      type: object
+    Preview:
+      additionalProperties: false
+      properties:
+        application_name:
+          type: string
+        blocked:
+          type: boolean
+        collisions:
+          items:
+            $ref: "#/components/schemas/Collision"
+          type:
+            - array
+            - "null"
+        components:
+          items:
+            $ref: "#/components/schemas/PreviewComponent"
+          type:
+            - array
+            - "null"
+        create_containers:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        images:
+          items:
+            $ref: "#/components/schemas/PreviewImage"
+          type:
+            - array
+            - "null"
+        mode:
+          enum:
+            - in_place
+            - alternate_host
+          type: string
+        networks:
+          items:
+            $ref: "#/components/schemas/PreviewItem"
+          type:
+            - array
+            - "null"
+        ports:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        production:
+          type: boolean
+        production_reasons:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        recovery_point_id:
+          type: string
+        source_host_id:
+          type: string
+        stop_containers:
+          items:
+            $ref: "#/components/schemas/PreviewContainer"
+          type:
+            - array
+            - "null"
+        target_application_id:
+          type: string
+        target_host_id:
+          type: string
+        target_hostname:
+          type: string
+        warnings:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - recovery_point_id
+        - application_name
+        - source_host_id
+        - target_host_id
+        - target_hostname
+        - mode
+        - production
+        - components
+        - stop_containers
+        - create_containers
+        - networks
+        - images
+        - ports
+        - collisions
+        - warnings
+        - blocked
+      type: object
+    PreviewComponent:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+            - overwrite
+            - create
+            - restore_files
+            - load_dump
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        size_bytes:
+          format: int64
+          type: integer
+        target:
+          type: string
+      required:
+        - name
+        - kind
+        - action
+        - target
+        - size_bytes
+      type: object
+    PreviewContainer:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+      required:
+        - id
+        - name
+        - state
+      type: object
+    PreviewImage:
+      additionalProperties: false
+      properties:
+        action:
+          description: "pull: not in the target host's latest inventory; the agent pulls it by digest only if it is really missing."
+          enum:
+            - present
+            - pull
+          type: string
+        digest:
+          type: string
+        ref:
+          type: string
+      required:
+        - ref
+        - action
+      type: object
+    PreviewItem:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+            - exists
+            - create
+            - missing_external
+          type: string
+        name:
+          type: string
+      required:
+        - name
+        - action
       type: object
     Problem:
       additionalProperties: false
@@ -2077,6 +2289,137 @@ components:
         - live
         - usage_by_host
       type: object
+    RestoreBody:
+      additionalProperties: false
+      properties:
+        components:
+          description: "Component names from the manifest (default: every captured component). fsmeta records follow their volume or bind mount automatically."
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        path_remaps:
+          description: Bind-mount and config-file path prefix remapping, e.g. {"from":"/srv/app","to":"/srv/app-restored"}.
+          items:
+            $ref: "#/components/schemas/PathRemap"
+          type:
+            - array
+            - "null"
+        target_host_id:
+          description: "Host to restore to (default: the host the recovery point was captured on)."
+          format: uuid
+          type: string
+      type: object
+    RestoreRunDTO:
+      additionalProperties: false
+      properties:
+        application_id:
+          format: uuid
+          type: string
+        application_name:
+          type: string
+        components:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        created_at:
+          format: date-time
+          type: string
+        error:
+          type:
+            - string
+            - "null"
+        finished_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          type: string
+        mode:
+          enum:
+            - in_place
+            - alternate_host
+          type: string
+        path_remaps: {}
+        preview:
+          $ref: "#/components/schemas/Preview"
+          description: Impact preview at request time (detail view).
+        production:
+          type: boolean
+        reason:
+          type:
+            - string
+            - "null"
+        recovery_point_id:
+          type: string
+        requested_by:
+          type: string
+        result:
+          description: Per-component, container and health outcomes (detail view).
+        source_host_id:
+          format: uuid
+          type: string
+        source_hostname:
+          type: string
+        started_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        state:
+          enum:
+            - requested
+            - running
+            - succeeded
+            - failed
+            - rolled_back
+          type: string
+        step:
+          description: "Current step while running: grant-access, agent-access, images, stop-application, restore-data, recreate-containers, start-application, restore-database, health-check, commit."
+          type:
+            - string
+            - "null"
+        target_application_id:
+          type:
+            - string
+            - "null"
+        target_host_id:
+          format: uuid
+          type: string
+        target_hostname:
+          type: string
+        workflow_id:
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - recovery_point_id
+        - application_id
+        - application_name
+        - source_host_id
+        - source_hostname
+        - target_host_id
+        - target_hostname
+        - target_application_id
+        - mode
+        - production
+        - components
+        - path_remaps
+        - reason
+        - requested_by
+        - state
+        - step
+        - error
+        - workflow_id
+        - created_at
+        - started_at
+        - finished_at
+      type: object
     Role:
       additionalProperties: false
       properties:
@@ -2187,6 +2530,36 @@ components:
             - live
             - quiesced
             - offline
+          type: string
+      type: object
+    StartRestoreBody:
+      additionalProperties: false
+      properties:
+        components:
+          description: "Component names from the manifest (default: every captured component). fsmeta records follow their volume or bind mount automatically."
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        confirmation:
+          description: "Production restores: type the application name exactly."
+          maxLength: 200
+          type: string
+        path_remaps:
+          description: Bind-mount and config-file path prefix remapping, e.g. {"from":"/srv/app","to":"/srv/app-restored"}.
+          items:
+            $ref: "#/components/schemas/PathRemap"
+          type:
+            - array
+            - "null"
+        reason:
+          description: Mandatory for production restores (a change ticket such as INC-48391 is fine). Stored in the audit log.
+          maxLength: 500
+          type: string
+        target_host_id:
+          description: "Host to restore to (default: the host the recovery point was captured on)."
+          format: uuid
           type: string
       type: object
     StatusBody:
@@ -4739,6 +5112,152 @@ paths:
       tags:
         - Backups
       x-dbr2-permission: backup.read
+  /api/v1/recovery-points/{id}/restore-preview:
+    post:
+      description: |-
+        Impact preview and collision detection against the target host's latest inventory: containers stopped, volumes overwritten or created, bind paths replaced, containers re-created, networks created, images pulled by digest, published ports, and whether the restore counts as a production restore. Nothing is changed.
+
+        Requires permission `restore.execute`.
+      operationId: preview-restore
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            pattern: ^rp_[0-9A-HJKMNP-TV-Z]{26}$
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preview"
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Preview a restore
+      tags:
+        - Restores
+      x-dbr2-permission: restore.execute
+  /api/v1/recovery-points/{id}/restores:
+    post:
+      description: |-
+        Starts a restore workflow on the application's workflow ID (never concurrent with a backup or another restore). Data is restored into staging, the fsmeta record is applied and verified, and it is swapped in with the previous content kept until the application is healthy; any failure rolls back. **Production restores** (target tagged production, or overwriting a running application in place) require `restore.production`, a typed confirmation (the application name) and a reason. Blocked by any collision (409).
+
+        Requires permission `restore.execute`.
+      operationId: start-restore
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            pattern: ^rp_[0-9A-HJKMNP-TV-Z]{26}$
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRestoreBody"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRunDTO"
+          description: Accepted
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Bad Request
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Restore a recovery point
+      tags:
+        - Restores
+      x-dbr2-permission: restore.execute
   /api/v1/repositories:
     get:
       description: |-
@@ -5072,6 +5591,187 @@ paths:
       tags:
         - Repositories
       x-dbr2-permission: repository.manage
+  /api/v1/restores:
+    get:
+      description: |-
+        Recovery history: every restore attempt, including failures and rollbacks, newest first.
+
+        Requires permission `restore.read`.
+      operationId: list-restores
+      parameters:
+        - explode: false
+          in: query
+          name: application_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: state
+          schema:
+            enum:
+              - requested
+              - running
+              - succeeded
+              - failed
+              - rolled_back
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 100
+            format: int32
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/List-restoresResponse"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: List restores
+      tags:
+        - Restores
+      x-dbr2-permission: restore.read
+  /api/v1/restores/{id}:
+    get:
+      description: |-
+        Includes the impact preview recorded at request time and the result document.
+
+        Requires permission `restore.read`.
+      operationId: get-restore
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            pattern: ^rs_[0-9A-HJKMNP-TV-Z]{26}$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRunDTO"
+          description: OK
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Get a restore
+      tags:
+        - Restores
+      x-dbr2-permission: restore.read
+  /api/v1/restores/{id}/cancel:
+    post:
+      description: |-
+        Requests cancellation of a running restore. Compensation runs: the previous data and containers are put back and the restore ends as rolled_back (or failed if nothing had changed yet).
+
+        Requires permission `restore.execute`.
+      operationId: cancel-restore
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            pattern: ^rs_[0-9A-HJKMNP-TV-Z]{26}$
+            type: string
+      responses:
+        "202":
+          description: Accepted
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unauthorized
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal Server Error
+      summary: Cancel a restore
+      tags:
+        - Restores
+      x-dbr2-permission: restore.execute
   /api/v1/roles:
     get:
       description: |-

@@ -72,6 +72,8 @@ type RepoManager interface {
 	Status(ctx context.Context) (*repoclient.Status, error)
 	Initialize(ctx context.Context, password, splitter string) (*repoclient.Status, error)
 	SetUser(ctx context.Context, username, password string) error
+	GrantRead(ctx context.Context, user, sourceUser, sourceHost string) (string, error)
+	RevokeRead(ctx context.Context, id string) error
 }
 
 // New builds the service.

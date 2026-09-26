@@ -8,6 +8,8 @@
 //	dbr2 backup  --app APP [--mode M] [--wait]   back up an application now
 //	dbr2 recovery-points [--app APP]             list recovery points
 //	dbr2 admin reindex --repository REPO          rebuild the recovery-point index
+//	dbr2 restore --rp RP [--preview] [--wait]     restore a recovery point
+//	dbr2 restores [--app APP]                     restore history
 package main
 
 import (
@@ -48,6 +50,10 @@ func main() {
 		err = cmdBackup(os.Args[2:])
 	case "recovery-points", "rps":
 		err = cmdRecoveryPoints(os.Args[2:])
+	case "restore":
+		err = cmdRestore(os.Args[2:])
+	case "restores":
+		err = cmdRestores(os.Args[2:])
 	case "admin":
 		err = cmdAdmin(os.Args[2:])
 	default:
@@ -67,6 +73,9 @@ func usage() {
   dbr2 backup --app APP [--mode live|quiesced|offline] [--wait]
   dbr2 recovery-points [--app APP] [--limit N]
   dbr2 admin reindex --repository REPO
+  dbr2 restore --rp RP [--target-host ID] [--component NAME]... [--remap FROM=TO]...
+               [--preview] [--reason TEXT] [--confirm APP-NAME] [--wait]
+  dbr2 restores [--app APP]
 
 APP is an application ID or name ("name@host" when ambiguous); REPO is a
 Repository ID or name.

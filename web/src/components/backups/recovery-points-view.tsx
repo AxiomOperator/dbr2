@@ -22,6 +22,7 @@ import {
   type RecoveryPointState,
 } from "@/lib/api/protection-schemas";
 import { BACKUPS_REFRESH_MS, RECOVERY_POINTS_LIMIT, useApplications, useRecoveryPoints } from "@/lib/api/hooks";
+import { PERMISSION_RESTORE_EXECUTE } from "@/lib/api/restore-schemas";
 
 const ALL = "all";
 
@@ -120,6 +121,7 @@ function RecoveryPointsList() {
           <RecoveryPointsTable
             items={items}
             showApplication
+            canRestore={hasPermission(me, PERMISSION_RESTORE_EXECUTE)}
             emptyText={
               filters.application === ALL && filters.state === ALL
                 ? "No recovery points yet. Use “Back up now” on an application."

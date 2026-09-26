@@ -149,6 +149,10 @@ const (
 	PlatformService_ListRepositories_FullMethodName    = "/control.v1.PlatformService/ListRepositories"
 	PlatformService_IndexRecoveryPoints_FullMethodName = "/control.v1.PlatformService/IndexRecoveryPoints"
 	PlatformService_RecordEvent_FullMethodName         = "/control.v1.PlatformService/RecordEvent"
+	PlatformService_PrepareRestore_FullMethodName      = "/control.v1.PlatformService/PrepareRestore"
+	PlatformService_GrantRestoreAccess_FullMethodName  = "/control.v1.PlatformService/GrantRestoreAccess"
+	PlatformService_RevokeRestoreAccess_FullMethodName = "/control.v1.PlatformService/RevokeRestoreAccess"
+	PlatformService_UpdateRestore_FullMethodName       = "/control.v1.PlatformService/UpdateRestore"
 )
 
 // PlatformServiceClient is the client API for PlatformService service.
@@ -175,6 +179,15 @@ type PlatformServiceClient interface {
 	IndexRecoveryPoints(ctx context.Context, in *IndexRecoveryPointsRequest, opts ...grpc.CallOption) (*IndexRecoveryPointsResponse, error)
 	// RecordEvent records an audit event and alert on behalf of the worker.
 	RecordEvent(ctx context.Context, in *RecordEventRequest, opts ...grpc.CallOption) (*RecordEventResponse, error)
+	// PrepareRestore marks a requested restore running and returns its plan.
+	PrepareRestore(ctx context.Context, in *PrepareRestoreRequest, opts ...grpc.CallOption) (*PrepareRestoreResponse, error)
+	// GrantRestoreAccess grants the target agent temporary READ on the
+	// source agent's snapshots (cross-host restore); RevokeRestoreAccess
+	// removes it (saga compensation).
+	GrantRestoreAccess(ctx context.Context, in *GrantRestoreAccessRequest, opts ...grpc.CallOption) (*GrantRestoreAccessResponse, error)
+	RevokeRestoreAccess(ctx context.Context, in *RevokeRestoreAccessRequest, opts ...grpc.CallOption) (*RevokeRestoreAccessResponse, error)
+	// UpdateRestore records progress (step) and the final outcome.
+	UpdateRestore(ctx context.Context, in *UpdateRestoreRequest, opts ...grpc.CallOption) (*UpdateRestoreResponse, error)
 }
 
 type platformServiceClient struct {
@@ -255,6 +268,46 @@ func (c *platformServiceClient) RecordEvent(ctx context.Context, in *RecordEvent
 	return out, nil
 }
 
+func (c *platformServiceClient) PrepareRestore(ctx context.Context, in *PrepareRestoreRequest, opts ...grpc.CallOption) (*PrepareRestoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrepareRestoreResponse)
+	err := c.cc.Invoke(ctx, PlatformService_PrepareRestore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) GrantRestoreAccess(ctx context.Context, in *GrantRestoreAccessRequest, opts ...grpc.CallOption) (*GrantRestoreAccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GrantRestoreAccessResponse)
+	err := c.cc.Invoke(ctx, PlatformService_GrantRestoreAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) RevokeRestoreAccess(ctx context.Context, in *RevokeRestoreAccessRequest, opts ...grpc.CallOption) (*RevokeRestoreAccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeRestoreAccessResponse)
+	err := c.cc.Invoke(ctx, PlatformService_RevokeRestoreAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *platformServiceClient) UpdateRestore(ctx context.Context, in *UpdateRestoreRequest, opts ...grpc.CallOption) (*UpdateRestoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateRestoreResponse)
+	err := c.cc.Invoke(ctx, PlatformService_UpdateRestore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlatformServiceServer is the server API for PlatformService service.
 // All implementations must embed UnimplementedPlatformServiceServer
 // for forward compatibility.
@@ -279,6 +332,15 @@ type PlatformServiceServer interface {
 	IndexRecoveryPoints(context.Context, *IndexRecoveryPointsRequest) (*IndexRecoveryPointsResponse, error)
 	// RecordEvent records an audit event and alert on behalf of the worker.
 	RecordEvent(context.Context, *RecordEventRequest) (*RecordEventResponse, error)
+	// PrepareRestore marks a requested restore running and returns its plan.
+	PrepareRestore(context.Context, *PrepareRestoreRequest) (*PrepareRestoreResponse, error)
+	// GrantRestoreAccess grants the target agent temporary READ on the
+	// source agent's snapshots (cross-host restore); RevokeRestoreAccess
+	// removes it (saga compensation).
+	GrantRestoreAccess(context.Context, *GrantRestoreAccessRequest) (*GrantRestoreAccessResponse, error)
+	RevokeRestoreAccess(context.Context, *RevokeRestoreAccessRequest) (*RevokeRestoreAccessResponse, error)
+	// UpdateRestore records progress (step) and the final outcome.
+	UpdateRestore(context.Context, *UpdateRestoreRequest) (*UpdateRestoreResponse, error)
 	mustEmbedUnimplementedPlatformServiceServer()
 }
 
@@ -309,6 +371,18 @@ func (UnimplementedPlatformServiceServer) IndexRecoveryPoints(context.Context, *
 }
 func (UnimplementedPlatformServiceServer) RecordEvent(context.Context, *RecordEventRequest) (*RecordEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RecordEvent not implemented")
+}
+func (UnimplementedPlatformServiceServer) PrepareRestore(context.Context, *PrepareRestoreRequest) (*PrepareRestoreResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PrepareRestore not implemented")
+}
+func (UnimplementedPlatformServiceServer) GrantRestoreAccess(context.Context, *GrantRestoreAccessRequest) (*GrantRestoreAccessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GrantRestoreAccess not implemented")
+}
+func (UnimplementedPlatformServiceServer) RevokeRestoreAccess(context.Context, *RevokeRestoreAccessRequest) (*RevokeRestoreAccessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeRestoreAccess not implemented")
+}
+func (UnimplementedPlatformServiceServer) UpdateRestore(context.Context, *UpdateRestoreRequest) (*UpdateRestoreResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateRestore not implemented")
 }
 func (UnimplementedPlatformServiceServer) mustEmbedUnimplementedPlatformServiceServer() {}
 func (UnimplementedPlatformServiceServer) testEmbeddedByValue()                         {}
@@ -457,6 +531,78 @@ func _PlatformService_RecordEvent_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlatformService_PrepareRestore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareRestoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).PrepareRestore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_PrepareRestore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).PrepareRestore(ctx, req.(*PrepareRestoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_GrantRestoreAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GrantRestoreAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).GrantRestoreAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_GrantRestoreAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).GrantRestoreAccess(ctx, req.(*GrantRestoreAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_RevokeRestoreAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRestoreAccessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).RevokeRestoreAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_RevokeRestoreAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).RevokeRestoreAccess(ctx, req.(*RevokeRestoreAccessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlatformService_UpdateRestore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRestoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServiceServer).UpdateRestore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlatformService_UpdateRestore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServiceServer).UpdateRestore(ctx, req.(*UpdateRestoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlatformService_ServiceDesc is the grpc.ServiceDesc for PlatformService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -491,6 +637,22 @@ var PlatformService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordEvent",
 			Handler:    _PlatformService_RecordEvent_Handler,
+		},
+		{
+			MethodName: "PrepareRestore",
+			Handler:    _PlatformService_PrepareRestore_Handler,
+		},
+		{
+			MethodName: "GrantRestoreAccess",
+			Handler:    _PlatformService_GrantRestoreAccess_Handler,
+		},
+		{
+			MethodName: "RevokeRestoreAccess",
+			Handler:    _PlatformService_RevokeRestoreAccess_Handler,
+		},
+		{
+			MethodName: "UpdateRestore",
+			Handler:    _PlatformService_UpdateRestore_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

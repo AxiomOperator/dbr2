@@ -277,7 +277,8 @@ func (j *snapshotJob) filesystem(ctx context.Context, s *agentv1.ComponentSpec, 
 		return nil, err
 	}
 	defer f.Close()
-	return j.repo.SnapshotStream(ctx, filepath.Base(s.Path), f, j.request(s.Name, kind))
+	r.FileName = filepath.Base(s.Path)
+	return j.repo.SnapshotStream(ctx, r.FileName, f, j.request(s.Name, kind))
 }
 
 func fileType(m os.FileMode) string {
@@ -299,7 +300,7 @@ func fileType(m os.FileMode) string {
 func (j *snapshotJob) fsmeta(ctx context.Context, s *agentv1.ComponentSpec) (*agentv1.ComponentResult, error) {
 	name := fsmetaName(s.Name)
 	r := j.base(s, name, agentv1.ComponentKind_COMPONENT_KIND_FSMETA)
-	r.Parent, r.VolumeName = s.Name, s.VolumeName
+	r.Parent, r.VolumeName, r.FileName = s.Name, s.VolumeName, fsmeta.FileName
 	r.StartedUnixMs = time.Now().UnixMilli()
 	pr, pw := io.Pipe()
 	var st fsmeta.Stats

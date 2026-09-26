@@ -149,3 +149,55 @@ func TestIncrementalUsesPrevious(t *testing.T) {
 		t.Fatalf("second snapshot re-hashed %d bytes; want 0 (hash cache)", last.HashedBytes)
 	}
 }
+
+func TestOpenFileAndListDir(t *testing.T) {
+	ctx := context.Background()
+	r := open(t)
+	src := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(src, "files", "etc"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "files", "etc", "app.env"), []byte("A=1\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "top"), []byte("t"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mt := time.Unix(1_700_000_000, 0)
+	_ = os.Chtimes(filepath.Join(src, "top"), mt, mt)
+	s, err := r.SnapshotPath(ctx, src, engine.SnapshotRequest{Source: engine.Source{User: "agent", Host: "host-1", Path: "/cfg"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ents, err := r.ListDir(ctx, s.ID, "")
+	if err != nil || len(ents) != 2 || ents[0].Name != "files" || !ents[0].IsDir() || ents[1].Name != "top" ||
+		!ents[1].IsRegular() || ents[1].Mode.Perm() != 0o600 || ents[1].Size != 1 || !ents[1].ModTime.Equal(mt) ||
+		ents[1].UID != uint32(os.Getuid()) {
+		t.Fatalf("root = %+v, %v", ents, err)
+	}
+	ents, err = r.ListDir(ctx, s.ID, "files/etc")
+	if err != nil || len(ents) != 1 || ents[0].Name != "app.env" || ents[0].Mode.Perm() != 0o640 {
+		t.Fatalf("files/etc = %+v, %v", ents, err)
+	}
+	rc, err := r.OpenFile(ctx, s.ID, "files/etc/app.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(rc)
+	rc.Close()
+	if string(b) != "A=1\n" {
+		t.Fatalf("content %q", b)
+	}
+	if _, err := r.OpenFile(ctx, s.ID, "files/missing"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing: %v", err)
+	}
+	if _, err := r.OpenFile(ctx, s.ID, "files"); err == nil {
+		t.Fatal("opened a directory")
+	}
+	if _, err := r.ListDir(ctx, s.ID, "top/x"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("below a file: %v", err)
+	}
+	if _, err := r.ListDir(ctx, "nope", ""); !errors.Is(err, engine.ErrNotFound) {
+		t.Fatalf("unknown snapshot: %v", err)
+	}
+}

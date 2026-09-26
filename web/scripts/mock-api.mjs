@@ -3,7 +3,8 @@
 //
 // Tiny in-memory mock of the DBR² API contract (Phase 1 auth/audit, plus the
 // Phase 2/3 Hosts and Applications endpoints in ./mock-fleet.mjs and the
-// Phase 4 Repositories & backup endpoints in ./mock-protection.mjs), for
+// Phase 4 Repositories & backup endpoints in ./mock-protection.mjs and the
+// Phase 5 Restores endpoints in ./mock-restore.mjs), for
 // developing the console without the Go backend. NOT a security reference
 // implementation.
 //
@@ -16,13 +17,16 @@
 //   OIDC (entra)   "Sign in with Microsoft" logs in as a read-only operator
 //                  (host.read, application.read, repository.read,
 //                  backup.read, policy.read: no manage actions, no
-//                  "Back up now", no "Reveal secrets")
+//                  "Back up now", no "Reveal secrets"; restore.read and
+//                  restore.execute like a Restore Operator: non-production
+//                  restores only, e.g. to docker-dr-03)
 // Five wrong passwords lock the master admin for 60 s (423 + Retry-After).
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { fleetRoutes } from "./mock-fleet.mjs";
 import { protectionRoutes } from "./mock-protection.mjs";
+import { restoreRoutes } from "./mock-restore.mjs";
 
 const HOST = process.env.MOCK_API_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.MOCK_API_PORT ?? 8099);
@@ -59,7 +63,9 @@ const masterAdmin = () => ({
     "policy.read",
     "repository.manage",
     "repository.read",
+    "restore.execute",
     "restore.production",
+    "restore.read",
     "secrets.read",
     "settings.manage",
     "users.manage",
@@ -74,7 +80,15 @@ const oidcUser = {
   email: "ada@example.com",
   kind: "oidc",
   roles: ["operator"],
-  permissions: ["application.read", "backup.read", "host.read", "policy.read", "repository.read"],
+  permissions: [
+    "application.read",
+    "backup.read",
+    "host.read",
+    "policy.read",
+    "repository.read",
+    "restore.execute",
+    "restore.read",
+  ],
   totp_enabled: false,
 };
 
@@ -343,9 +357,9 @@ const routes = {
 };
 
 const helpers = { send, problem, readJson, audit };
-const paramRoutes = [...fleetRoutes(helpers), ...protectionRoutes(helpers)];
+const paramRoutes = [...fleetRoutes(helpers), ...protectionRoutes(helpers), ...restoreRoutes(helpers)];
 
-/** Exact routes first, then the parameterised fleet and protection routes. */
+/** Exact routes first, then the parameterised fleet, protection and restore routes. */
 function resolve(method, pathname) {
   const exact = routes[`${method} ${pathname}`];
   if (exact) return { handler: exact, match: null };

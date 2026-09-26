@@ -4,6 +4,7 @@
 import { createColumnHelper, tableFeatures, useTable } from "@tanstack/react-table";
 import Link from "next/link";
 import { useMemo } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import {
   ModeCell,
   RecoveryPointStateBadge,
@@ -32,7 +33,7 @@ function When({ iso }: { iso: string | null }) {
   );
 }
 
-function buildColumns(showApplication: boolean) {
+function buildColumns(showApplication: boolean, canRestore: boolean) {
   const idCol = col.accessor("id", {
     header: "Recovery point",
     cell: ({ row }) => {
@@ -97,6 +98,24 @@ function buildColumns(showApplication: boolean) {
           <span className="text-muted-foreground">—</span>
         ),
     }),
+    ...(canRestore
+      ? [
+          col.display({
+            id: "actions",
+            header: () => <span className="sr-only">Actions</span>,
+            cell: ({ row }) =>
+              row.original.state === "committed" ? (
+                <Link
+                  href={`/recovery-points/${row.original.id}/restore`}
+                  className={buttonVariants({ variant: "outline", size: "xs" })}
+                  aria-label={`Restore ${row.original.id}`}
+                >
+                  Restore…
+                </Link>
+              ) : null,
+          }),
+        ]
+      : []),
   ]);
 }
 
@@ -106,13 +125,16 @@ export function RecoveryPointsTable({
   showApplication = false,
   emptyText,
   label = "Recovery points",
+  canRestore = false,
 }: {
   items: RecoveryPoint[];
   showApplication?: boolean;
   emptyText: string;
   label?: string;
+  /** Adds a "Restore…" action to committed recovery points (`restore.execute`). */
+  canRestore?: boolean;
 }) {
-  const columns = useMemo(() => buildColumns(showApplication), [showApplication]);
+  const columns = useMemo(() => buildColumns(showApplication, canRestore), [showApplication, canRestore]);
   const table = useTable({ features, columns, data: items, getRowId: (row) => row.id });
   return (
     <div className="rounded-lg border">

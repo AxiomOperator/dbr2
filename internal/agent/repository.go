@@ -171,15 +171,9 @@ func (a *Agent) openRepo(ctx context.Context, id string) (repoHandle, error) {
 	if err != nil {
 		return repoHandle{}, err
 	}
-	open := a.OpenRepository
-	if open == nil {
-		open = kopia.ConnectServer
-	}
-	r, err := open(ctx, engine.ServerConnection{URL: conn.ServerURL, CertSHA256: conn.CertSHA256,
-		User: conn.Username, Host: conn.Hostname, Password: conn.Password,
-		StateDir: filepath.Join(a.repoDir(id), "kopia")})
+	r, err := a.connectRepo(ctx, id, conn)
 	if err != nil {
-		return repoHandle{}, fmt.Errorf("repository %s: %w", id, err)
+		return repoHandle{}, err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -191,4 +185,40 @@ func (a *Agent) openRepo(ctx context.Context, id string) (repoHandle, error) {
 	e := &repoEntry{id: id, conn: conn, repo: r, refs: 1, cache: c}
 	c.entries[id] = e
 	return repoHandle{e}, nil
+}
+
+func (a *Agent) connectRepo(ctx context.Context, id string, conn *repoConnection) (engine.Repository, error) {
+	open := a.OpenRepository
+	if open == nil {
+		open = kopia.ConnectServer
+	}
+	r, err := open(ctx, engine.ServerConnection{URL: conn.ServerURL, CertSHA256: conn.CertSHA256,
+		User: conn.Username, Host: conn.Hostname, Password: conn.Password,
+		StateDir: filepath.Join(a.repoDir(id), "kopia")})
+	if err != nil {
+		return nil, fmt.Errorf("repository %s: %w", id, err)
+	}
+	return r, nil
+}
+
+// repoSession returns a repository session and its release function. fresh
+// opens a dedicated session closed on release (Kopia checks ACLs at session
+// open, so a cached session may predate a cross-host READ grant).
+func (a *Agent) repoSession(ctx context.Context, id string, fresh bool) (engine.Repository, func(), error) {
+	if !fresh {
+		h, err := a.openRepo(ctx, id)
+		if err != nil {
+			return nil, nil, err
+		}
+		return h.repo, h.release, nil
+	}
+	conn, err := a.loadConnection(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	r, err := a.connectRepo(ctx, id, conn)
+	if err != nil {
+		return nil, nil, err
+	}
+	return r, func() { closeRepo(r) }, nil
 }

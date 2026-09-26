@@ -52,9 +52,9 @@ const (
 	ErrSourceMismatch          = "ComponentSourceMismatch"
 )
 
-// Workflow is the backup workflow. It has no workflow-level timeouts:
+// BackupWorkflow is the backup workflow. It has no workflow-level timeouts:
 // termination and workflow timeouts skip compensation (ADR-0005).
-func Workflow(ctx workflow.Context, in Input) (res Result, err error) {
+func BackupWorkflow(ctx workflow.Context, in Input) (res Result, err error) {
 	log := workflow.GetLogger(ctx)
 	var a *Activities
 	info := workflow.GetInfo(ctx)

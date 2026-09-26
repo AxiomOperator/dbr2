@@ -110,7 +110,7 @@ func TestQuiescedBackupOrder(t *testing.T) {
 	p := plan(manifest.ModeQuiesced)
 	c := &calls{}
 	e := env(t, p, func() (*agentv1.SnapshotComponentsResult, error) { return okResults(p.RecoveryPointId), nil }, c)
-	e.ExecuteWorkflow(Workflow, Input{ApplicationID: "app-1", Trigger: "manual"})
+	e.ExecuteWorkflow(BackupWorkflow, Input{ApplicationID: "app-1", Trigger: "manual"})
 	if err := e.GetWorkflowError(); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestSeedPassRunsLiveBeforeQuiesce(t *testing.T) {
 			mu.Unlock()
 		}
 	})
-	e.ExecuteWorkflow(Workflow, Input{ApplicationID: "app-1"})
+	e.ExecuteWorkflow(BackupWorkflow, Input{ApplicationID: "app-1"})
 	if err := e.GetWorkflowError(); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestSnapshotFailureStillResumes(t *testing.T) {
 	e := env(t, p, func() (*agentv1.SnapshotComponentsResult, error) {
 		return nil, temporal.NewNonRetryableApplicationError("disk gone", "AgentCommandFailed", nil)
 	}, c)
-	e.ExecuteWorkflow(Workflow, Input{ApplicationID: "app-1"})
+	e.ExecuteWorkflow(BackupWorkflow, Input{ApplicationID: "app-1"})
 	if e.GetWorkflowError() == nil {
 		t.Fatal("expected failure")
 	}
@@ -175,7 +175,7 @@ func TestRequiredComponentFailureWritesNoManifest(t *testing.T) {
 		r.Components[0].Status, r.Components[0].Error = "failed", "permission denied"
 		return r, nil
 	}, c)
-	e.ExecuteWorkflow(Workflow, Input{ApplicationID: "app-1"})
+	e.ExecuteWorkflow(BackupWorkflow, Input{ApplicationID: "app-1"})
 	var ae *temporal.ApplicationError
 	if err := e.GetWorkflowError(); !errors.As(err, &ae) || ae.Type() != ErrRequiredComponentFailed {
 		t.Fatalf("err = %v", err)
@@ -197,7 +197,7 @@ func TestCancelDuringCaptureResumes(t *testing.T) {
 			e.CancelWorkflow() // inside the quiesce window
 		}
 	})
-	e.ExecuteWorkflow(Workflow, Input{ApplicationID: "app-1"})
+	e.ExecuteWorkflow(BackupWorkflow, Input{ApplicationID: "app-1"})
 	if got := strings.Join(c.order, " "); !strings.Contains(got, "quiesce snapshot resume") {
 		t.Fatalf("no resume after cancel: %s", got)
 	}
