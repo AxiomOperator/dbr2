@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/inventory"
+	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/store"
 )
 
@@ -18,6 +20,14 @@ import (
 // reconciles its discovered applications. Older inventories than the stored
 // one are ignored. It returns the number of applications found.
 func (g *Gateway) IngestInventory(ctx context.Context, agentID string, data []byte) (int, error) {
+	n, err := g.ingestInventory(ctx, agentID, data)
+	if err == nil {
+		g.publish(ctx, events.New(events.InventoryUpd, rbac.HostRead, map[string]any{"host_id": agentID, "applications": n}))
+	}
+	return n, err
+}
+
+func (g *Gateway) ingestInventory(ctx context.Context, agentID string, data []byte) (int, error) {
 	id, err := uuid.Parse(agentID)
 	if err != nil {
 		return 0, err

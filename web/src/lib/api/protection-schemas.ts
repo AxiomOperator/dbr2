@@ -1,16 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Zod schemas for the Phase 4 (Repositories & backup) API contract, derived
-// from `api/openapi.yaml` (operations tagged `Repositories` and `Backups`, plus
-// the host limits under `Hosts`). As in `fleet-schemas.ts`, response objects
-// are non-strict and nullable arrays are normalised to `[]`. Request schemas
-// only contain writable fields: the server rejects unknown properties
-// (`additionalProperties: false`), including read-only ones such as
-// `effective_mode`. Byte counts (int64) are plain numbers, not safe integers.
+// Repositories & backup (Phase 4) and jobs (Phase 6). Response schemas are the
+// generated OpenAPI Zod schemas wrapped by `contract()` (nullable arrays
+// normalised to `[]`). The request schemas are the console's form schemas
+// (user-facing messages, confirmation-code normalisation), typed against the
+// generated request types; they only contain writable fields because the
+// server rejects unknown properties (`additionalProperties: false`). The
+// recovery manifest is untyped in the contract (`manifest: {}`) and is parsed
+// leniently with {@link ManifestSchema}.
 
 import { z } from "zod";
+import { contract } from "./contract";
+import type {
+  AddEscrowRecipientRequest as AddEscrowRecipientRequestContract,
+  BackupSettingsDtoWritable,
+  ConfirmRepositoryEscrowRequest,
+  CreateRepositoryRequest as CreateRepositoryRequestContract,
+  HostSettingsDto,
+  StartBackupRequest as StartBackupRequestContract,
+} from "./generated";
+import {
+  zAlertDto,
+  zBackupSettingsDto,
+  zCreatedRepoBody,
+  zEscrowRecipientDto,
+  zGetRepositoryEscrowPackageResponse,
+  zHostSettingsDto,
+  zListAlertsResponse,
+  zListEscrowRecipientsResponse,
+  zListJobsResponse,
+  zListRecoveryPointsResponse,
+  zListRepositoriesResponse,
+  zRecoveryPointDto,
+  zRepositoryDto,
+  zWorkflowOutBody,
+} from "./generated/zod.gen";
 
-/** A nullable (or omitted) array, normalised to `[]`. */
+/** A nullable (or omitted) array, normalised to `[]` (manifest parsing only). */
 function list<T extends z.ZodType>(item: T) {
   return z
     .array(item)
@@ -36,15 +62,10 @@ export const PERMISSION_POLICY_MANAGE = "policy.manage";
 /** ADR-0008: v1.0 expects two recipients held by two people. */
 export const MIN_ESCROW_RECIPIENTS = 2;
 
-export const EscrowRecipientSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  public_key: z.string(),
-  created_at: z.string(),
-});
+export const EscrowRecipientSchema = contract(zEscrowRecipientDto);
 export type EscrowRecipient = z.infer<typeof EscrowRecipientSchema>;
 
-export const EscrowRecipientListSchema = z.object({ items: list(EscrowRecipientSchema) });
+export const EscrowRecipientListSchema = contract(zListEscrowRecipientsResponse);
 
 /** True when `text` looks like a private key or age identity (never upload those). */
 export function looksLikePrivateKey(text: string): boolean {
@@ -65,7 +86,7 @@ export const AddEscrowRecipientRequestSchema = z.object({
     .refine((v) => v.startsWith("age1") || v.startsWith("ssh-"), {
       message: "Paste an age public key (age1…) or an SSH ed25519 / RSA public key (ssh-…).",
     }),
-});
+}) satisfies z.ZodType<AddEscrowRecipientRequestContract>;
 export type AddEscrowRecipientRequest = z.infer<typeof AddEscrowRecipientRequestSchema>;
 
 // ---------------------------------------------------------------------------
@@ -73,64 +94,20 @@ export type AddEscrowRecipientRequest = z.infer<typeof AddEscrowRecipientRequest
 // ---------------------------------------------------------------------------
 
 export const REPOSITORY_STATUSES = ["awaiting_escrow", "ready", "unavailable", "retired"] as const;
-export const RepositoryStatusSchema = z.enum(REPOSITORY_STATUSES);
-export type RepositoryStatus = z.infer<typeof RepositoryStatusSchema>;
+export type RepositoryStatus = (typeof REPOSITORY_STATUSES)[number];
 
 export const REPOSITORY_BACKENDS = ["nfs", "filesystem"] as const;
 export const RepositoryBackendSchema = z.enum(REPOSITORY_BACKENDS);
 export type RepositoryBackend = z.infer<typeof RepositoryBackendSchema>;
 
-/** Live reposerver status (`LiveDTO`). */
-export const RepositoryLiveSchema = z.object({
-  initialized: z.boolean(),
-  server_running: z.boolean(),
-  kopia_version: z.string(),
-  storage_healthy: z.boolean(),
-  storage_error: z.string().optional(),
-  storage_total_bytes: z.number(),
-  storage_free_bytes: z.number(),
-  storage_used_bytes: z.number(),
-});
-export type RepositoryLive = z.infer<typeof RepositoryLiveSchema>;
-
-/** Per-host logical size of each application's latest recovery point. */
-export const HostUsageSchema = z.object({
-  host_id: z.string(),
-  hostname: z.string(),
-  applications: z.number().int(),
-  latest_bytes: z.number(),
-});
-export type HostUsage = z.infer<typeof HostUsageSchema>;
-
-export const RepositorySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  backend: RepositoryBackendSchema,
-  status: RepositoryStatusSchema,
-  is_default: z.boolean(),
-  server_url: z.string(),
-  // "" means the same as server_url.
-  internal_server_url: z.string().optional().default(""),
-  management_url: z.string(),
-  cert_sha256: z.string(),
-  kopia_repository_id: z.string().nullable(),
-  splitter: z.string().nullable(),
-  escrow_recipients: z.number().int(),
-  escrow_generated_at: z.string().nullable(),
-  escrow_confirmed_at: z.string().nullable(),
-  last_reindex_at: z.string().nullable(),
-  created_at: z.string(),
-  // Described as "null when unreachable" (see live_error), although the
-  // contract does not declare it nullable: accept both.
-  live: RepositoryLiveSchema.nullish().transform((v) => v ?? null),
-  live_error: z.string().optional(),
-  // Logical sizes; deduplicated physical usage is shared, not attributable.
-  usage_by_host: list(HostUsageSchema),
-});
+export const RepositorySchema = contract(zRepositoryDto);
 export type Repository = z.infer<typeof RepositorySchema>;
+/** Live reposerver status (`LiveDTO`); null when the reposerver is unreachable. */
+export type RepositoryLive = NonNullable<Repository["live"]>;
+/** Per-host logical size of each application's latest recovery point. */
+export type HostUsage = Repository["usage_by_host"][number];
 
-export const RepositoryListSchema = z.object({ items: list(RepositorySchema) });
+export const RepositoryListSchema = contract(zListRepositoriesResponse);
 
 export const DEFAULT_MANAGEMENT_URL = "http://dbr2-reposerver:8091";
 export const INTERNAL_SERVER_URL_PLACEHOLDER = "https://dbr2-reposerver:51515";
@@ -156,17 +133,13 @@ export const CreateRepositoryRequestSchema = z.object({
     })
     .optional(),
   default: z.boolean().optional(),
-});
+}) satisfies z.ZodType<CreateRepositoryRequestContract>;
 export type CreateRepositoryRequest = z.infer<typeof CreateRepositoryRequestSchema>;
 
-export const CreateRepositoryResponseSchema = z.object({
-  repository: RepositorySchema,
-  escrow_package: z.string(),
-  escrow_filename: z.string(),
-});
+export const CreateRepositoryResponseSchema = contract(zCreatedRepoBody);
 export type CreateRepositoryResponse = z.infer<typeof CreateRepositoryResponseSchema>;
 
-export const EscrowPackageSchema = z.object({ filename: z.string(), package: z.string() });
+export const EscrowPackageSchema = contract(zGetRepositoryEscrowPackageResponse);
 export type EscrowPackage = z.infer<typeof EscrowPackageSchema>;
 
 /** Base32 alphabet of the confirmation code (internal/escrow: XXXX-XXXX-XXXX-XXXX). */
@@ -194,10 +167,10 @@ export const ConfirmEscrowRequestSchema = z.object({
     }
     return n;
   }),
-});
+}) satisfies z.ZodType<ConfirmRepositoryEscrowRequest, unknown>;
 export type ConfirmEscrowRequest = z.input<typeof ConfirmEscrowRequestSchema>;
 
-export const WorkflowResponseSchema = z.object({ workflow_id: z.string() });
+export const WorkflowResponseSchema = contract(zWorkflowOutBody);
 export type WorkflowResponse = z.infer<typeof WorkflowResponseSchema>;
 
 // ---------------------------------------------------------------------------
@@ -208,32 +181,14 @@ export const CONSISTENCY_MODES = ["live", "quiesced", "offline"] as const;
 export const ConsistencyModeSchema = z.enum(CONSISTENCY_MODES);
 export type ConsistencyMode = z.infer<typeof ConsistencyModeSchema>;
 
-export const StartBackupRequestSchema = z.object({ consistency_mode: ConsistencyModeSchema.optional() });
+export const StartBackupRequestSchema = z.object({ consistency_mode: ConsistencyModeSchema.optional() }) satisfies z.ZodType<StartBackupRequestContract>;
 export type StartBackupRequest = z.infer<typeof StartBackupRequestSchema>;
 
 export const HOOK_MAX_TIMEOUT_SECONDS = 3600;
 
-export const HookSchema = z.object({
-  container: z.string(),
-  command: list(z.string()),
-  timeout_seconds: z.number().int().optional(),
-  optional: z.boolean().optional(),
-});
-export type Hook = z.infer<typeof HookSchema>;
-
-export const BackupSettingsSchema = z.object({
-  repository_id: z.string().nullable(),
-  // null = automatic: quiesced when hooks are defined, otherwise live.
-  consistency_mode: ConsistencyModeSchema.nullable(),
-  effective_mode: z.string().optional(),
-  max_quiesce_seconds: z.number().int(),
-  pre_hooks: list(HookSchema),
-  post_hooks: list(HookSchema),
-  optional_components: list(z.string()),
-  excluded_components: list(z.string()),
-  updated_at: z.string().optional(),
-});
+export const BackupSettingsSchema = contract(zBackupSettingsDto);
 export type BackupSettings = z.infer<typeof BackupSettingsSchema>;
+export type Hook = BackupSettings["pre_hooks"][number];
 
 export const MAX_QUIESCE_MIN_MINUTES = 1;
 export const MAX_QUIESCE_MAX_MINUTES = 1440;
@@ -262,41 +217,16 @@ export const UpdateBackupSettingsRequestSchema = z.object({
   post_hooks: z.array(HookRequestSchema),
   optional_components: z.array(z.string()),
   excluded_components: z.array(z.string()),
-});
+}) satisfies z.ZodType<BackupSettingsDtoWritable>;
 export type UpdateBackupSettingsRequest = z.infer<typeof UpdateBackupSettingsRequestSchema>;
 
 export const RECOVERY_POINT_STATES = ["pending", "committed", "failed", "missing", "deleting"] as const;
-export const RecoveryPointStateSchema = z.enum(RECOVERY_POINT_STATES);
-export type RecoveryPointState = z.infer<typeof RecoveryPointStateSchema>;
+export type RecoveryPointState = (typeof RECOVERY_POINT_STATES)[number];
 
-export const RecoveryPointSchema = z.object({
-  id: z.string(),
-  application_id: z.string(),
-  application_name: z.string(),
-  host_id: z.string(),
-  hostname: z.string(),
-  repository_id: z.string(),
-  state: RecoveryPointStateSchema,
-  // "complete" | "partial" (null until committed)
-  status: z.string().nullable(),
-  // "unverified" | "verified" | "verification_failed"
-  verification: z.string(),
-  consistency_mode: z.string(),
-  consistency_point: z.string().nullable(),
-  crash_consistent_only: z.boolean(),
-  trigger: z.string(),
-  workflow_id: z.string(),
-  size_bytes: z.number(),
-  component_count: z.number().int(),
-  error: z.string().nullable(),
-  created_at: z.string(),
-  committed_at: z.string().nullable(),
-  /** Detail view only; parsed separately with {@link ManifestSchema}. */
-  manifest: z.unknown().optional(),
-});
+export const RecoveryPointSchema = contract(zRecoveryPointDto);
 export type RecoveryPoint = z.infer<typeof RecoveryPointSchema>;
 
-export const RecoveryPointListSchema = z.object({ items: list(RecoveryPointSchema) });
+export const RecoveryPointListSchema = contract(zListRecoveryPointsResponse);
 
 /** One manifest component (internal/manifest: Component). */
 export const ManifestComponentSchema = z.object({
@@ -317,8 +247,58 @@ export const ManifestComponentSchema = z.object({
   selinux_context: z.string().optional(),
   parent: z.string().optional(),
   capture_method: z.string().optional(),
+  file_name: z.string().optional(),
+  /** Logical database dumps (Phase 8 produces them). */
+  database: z
+    .object({
+      engine: z.string(),
+      format: z.string(),
+      service: z.string().optional(),
+      container: z.string().optional(),
+    })
+    .optional(),
 });
 export type ManifestComponent = z.infer<typeof ManifestComponentSchema>;
+
+const str = z.string().optional().default("");
+
+/** The application's shape at capture time (internal/manifest: Topology; no secrets). */
+export const ManifestTopologySchema = z.object({
+  containers: list(
+    z.object({
+      id: str,
+      name: z.string(),
+      service: str,
+      image: str,
+      state: str,
+      ports: list(
+        z.object({ container_port: z.string(), protocol: str, host_ip: str, host_port: str }),
+      ),
+      mounts: list(
+        z.object({
+          type: z.string(),
+          name: str,
+          source: str,
+          destination: z.string(),
+          rw: z.boolean().optional().default(false),
+        }),
+      ),
+      networks: list(z.string()),
+    }),
+  ),
+  networks: list(
+    z.object({
+      name: z.string(),
+      driver: str,
+      external: z.boolean().optional().default(false),
+      internal: z.boolean().optional().default(false),
+    }),
+  ),
+  volumes: list(
+    z.object({ name: z.string(), driver: str, external: z.boolean().optional().default(false) }),
+  ),
+});
+export type ManifestTopology = z.infer<typeof ManifestTopologySchema>;
 
 /** The parts of the recovery manifest (schema_version 1) the console shows. */
 export const ManifestSchema = z.object({
@@ -330,28 +310,24 @@ export const ManifestSchema = z.object({
   quiesce_ended_at: z.string().optional(),
   auto_resumed: z.boolean().optional(),
   components: list(ManifestComponentSchema),
+  images: list(z.object({ service: str, ref: z.string(), digest: str })),
+  /** Absent in manifests written before Phase 5. */
+  topology: ManifestTopologySchema.nullish().transform((v) => v ?? null),
+  source: z
+    .object({ hostname: str, os_release: str, architecture: str, runtime_version: str, agent_version: str })
+    .partial()
+    .optional(),
   producer: z.object({ component: z.string(), version: z.string() }).partial().optional(),
 });
 export type Manifest = z.infer<typeof ManifestSchema>;
 
 export const ALERT_SEVERITIES = ["critical", "warning", "info"] as const;
-export const AlertSeveritySchema = z.enum(ALERT_SEVERITIES);
-export type AlertSeverity = z.infer<typeof AlertSeveritySchema>;
+export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
 
-export const AlertSchema = z.object({
-  id: z.number().int(),
-  severity: AlertSeveritySchema,
-  type: z.string(),
-  target_type: z.string().nullable(),
-  target_id: z.string().nullable(),
-  message: z.string(),
-  details: z.unknown(),
-  created_at: z.string(),
-  acknowledged_at: z.string().nullable(),
-});
+export const AlertSchema = contract(zAlertDto);
 export type Alert = z.infer<typeof AlertSchema>;
 
-export const AlertListSchema = z.object({ items: list(AlertSchema) });
+export const AlertListSchema = contract(zListAlertsResponse);
 
 // ---------------------------------------------------------------------------
 // Host limits
@@ -359,12 +335,7 @@ export const AlertListSchema = z.object({ items: list(AlertSchema) });
 
 export const MAX_CONCURRENT_JOBS = 16;
 
-export const HostSettingsSchema = z.object({
-  max_concurrent_jobs: z.number().int(),
-  backup_window_start: z.number().int().nullable(),
-  backup_window_end: z.number().int().nullable(),
-  backup_window_timezone: z.string(),
-});
+export const HostSettingsSchema = contract(zHostSettingsDto);
 export type HostSettings = z.infer<typeof HostSettingsSchema>;
 
 const minuteOfDay = z.number().int().min(0).max(1439).nullable();
@@ -382,5 +353,16 @@ export const UpdateHostSettingsRequestSchema = z
   })
   .refine((v) => (v.backup_window_start === null) === (v.backup_window_end === null), {
     message: "Set both the start and the end of the backup window, or choose “no window”.",
-  });
+  }) satisfies z.ZodType<HostSettingsDto>;
 export type UpdateHostSettingsRequest = z.infer<typeof UpdateHostSettingsRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Jobs (Phase 6): backups and restores in one list
+// ---------------------------------------------------------------------------
+
+export const JobListSchema = contract(zListJobsResponse);
+export type Job = z.infer<typeof JobListSchema>["items"][number];
+export type JobType = Job["type"];
+export type JobState = Job["state"];
+export const JOB_TYPES = ["backup", "restore"] as const satisfies readonly JobType[];
+export const JOB_STATES = ["running", "succeeded", "partial", "failed", "rolled_back", "missing"] as const satisfies readonly JobState[];

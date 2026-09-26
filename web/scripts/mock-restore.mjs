@@ -22,7 +22,8 @@
 // production restore (health check failed, with a log tail) and a succeeded
 // restore of mft-pg.
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { publish } from "./mock-events.mjs";
 import { fleetData } from "./mock-fleet.mjs";
 import { protectionData } from "./mock-protection.mjs";
 
@@ -35,7 +36,7 @@ const EDGE = "8b2e61c4-0f3a-4d59-b7e8-6c1a2d3e4f02";
 const DR = "f7b3d4c5-8a9e-4c0f-9b2a-3c4d5e6f7a06";
 
 /** Total simulated duration of a started restore. */
-const RUN_MS = 15_000;
+const RUN_MS = Number(process.env.MOCK_RESTORE_MS ?? 15_000);
 /** Time a new run stays "requested" before the workflow picks it up. */
 const QUEUE_MS = 1_000;
 
@@ -289,12 +290,39 @@ function successResult(run) {
   };
 }
 
-/** Moves started runs along their steps (lazily, when read). */
+/**
+ * Moves started runs along their steps, publishing `restore.updated` on every
+ * state / step change and `job.progress` (restore_components) while data is
+ * restored. Runs on a timer and whenever restores are read. A cancelled run
+ * rolls back (compensation) and ends rolled_back, or failed when nothing had
+ * changed yet.
+ */
 function advanceRuns() {
   const now = Date.now();
   for (const r of runs) {
     if (!r._startMs || (r.state !== "requested" && r.state !== "running")) continue;
+    const before = `${r.state}/${r.step}`;
+    const emit = () => {
+      if (`${r.state}/${r.step}` === before) return;
+      publish("restore.updated", "restore.read", {
+        restore_id: r.id,
+        application_id: r.application_id,
+        state: r.state,
+        ...(r.step ? { step: r.step } : {}),
+        ...(r.error ? { error: r.error } : {}),
+      });
+    };
     const elapsed = now - r._startMs;
+    if (r._cancelAt) {
+      const changed = r.started_at !== null && r.step !== "grant-access" && r.step !== "agent-access";
+      r.state = changed ? "rolled_back" : "failed";
+      r.error = "cancelled by " + r._cancelBy;
+      r.finished_at = iso();
+      r.result = changed ? { ...successResult(r), rolled_back: true, health: null } : undefined;
+      r.step = null;
+      emit();
+      continue;
+    }
     if (elapsed < QUEUE_MS) continue;
     const steps = stepsFor(r.preview);
     const per = (RUN_MS - QUEUE_MS) / steps.length;
@@ -305,12 +333,32 @@ function advanceRuns() {
       r.step = null;
       r.finished_at = new Date(r._startMs + RUN_MS).toISOString();
       r.result = successResult(r);
+      emit();
     } else {
       r.state = "running";
       r.step = steps[i];
+      emit();
+      if (r.step === "restore-data" && r.preview.components.length > 0) {
+        const within = (elapsed - QUEUE_MS - i * per) / per;
+        const n = r.preview.components.length;
+        const j = Math.min(n - 1, Math.floor(within * n));
+        const c = r.preview.components[j];
+        r._runId = r._runId ?? randomUUID();
+        publish("job.progress", "backup.read", {
+          command_id: `application/${r.target_application_id || r.application_id}/${r._runId}/restore-components`,
+          host_id: r.target_host_id,
+          kind: "restore_components",
+          state: "running",
+          workflow_id: r.workflow_id,
+          run_id: r._runId,
+          application_id: r.target_application_id || r.application_id,
+          progress: { done: j, total: n, component: c.name },
+        });
+      }
     }
   }
 }
+setInterval(advanceRuns, 700).unref();
 
 /** The list view: no private fields, no preview / result (detail only). */
 const listItem = (r) =>
@@ -329,6 +377,7 @@ function seed() {
     application_id: rp.application_id,
     application_name: rp.application_name,
     source_host_id: rp.host_id,
+    source_hostname: rp.hostname,
     target_host_id: preview.target_host_id,
     target_hostname: preview.target_hostname,
     target_application_id: preview.target_application_id ?? null,
@@ -366,7 +415,7 @@ function seed() {
       ],
     },
   });
-  failed.workflow_id = `application-${shopRp.application_id}`;
+  failed.workflow_id = `application/${shopRp.application_id}`;
 
   // Rolled back: in-place production restore, the database did not start.
   const prodPreview = computePreview(shopRp, {});
@@ -419,7 +468,7 @@ function seed() {
       rolled_back: true,
     },
   });
-  rolledBack.workflow_id = `application-${shopRp.application_id}`;
+  rolledBack.workflow_id = `application/${shopRp.application_id}`;
 
   // Succeeded: mft-pg to the DR host.
   const mftPreview = computePreview(mftRp, { target_host_id: DR });
@@ -433,7 +482,7 @@ function seed() {
     state: "succeeded",
   });
   ok.result = successResult(ok);
-  ok.workflow_id = `application-${mftRp.application_id}`;
+  ok.workflow_id = `application/${mftRp.application_id}`;
 
   runs.push(failed, rolledBack, ok);
 }
@@ -519,6 +568,7 @@ export function restoreRoutes({ send, problem, readJson, audit }) {
           application_id: rp.application_id,
           application_name: rp.application_name,
           source_host_id: rp.host_id,
+          source_hostname: rp.hostname,
           target_host_id: preview.target_host_id,
           target_hostname: preview.target_hostname,
           target_application_id: preview.target_application_id ?? null,
@@ -531,7 +581,7 @@ export function restoreRoutes({ send, problem, readJson, audit }) {
           state: "requested",
           step: null,
           error: null,
-          workflow_id: `application-${preview.target_application_id || rp.application_id}`,
+          workflow_id: `application/${preview.target_application_id || rp.application_id}`,
           created_at: iso(),
           started_at: null,
           finished_at: null,
@@ -566,6 +616,24 @@ export function restoreRoutes({ send, problem, readJson, audit }) {
       },
     ],
     [
+      "POST",
+      /^\/api\/v1\/restores\/(rs_[0-9A-HJKMNP-TV-Z]{26})\/cancel$/,
+      (req, res, url, user, m) => {
+        if (!need(res, user, "restore.execute")) return;
+        advanceRuns();
+        const r = runs.find((x) => x.id === m[1]);
+        if (!r) return problem(res, 404, "not_found", "Not Found", "restore not found");
+        if (r.state !== "requested" && r.state !== "running") {
+          return problem(res, 409, "conflict", "Conflict", `the restore is ${r.state}; only a running restore can be cancelled`);
+        }
+        r._cancelAt = Date.now();
+        r._cancelBy = user.username;
+        audit("restore.cancel_requested", "success", req, { actor: user.display_name, target_type: "restore", target_id: r.id });
+        send(res, 202);
+        setTimeout(advanceRuns, 1_500);
+      },
+    ],
+    [
       "GET",
       /^\/api\/v1\/restores\/(rs_[0-9A-HJKMNP-TV-Z]{26})$/,
       (req, res, url, user, m) => {
@@ -578,3 +646,9 @@ export function restoreRoutes({ send, problem, readJson, audit }) {
     ],
   ];
 }
+
+/** Read access to the restore runs for the other mock modules (mock-live.mjs). */
+export const restoreData = {
+  runs,
+  advance: advanceRuns,
+};

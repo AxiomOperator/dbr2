@@ -169,14 +169,16 @@ Goal: remove the architectural unknowns before building.
 
 ## Phase 6 — Web console
 
-- [ ] Next.js, ShadCN, Tailwind, TanStack Query and Table; OpenAPI-generated client and Zod schemas
-- [ ] Navigation: Dashboard, Docker (Hosts, Applications, Containers, Volumes), Protection (Policies, Jobs, Recovery Points), Recovery (Restore, Restore Testing), Storage (Repositories, Usage), System (Agents, Users, Notifications, Audit Log, Settings)
-- [ ] Application inventory with **protection status** and **protection coverage** (components protected, unresolved dependencies). *Early delivery in Phase 3:* Applications list and detail pages (unprotected data, volume classes, dependencies, Original/Reconstructed Compose with audited reveal, metadata editing, manual grouping); protection status arrives with backups (Phase 4)
-- [ ] Manual Back Up and Restore flows with live progress over SSE
-- [ ] Recovery point browser (the manifest view; Complete or Partial status)
+- [x] Next.js, ShadCN, Tailwind, TanStack Query and Table; OpenAPI-generated client and Zod schemas
+- [x] Navigation: Dashboard, Docker (Hosts, Applications, Containers, Volumes), Protection (Policies, Jobs, Recovery Points), Recovery (Restore, Restore Testing), Storage (Repositories, Usage), System (Agents, Users, Notifications, Audit Log, Settings)
+- [x] Application inventory with **protection status** and **protection coverage** (components protected, unresolved dependencies). *Early delivery in Phase 3:* Applications list and detail pages (unprotected data, volume classes, dependencies, Original/Reconstructed Compose with audited reveal, metadata editing, manual grouping); protection status arrives with backups (Phase 4)
+- [x] Manual Back Up and Restore flows with live progress over SSE
+- [x] Recovery point browser (the manifest view; Complete or Partial status)
 - [x] Agent approval UI — delivered early with Phase 2 (Hosts page: approve/suspend/resume/revoke with reasons, typed-hostname revoke, registration tokens with join command, run discovery)
-- [ ] Playwright end-to-end tests for the core flows (Phase 1 ran an ad-hoc headless Chromium check against the real stack)
-- [ ] Content-Security-Policy with nonces for console pages (Next.js inline scripts); other security headers already set
+- [x] Playwright end-to-end tests for the core flows (Phase 1 ran an ad-hoc headless Chromium check against the real stack)
+- [x] Content-Security-Policy with nonces for console pages (Next.js inline scripts); other security headers already set
+
+**Status: complete (2026-09-25).** Verified against the real dev stack as well as the mock: every page loads in headless Chromium with the nonce CSP and no violations, and live `job.progress` events streamed during a real backup.
 
 ## Phase 7 — Scheduling, retention & notifications
 
@@ -302,6 +304,39 @@ Goal: remove the architectural unknowns before building.
 ## Change Log
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
+
+### 2026-09-25 — Feature — Phase 6 (Web console) complete
+- **Notes:**
+  - **Live updates:** `GET /api/v1/events` (Server-Sent Events).
+    - Event types: `job.progress` (agent command progress relayed by the gateway and attributed to its workflow through the command ID), `backup.updated`, `restore.updated`, `agent.status`, `alert.created`, `inventory.updated`.
+    - Filtered per subscriber by the permission each event carries. Restore progress needs `restore.read`; backup progress needs `backup.read`.
+    - 15 s heartbeats. The per-message write deadline is extended, so streams outlive the server's 120 s write timeout; verified through Caddy for 150 s.
+    - Valkey pub/sub fan-out when configured.
+    - The console keeps a single `EventSource` that invalidates the affected queries, reconnects with backoff, re-reads everything after a reconnect, and shows a Live / Not live indicator.
+  - **Protection status and coverage:** each application reports protected, at risk, failed or unprotected, with reasons; the latest recovery point and attempt; a running backup or restore; per-component coverage against the latest manifest; and unresolved dependencies. The server computes this, so the console no longer duplicates the backup-plan rules.
+  - **New APIs:** jobs (backups and restores together), fleet-wide containers and volumes.
+  - **Console:**
+    - Grouped, permission-gated navigation: Docker, Protection, Recovery, Storage, System.
+    - Hosts (inventory) split from Agents (lifecycle).
+    - New pages: Containers, Volumes, Jobs, Usage, Users (roles, enable/disable, Entra group mappings), Notifications (replaces Alerts; `/alerts` redirects), and "Start a restore".
+    - Honest placeholders for Policies (Phase 7) and Restore Testing (Phase 9).
+    - Protection card and column; live progress on "Back up now", Jobs and restores; cancel restore.
+    - Topology graph (React Flow, `@xyflow/react` 12.12.0) coloured by protection.
+    - Recovery point browser: Complete/Partial, fsmeta nested under its parent, topology and databases.
+  - **Generated contract:**
+    - `@hey-api/openapi-ts` 0.99.0 generates TypeScript types and Zod 4 schemas from `api/openapi.yaml`, and the client validates against them.
+    - A unit test fails if the generated code is stale, and the mock API is validated against the generated schemas.
+    - Zod runs in `jitless` mode, because its `eval` probe was a CSP violation.
+  - **CSP with nonces:** the Next.js proxy (`src/proxy.ts`) sets a per-request nonce, with `script-src 'self' 'nonce-…' 'strict-dynamic'`, `object-src 'none'`, `frame-ancestors 'none'` and `base-uri 'self'`. Pages render dynamically. Playwright fails on any CSP violation.
+  - **Playwright** (1.63.0, Chromium): 10 end-to-end tests covering sign-in, navigation and permission gating, protection and topology, "Back up now" with live progress, the recovery point browser, the restore wizard through to succeeded, and the Repository wizard. They run against the mock API with a production build, in the new CI job "Web end-to-end (Playwright)".
+  - **Tests:** web unit tests went from 186 to 261; Go gained SSE integration, protection status and bus tests.
+  - **Threat model:** T34 (live-update stream), T35 (script injection and CSP).
+  - **Contract gaps noted, deferred to API polishing:**
+    - Nullable struct and enum fields are not marked nullable in the spec (the console generator patches this).
+    - Untyped progress documents.
+    - Readiness 503 body type.
+    - No inventory timestamp on fleet lists.
+- **Files:** `internal/{events,gateway,protection,api}`, `cmd/server`, `web/**` (incl. `e2e/`, `playwright.config.ts`, `openapi-ts.config.ts`, `src/proxy.ts`), `.github/workflows/ci.yml`, `Makefile`, `THIRD_PARTY_NOTICES`, component changelogs, `docs/stack_info/final_stack.md`, `docs/threat_model.md`, `scripts/ci/README.md`, `README.md`, `docs/roadmap.md`
 
 ### 2026-09-25 — Feature — Phase 5 (Restore) complete
 - **Notes:**

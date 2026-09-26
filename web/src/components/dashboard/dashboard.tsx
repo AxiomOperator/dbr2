@@ -52,7 +52,7 @@ export function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p>
-              Add your Docker hosts under <strong>Hosts</strong>, approve them, and DBR² discovers
+              Enroll your Docker hosts under <strong>Agents</strong>, approve them, and DBR² discovers
               their applications, including data that no volume protects. Then create a
               Repository (with two escrow recipients), back applications up, and restore a
               recovery point in place or to another host.

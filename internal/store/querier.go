@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AcknowledgeNotification(ctx context.Context, arg AcknowledgeNotificationParams) (int64, error)
+	ActiveRestores(ctx context.Context, orgID uuid.UUID) ([]RestoreRun, error)
 	AddGroupMapping(ctx context.Context, arg AddGroupMappingParams) error
 	AddUserRole(ctx context.Context, arg AddUserRoleParams) error
 	// Rejects replay: a TOTP time step can be used at most once.
@@ -84,11 +85,14 @@ type Querier interface {
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (InsertAuditEventRow, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
 	LastCommittedRecoveryPoint(ctx context.Context, applicationID uuid.UUID) (RecoveryPoint, error)
+	LatestAttemptPerApplication(ctx context.Context, orgID uuid.UUID) ([]RecoveryPoint, error)
+	LatestCommittedPerApplication(ctx context.Context, orgID uuid.UUID) ([]RecoveryPoint, error)
 	ListAgentApplications(ctx context.Context, agentID uuid.UUID) ([]Application, error)
 	ListAgentCommands(ctx context.Context, arg ListAgentCommandsParams) ([]AgentCommand, error)
 	ListAgentRepositoryAccessForAgent(ctx context.Context, agentID uuid.UUID) ([]AgentRepositoryAccess, error)
 	ListAgentSessions(ctx context.Context) ([]AgentSession, error)
 	ListAgents(ctx context.Context, orgID uuid.UUID) ([]Agent, error)
+	ListApplicationBackupSettings(ctx context.Context, orgID uuid.UUID) ([]ApplicationBackupSetting, error)
 	ListApplications(ctx context.Context, orgID uuid.UUID) ([]ListApplicationsRow, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
 	// SPDX-License-Identifier: Apache-2.0

@@ -41,3 +41,6 @@ UPDATE restore_runs SET grant_id = $2, updated_at = now() WHERE id = $1;
 UPDATE restore_runs SET state = $2, result = coalesce($3, result), error = $4, finished_at = now(), updated_at = now()
 WHERE id = $1 AND state IN ('requested', 'running')
 RETURNING *;
+
+-- name: ActiveRestores :many
+SELECT * FROM restore_runs WHERE org_id = $1 AND state IN ('requested', 'running');

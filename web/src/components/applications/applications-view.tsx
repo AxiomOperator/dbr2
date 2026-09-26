@@ -15,6 +15,7 @@ import {
 import { DeleteApplicationButton } from "@/components/applications/delete-application-dialog";
 import { GroupContainersDialog } from "@/components/applications/group-containers-dialog";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
+import { PROTECTION_STATUS_LABEL, ProtectionCell } from "@/components/protection/protection-badges";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -37,8 +38,10 @@ import {
   APPLICATION_KINDS,
   PERMISSION_APPLICATION_MANAGE,
   PERMISSION_APPLICATION_READ,
+  PROTECTION_STATUSES,
   type ApplicationKind,
   type ApplicationSummary,
+  type ProtectionStatus,
 } from "@/lib/api/fleet-schemas";
 import { useApplications } from "@/lib/api/hooks";
 import { formatDateTime, formatRelative } from "@/lib/format";
@@ -69,6 +72,11 @@ function buildColumns(canManage: boolean) {
           </div>
         );
       },
+    }),
+    col.display({
+      id: "protection",
+      header: "Protection",
+      cell: ({ row }) => <ProtectionCell protection={row.original.protection} />,
     }),
     col.accessor("kind", { header: "Kind", cell: (info) => <KindBadge kind={info.getValue()} /> }),
     col.accessor("source", {
@@ -169,6 +177,7 @@ function buildColumns(canManage: boolean) {
 export interface ApplicationFilters {
   host: string;
   kind: ApplicationKind | typeof ALL;
+  status: ProtectionStatus | typeof ALL;
   unprotectedOnly: boolean;
 }
 
@@ -177,6 +186,7 @@ export function filterApplications(apps: ApplicationSummary[], f: ApplicationFil
     (a) =>
       (f.host === ALL || a.host_id === f.host) &&
       (f.kind === ALL || a.kind === f.kind) &&
+      (f.status === ALL || a.protection?.status === f.status) &&
       (!f.unprotectedOnly || a.unprotected_high > 0),
   );
 }
@@ -186,10 +196,14 @@ function useFilters(): [ApplicationFilters, (next: Partial<ApplicationFilters>) 
   const router = useRouter();
   const pathname = usePathname();
   const kindParam = params.get("kind");
+  const statusParam = params.get("status");
   const filters: ApplicationFilters = {
     host: params.get("host") || ALL,
     kind: (APPLICATION_KINDS as readonly string[]).includes(kindParam ?? "")
       ? (kindParam as ApplicationKind)
+      : ALL,
+    status: (PROTECTION_STATUSES as readonly string[]).includes(statusParam ?? "")
+      ? (statusParam as ProtectionStatus)
       : ALL,
     unprotectedOnly: params.get("unprotected") === "1",
   };
@@ -198,6 +212,7 @@ function useFilters(): [ApplicationFilters, (next: Partial<ApplicationFilters>) 
     const qs = new URLSearchParams();
     if (merged.host !== ALL) qs.set("host", merged.host);
     if (merged.kind !== ALL) qs.set("kind", merged.kind);
+    if (merged.status !== ALL) qs.set("status", merged.status);
     if (merged.unprotectedOnly) qs.set("unprotected", "1");
     const s = qs.toString();
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
@@ -261,6 +276,25 @@ function ApplicationsTable({ canManage }: { canManage: boolean }) {
               <SelectItem value="compose">Compose</SelectItem>
               <SelectItem value="container">Container</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-status`}>Protection</Label>
+          <Select
+            value={filters.status}
+            onValueChange={(v) => setFilters({ status: v as ApplicationFilters["status"] })}
+          >
+            <SelectTrigger id={`${id}-status`} className="min-w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any status</SelectItem>
+              {PROTECTION_STATUSES.map((st) => (
+                <SelectItem key={st} value={st}>
+                  {PROTECTION_STATUS_LABEL[st]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

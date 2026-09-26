@@ -7,7 +7,13 @@ import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api/client";
-import { PERMISSION_APPLICATION_READ, PERMISSION_HOST_READ } from "@/lib/api/fleet-schemas";
+import { PROTECTION_STATUS_LABEL } from "@/components/protection/protection-badges";
+import {
+  PERMISSION_APPLICATION_READ,
+  PERMISSION_HOST_READ,
+  PROTECTION_STATUSES,
+  type ProtectionStatus,
+} from "@/lib/api/fleet-schemas";
 import { useAgents, useApplications } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +26,7 @@ function Stat({
   href: string;
   value: ReactNode;
   label: string;
-  tone?: "default" | "warning" | "danger";
+  tone?: "default" | "warning" | "danger" | "success";
 }) {
   return (
     <li>
@@ -34,6 +40,7 @@ function Stat({
             "text-lg font-semibold tabular-nums",
             tone === "danger" && "text-destructive",
             tone === "warning" && "text-amber-700 dark:text-amber-400",
+            tone === "success" && "text-emerald-700 dark:text-emerald-400",
           )}
         >
           {value}
@@ -53,13 +60,16 @@ export function ProtectionOverviewCard() {
   const list = apps.data ?? [];
   const unprotected = list.filter((a) => a.unprotected_high > 0).length;
   const reconstructed = list.filter((a) => a.source === "reconstructed").length;
+  const byStatus = (s: ProtectionStatus) => list.filter((a) => a.protection?.status === s).length;
+  const running = list.filter((a) => a.protection?.running).length;
+  const withStatus = list.filter((a) => a.protection).length;
   const pending = (agents.data ?? []).filter((a) => a.status === "pending").length;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Protection overview</CardTitle>
-        <CardDescription>What discovery found on your Docker hosts.</CardDescription>
+        <CardDescription>Protection status of every application (computed by the server) and what discovery found.</CardDescription>
       </CardHeader>
       <CardContent>
         {apps.isPending ? (
@@ -73,8 +83,32 @@ export function ProtectionOverviewCard() {
             Overview unavailable: {errorMessage(apps.error)}
           </p>
         ) : (
-          <ul className="-mx-2 divide-y">
+          <ul className="-mx-2 divide-y" data-testid="protection-overview">
             <Stat href="/applications" label="Applications" value={list.length} />
+            {withStatus > 0 &&
+              PROTECTION_STATUSES.map((st) => {
+                const n = byStatus(st);
+                return (
+                  <Stat
+                    key={st}
+                    href={`/applications?status=${st}`}
+                    label={PROTECTION_STATUS_LABEL[st]}
+                    value={n}
+                    tone={
+                      n === 0
+                        ? "default"
+                        : st === "protected"
+                          ? "success"
+                          : st === "failed"
+                            ? "danger"
+                            : st === "at_risk" || st === "unprotected"
+                              ? "warning"
+                              : "default"
+                    }
+                  />
+                );
+              })}
+            {running > 0 && <Stat href="/jobs?state=running" label="Backups / restores running now" value={running} />}
             <Stat
               href="/applications?unprotected=1"
               label="With unprotected data (high severity)"
@@ -84,7 +118,7 @@ export function ProtectionOverviewCard() {
             <Stat href="/applications" label="Reconstructed Compose definitions" value={reconstructed} />
             {canHosts && (
               <Stat
-                href="/hosts"
+                href="/agents"
                 label="Hosts pending approval"
                 value={agents.isSuccess ? pending : "…"}
                 tone={pending > 0 ? "warning" : "default"}

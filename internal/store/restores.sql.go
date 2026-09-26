@@ -12,6 +12,61 @@ import (
 	"github.com/google/uuid"
 )
 
+const activeRestores = `-- name: ActiveRestores :many
+SELECT id, org_id, recovery_point_id, repository_id, source_application_id, application_name, source_agent_id, source_hostname, target_agent_id, target_hostname, target_application_id, mode, production, components, path_remaps, preview, reason, requested_by, requested_by_display, state, step, result, error, workflow_id, run_id, grant_id, created_at, started_at, finished_at, updated_at FROM restore_runs WHERE org_id = $1 AND state IN ('requested', 'running')
+`
+
+func (q *Queries) ActiveRestores(ctx context.Context, orgID uuid.UUID) ([]RestoreRun, error) {
+	rows, err := q.db.Query(ctx, activeRestores, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RestoreRun
+	for rows.Next() {
+		var i RestoreRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.RecoveryPointID,
+			&i.RepositoryID,
+			&i.SourceApplicationID,
+			&i.ApplicationName,
+			&i.SourceAgentID,
+			&i.SourceHostname,
+			&i.TargetAgentID,
+			&i.TargetHostname,
+			&i.TargetApplicationID,
+			&i.Mode,
+			&i.Production,
+			&i.Components,
+			&i.PathRemaps,
+			&i.Preview,
+			&i.Reason,
+			&i.RequestedBy,
+			&i.RequestedByDisplay,
+			&i.State,
+			&i.Step,
+			&i.Result,
+			&i.Error,
+			&i.WorkflowID,
+			&i.RunID,
+			&i.GrantID,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createRestoreRun = `-- name: CreateRestoreRun :one
 
 INSERT INTO restore_runs (id, org_id, recovery_point_id, repository_id, source_application_id, application_name,

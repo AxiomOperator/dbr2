@@ -19,9 +19,11 @@ import (
 	agentv1 "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1"
 	controlv1 "github.com/AxiomOperator/dbr2/internal/agentpb/control/v1"
 	"github.com/AxiomOperator/dbr2/internal/audit"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/gateway"
 	"github.com/AxiomOperator/dbr2/internal/manifest"
+	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/store"
 	"github.com/AxiomOperator/dbr2/workflows/backup"
 )
@@ -127,6 +129,8 @@ func (p *Platform) PrepareBackup(ctx context.Context, req *controlv1.PrepareBack
 		return nil, grpcErr(err)
 	}
 
+	s.publish(ctx, events.BackupUpdated, rbac.BackupRead, map[string]any{"recovery_point_id": rp.ID, "application_id": appID.String(),
+		"state": rp.State, "workflow_id": req.WorkflowId})
 	var wait uint32
 	if req.Trigger == "scheduled" {
 		hs, err := s.hostSettings(ctx, s.q, agent.ID)
@@ -245,6 +249,12 @@ func (p *Platform) CompleteBackup(ctx context.Context, req *controlv1.CompleteBa
 	if err != nil {
 		return nil, grpcErr(err)
 	}
+	state := "committed"
+	if req.Outcome == "failed" {
+		state = "failed"
+	}
+	s.publish(ctx, events.BackupUpdated, rbac.BackupRead, map[string]any{"recovery_point_id": rp.ID, "application_id": rp.ApplicationID.String(),
+		"state": state, "error": req.Error})
 	return &controlv1.CompleteBackupResponse{}, nil
 }
 

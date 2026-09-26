@@ -284,7 +284,7 @@ export function RestorePreviewView({ preview: p, recorded = false }: { preview: 
                   <TableRow key={`${im.ref}-${im.digest}`}>
                     <TableCell className="font-mono text-xs break-all whitespace-normal">{im.ref}</TableCell>
                     <TableCell>
-                      <Digest value={im.digest} />
+                      <Digest value={im.digest ?? ""} />
                     </TableCell>
                     <TableCell>
                       {im.action === "pull" ? (

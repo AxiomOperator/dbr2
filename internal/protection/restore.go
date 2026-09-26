@@ -15,6 +15,7 @@ import (
 
 	"github.com/AxiomOperator/dbr2/internal/audit"
 	"github.com/AxiomOperator/dbr2/internal/auth"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/inventory"
 	"github.com/AxiomOperator/dbr2/internal/manifest"
@@ -209,6 +210,7 @@ func (s *Service) StartRestore(ctx context.Context, p *auth.Principal, req Resto
 	}
 	_ = s.q.SetRestoreWorkflow(ctx, store.SetRestoreWorkflowParams{ID: id, WorkflowID: strPtr(wf.GetID()), RunID: strPtr(wf.GetRunID())})
 	run.WorkflowID = strPtr(wf.GetID())
+	s.publish(ctx, events.RestoreUpdated, rbac.RestoreRead, map[string]any{"restore_id": id, "application_id": rc.rp.ApplicationID.String(), "state": "requested"})
 	return run, pv, nil
 }
 

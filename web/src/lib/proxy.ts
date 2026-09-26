@@ -8,7 +8,10 @@
 // next.config rewrites), so one image works in every deployment.
 //
 // Guarantees:
-//  - request and response bodies are streamed (SSE-ready);
+//  - request and response bodies are streamed, including Server-Sent Events
+//    (text/event-stream responses get `Cache-Control: no-cache, no-transform`
+//    so nothing compresses or buffers them); a closed browser connection
+//    aborts the upstream request;
 //  - cookie / origin / sec-fetch-* / authorization / content-type / accept and
 //    other end-to-end headers are forwarded; hop-by-hop headers are dropped;
 //  - X-Forwarded-For / -Proto / -Host are set (existing values are preserved,
@@ -100,6 +103,11 @@ export function buildUpstreamHeaders(req: Request): Headers {
   return out;
 }
 
+/** True for a Server-Sent Events response (GET /api/v1/events). */
+export function isEventStream(headers: Headers): boolean {
+  return (headers.get("content-type") ?? "").toLowerCase().startsWith("text/event-stream");
+}
+
 export function buildDownstreamHeaders(upstream: Response): Headers {
   const out = new Headers();
   upstream.headers.forEach((value, key) => {
@@ -108,6 +116,14 @@ export function buildDownstreamHeaders(upstream: Response): Headers {
   });
   for (const cookie of upstream.headers.getSetCookie()) {
     out.append("set-cookie", cookie);
+  }
+  if (isEventStream(upstream.headers)) {
+    // Server-Sent Events must reach the browser event by event: `no-transform`
+    // keeps the Next.js server's gzip (which buffers) out of the stream, and
+    // X-Accel-Buffering disables buffering in nginx-style front proxies.
+    // (In production the browser reaches /api/* through Caddy directly.)
+    out.set("cache-control", "no-cache, no-transform");
+    out.set("x-accel-buffering", "no");
   }
   return out;
 }

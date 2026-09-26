@@ -85,13 +85,13 @@ describe("Repository schemas", () => {
     expect(unavailable?.live_error).toMatch(/connection refused/);
   });
 
-  it("defaults a missing internal_server_url and treats a missing live as null", () => {
+  it("enforces the contract: live is nullable, required fields must be present", () => {
+    const [r] = RepositoryListSchema.parse({ items: [{ ...REPO_READY, live: null, usage_by_host: null }] }).items;
+    expect(r?.live).toBeNull();
+    expect(r?.usage_by_host).toEqual([]); // null -> []
     const rest: Record<string, unknown> = { ...REPO_READY };
     delete rest.internal_server_url;
-    delete rest.live;
-    const [r] = RepositoryListSchema.parse({ items: [rest] }).items;
-    expect(r?.internal_server_url).toBe("");
-    expect(r?.live).toBeNull();
+    expect(RepositoryListSchema.safeParse({ items: [rest] }).success).toBe(false);
   });
 
   it("parses the create response", () => {

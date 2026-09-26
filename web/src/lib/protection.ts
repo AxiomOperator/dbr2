@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Pure helpers for the Repositories & backup pages: backup-window times,
-// hook command lines and the component names of an application.
+// hook command lines and component names. Which components a backup captures
+// and whether they are protected comes from the API (`protection.components`,
+// computed by the server's backup plan); the console no longer derives it.
 
 import type { Analysis } from "@/lib/api/fleet-schemas";
 
@@ -99,53 +101,32 @@ export function joinCommand(argv: string[]): string {
 export interface BackupComponent {
   /** Component name as used in backup settings, e.g. `volume:shop_pgdata`. */
   name: string;
-  kind: "config" | "volume" | "bind_mount";
+  kind: "config" | "volume" | "bind_mount" | "database";
   /** Where the data lives on the host. */
   detail: string;
 }
 
-// Mirrors skipBind in internal/protection/backups.go: host plumbing that is
-// never captured as a component.
-const SKIP_BIND_PREFIXES = [
-  "/proc",
-  "/sys",
-  "/dev",
-  "/run",
-  "/var/run",
-  "/etc/localtime",
-  "/etc/timezone",
-  "/etc/hosts",
-  "/etc/hostname",
-  "/etc/resolv.conf",
-  "/etc/machine-id",
-  "/tmp/.X11-unix",
-];
-
-function skipBind(src: string): boolean {
-  if (src.endsWith(".sock") || src === "/") return true;
-  return SKIP_BIND_PREFIXES.some((p) => src === p || src.startsWith(`${p}/`));
+/** Kind of a component from its name (`volume:…`, `bind:…`, `database:…`, `config`). */
+export function componentKind(name: string): BackupComponent["kind"] {
+  if (name.startsWith("volume:")) return "volume";
+  if (name.startsWith("bind:")) return "bind_mount";
+  if (name.startsWith("database:")) return "database";
+  return "config";
 }
 
-/**
- * The components a backup of this application captures, derived from its
- * analysis the same way the server builds the backup plan: `config`, then
- * `volume:<name>` for every volume protected by default, then
- * `bind:<source>` for every distinct bind-mount source.
- */
-export function backupComponents(analysis: Analysis | null): BackupComponent[] {
-  const out: BackupComponent[] = [{ name: "config", kind: "config", detail: analysis?.working_dir || "Application definition and metadata" }];
-  if (!analysis) return out;
-  for (const v of analysis.volumes) {
-    if (!v.protected_by_default || !v.mountpoint) continue;
-    out.push({ name: `volume:${v.name}`, kind: "volume", detail: v.mountpoint });
+/** Where a component's data lives, from the application's analysis (null when unknown). */
+export function componentDetail(analysis: Analysis | null, name: string): string | null {
+  if (name === "config") return analysis?.working_dir || "Application definition and metadata";
+  if (!analysis) return null;
+  if (name.startsWith("volume:")) {
+    const v = analysis.volumes.find((x) => x.name === name.slice("volume:".length));
+    return v ? v.mountpoint || v.name : null;
   }
-  const seen = new Set<string>();
-  for (const b of analysis.bind_mounts) {
-    if (!b.source || seen.has(b.source) || skipBind(b.source)) continue;
-    seen.add(b.source);
-    out.push({ name: `bind:${b.source}`, kind: "bind_mount", detail: b.source });
+  if (name.startsWith("bind:")) {
+    const src = name.slice("bind:".length);
+    return analysis.bind_mounts.some((b) => b.source === src) ? src : null;
   }
-  return out;
+  return null;
 }
 
 /** Service and container names a hook may target. */

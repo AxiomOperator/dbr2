@@ -948,6 +948,19 @@ SSE will initially provide live updates for:
 
 SSE is preferred initially because most realtime communication is server-to-browser rather than fully bidirectional.
 
+**Implementation (Phase 6):**
+
+* `GET /api/v1/events` (cookie or token auth) streams these event types:
+  * `job.progress`: agent command progress, relayed by the gateway and attributed to its workflow through the command ID
+  * `backup.updated` and `restore.updated`
+  * `agent.status`
+  * `alert.created`
+  * `inventory.updated`
+* Each event carries the permission a subscriber needs, for example `backup.read`, and is delivered only to callers holding it. `?types=` narrows the stream.
+* Events are **refresh hints**: they are never replayed, and clients re-read state from the API after reconnecting. A slow subscriber drops events instead of blocking.
+* A comment heartbeat every 15 s keeps proxies and browsers from closing idle streams. The per-message write deadline is extended, so the server's 120 s write timeout does not cut long streams (verified through Caddy for 150 s).
+* With Valkey configured, events fan out across `dbr2-server` instances through Valkey pub/sub; without it they stay in process. Losing Valkey only loses live hints.
+
 WebSockets can be introduced later if truly interactive features require them.
 
 ---

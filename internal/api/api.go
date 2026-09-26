@@ -18,6 +18,7 @@ import (
 
 	"github.com/AxiomOperator/dbr2/internal/auth"
 	"github.com/AxiomOperator/dbr2/internal/docsui"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/protection"
 	"github.com/AxiomOperator/dbr2/internal/version"
@@ -57,6 +58,7 @@ type Deps struct {
 	Auth           *auth.Service
 	Fleet          *fleet.Service
 	Protection     *protection.Service
+	Events         *events.Bus
 	Log            *slog.Logger
 	Ready          []ReadyCheck
 	DocsPublic     bool
@@ -123,6 +125,8 @@ func NewAPI(r chi.Router, d *Deps) huma.API {
 	registerFleet(a, d)
 	registerProtection(a, d)
 	registerRestore(a, d)
+	registerEvents(a, d)
+	registerFleetWide(a, d)
 	return a
 }
 
@@ -130,7 +134,7 @@ func NewAPI(r chi.Router, d *Deps) huma.API {
 func NewHandler(d *Deps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestContext(d), recoverer(d), accessLog(d), authenticate(d),
-		protectDocs(d, DocsPath, OpenAPIPath))
+		protectDocs(d, DocsPath, OpenAPIPath), streamDeadlines)
 	NewAPI(r, d)
 	docsui.Mount(r, docsui.Options{Path: DocsPath, SpecURL: OpenAPIPath + ".json", Title: "DBR² API Reference"})
 	return r

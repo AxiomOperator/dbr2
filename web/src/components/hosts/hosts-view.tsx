@@ -6,204 +6,202 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
-import { AddHostDialog } from "@/components/hosts/add-host-dialog";
-import { HostActions } from "@/components/hosts/host-actions";
+import { DataTable } from "@/components/common/data-table";
+import { AgentStatusBadge, ConnectedIndicator, DockerState } from "@/components/hosts/host-badges";
 import {
-  AgentStatusBadge,
-  CertExpiry,
-  ConnectedIndicator,
-  DockerState,
-  OutdatedBadge,
-} from "@/components/hosts/host-badges";
-import { RegistrationTokens } from "@/components/hosts/registration-tokens";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  PERMISSION_HOST_MANAGE,
+  PERMISSION_APPLICATION_READ,
   PERMISSION_HOST_READ,
   type Agent,
 } from "@/lib/api/fleet-schemas";
-import { AGENTS_REFRESH_MS, useAgents } from "@/lib/api/hooks";
+import { useAgents, useApplications, useContainers, useVolumes } from "@/lib/api/hooks";
 import { formatDateTime, formatRelative } from "@/lib/format";
 
-const EMPTY: Agent[] = [];
-const features = tableFeatures({});
-const col = createColumnHelper<typeof features, Agent>();
+/** One Docker host with counts from the fleet-wide lists. */
+export interface HostRow {
+  agent: Agent;
+  applications: number | null;
+  containers: number;
+  running: number;
+  volumes: number;
+  protectedVolumes: number;
+}
 
-function buildColumns(canManage: boolean) {
-  const base = [
-    col.accessor("hostname", {
-      header: "Hostname",
-      cell: (info) => {
-        const { id, os_release, architecture } = info.row.original;
+export function hostRows(
+  agents: Agent[],
+  containers: { host_id: string; state: string }[],
+  volumes: { host_id: string; protected: boolean; class: string }[],
+  applications: { host_id: string; missing_since: string | null }[] | null,
+): HostRow[] {
+  return agents
+    .filter((a) => a.status === "active" || a.status === "suspended")
+    .map((agent) => {
+      const cs = containers.filter((c) => c.host_id === agent.id);
+      const vs = volumes.filter((v) => v.host_id === agent.id);
+      return {
+        agent,
+        applications: applications ? applications.filter((x) => x.host_id === agent.id && !x.missing_since).length : null,
+        containers: cs.length,
+        running: cs.filter((c) => c.state === "running").length,
+        volumes: vs.length,
+        protectedVolumes: vs.filter((v) => v.protected).length,
+      };
+    })
+    .sort((a, b) => a.agent.hostname.localeCompare(b.agent.hostname));
+}
+
+const features = tableFeatures({});
+const col = createColumnHelper<typeof features, HostRow>();
+
+function buildColumns(showApps: boolean) {
+  return col.columns([
+    col.accessor((r) => r.agent.hostname, {
+      id: "hostname",
+      header: "Host",
+      cell: ({ row }) => {
+        const a = row.original.agent;
         return (
           <div className="min-w-36 space-y-0.5">
-            <Link href={`/hosts/${id}`} className="font-medium underline-offset-4 hover:underline">
-              {info.getValue()}
+            <Link href={`/hosts/${a.id}`} className="font-medium underline-offset-4 hover:underline">
+              {a.hostname}
             </Link>
-            {(os_release || architecture) && (
-              <div className="text-xs text-muted-foreground">
-                {[os_release, architecture].filter(Boolean).join(" · ")}
+            <div className="text-xs text-muted-foreground">
+              {[a.os_release, a.architecture].filter(Boolean).join(" · ") || "Unknown OS"}
+            </div>
+          </div>
+        );
+      },
+    }),
+    col.display({
+      id: "connection",
+      header: "Connection",
+      cell: ({ row }) => {
+        const a = row.original.agent;
+        return (
+          <div className="space-y-1">
+            <ConnectedIndicator connected={a.connected} />
+            {a.status !== "active" && <AgentStatusBadge status={a.status} />}
+            {a.last_seen_at && !a.connected && (
+              <div className="text-xs text-muted-foreground" title={formatDateTime(a.last_seen_at)}>
+                seen {formatRelative(a.last_seen_at)}
               </div>
             )}
           </div>
         );
       },
     }),
-    col.accessor("status", {
-      header: "Status",
-      cell: (info) => <AgentStatusBadge status={info.getValue()} />,
-    }),
-    col.accessor("connected", {
-      header: "Connection",
-      cell: (info) => {
-        const latency = info.row.original.latency_ms;
-        return (
-          <div className="space-y-0.5">
-            <ConnectedIndicator connected={info.getValue()} />
-            {latency !== null && <div className="text-xs text-muted-foreground">{latency} ms latency</div>}
-          </div>
-        );
-      },
-    }),
-    col.accessor("agent_version", {
-      header: "Agent",
-      cell: (info) => (
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          <span className="font-mono text-xs">{info.getValue()}</span>
-          {info.row.original.outdated && <OutdatedBadge />}
-        </span>
-      ),
-    }),
     col.display({
-      id: "docker",
-      header: "Docker",
+      id: "engine",
+      header: "Docker engine",
       cell: ({ row }) => (
-        <DockerState reachable={row.original.docker_reachable} version={row.original.docker_version} />
+        <DockerState reachable={row.original.agent.docker_reachable} version={row.original.agent.docker_version} />
       ),
     }),
-    col.accessor("last_seen_at", {
-      header: "Last seen",
-      cell: (info) => {
-        const v = info.getValue();
-        return v ? (
-          <time dateTime={v} title={formatDateTime(v)} className="whitespace-nowrap">
-            {formatRelative(v)}
-          </time>
-        ) : (
-          <span className="text-muted-foreground">Never</span>
-        );
-      },
-    }),
-    col.accessor("certificate_not_after", {
-      header: "Certificate",
-      cell: (info) => <CertExpiry iso={info.getValue()} />,
-    }),
-  ];
-  if (!canManage) return col.columns(base);
-  return col.columns([
-    ...base,
+    ...(showApps
+      ? [
+          col.display({
+            id: "applications",
+            header: "Applications",
+            cell: ({ row }) => (
+              <Link
+                href={`/applications?host=${row.original.agent.id}`}
+                className="tabular-nums underline-offset-4 hover:underline"
+              >
+                {row.original.applications ?? "—"}
+              </Link>
+            ),
+          }),
+        ]
+      : []),
     col.display({
-      id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row }) => <HostActions agent={row.original} />,
+      id: "containers",
+      header: "Containers",
+      cell: ({ row }) => (
+        <Link href={`/containers?host=${row.original.agent.id}`} className="whitespace-nowrap underline-offset-4 hover:underline">
+          <span className="tabular-nums">{row.original.containers}</span>
+          {row.original.containers > 0 && (
+            <span className="text-xs text-muted-foreground"> ({row.original.running} running)</span>
+          )}
+        </Link>
+      ),
+    }),
+    col.display({
+      id: "volumes",
+      header: "Volumes",
+      cell: ({ row }) => (
+        <Link href={`/volumes?host=${row.original.agent.id}`} className="whitespace-nowrap underline-offset-4 hover:underline">
+          <span className="tabular-nums">{row.original.volumes}</span>
+          {row.original.volumes > 0 && (
+            <span className="text-xs text-muted-foreground"> ({row.original.protectedVolumes} protected)</span>
+          )}
+        </Link>
+      ),
     }),
   ]);
 }
 
-function HostsTable({ canManage }: { canManage: boolean }) {
+function HostsTable() {
+  const me = useCurrentUser();
+  const showApps = hasPermission(me, PERMISSION_APPLICATION_READ);
   const agents = useAgents();
-  const columns = useMemo(() => buildColumns(canManage), [canManage]);
-  const data = agents.data ?? EMPTY;
-  const table = useTable({ features, columns, data, getRowId: (row) => row.id });
+  const containers = useContainers();
+  const volumes = useVolumes();
+  const apps = useApplications({ enabled: showApps });
+  const data = useMemo(
+    () =>
+      hostRows(agents.data ?? [], containers.data ?? [], volumes.data ?? [], showApps ? (apps.data ?? []) : null),
+    [agents.data, containers.data, volumes.data, apps.data, showApps],
+  );
+  const columns = useMemo(() => buildColumns(showApps), [showApps]);
+  const table = useTable({ features, columns, data, getRowId: (r) => r.agent.id });
 
   if (agents.isPending) return <RowsSkeleton label="Loading hosts…" />;
   if (agents.isError && !agents.data) {
     return <QueryError title="Could not load hosts" error={agents.error} onRetry={() => void agents.refetch()} />;
   }
-
-  const pending = data.filter((a) => a.status === "pending").length;
+  const hidden = (agents.data ?? []).length - data.length;
 
   return (
     <div className="space-y-3">
-      {pending > 0 && (
-        <p className="text-sm" role="status">
-          <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-400">
-            {pending} pending
-          </Badge>{" "}
-          {pending === 1 ? "host is" : "hosts are"} waiting for approval.
+      <DataTable table={table} columns={columns.length} empty="No approved hosts yet. Enroll and approve an agent under Agents." />
+      {(containers.isError || volumes.isError) && (
+        <p className="text-sm text-destructive" role="alert">
+          Container or volume counts are unavailable right now.
         </p>
       )}
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead key={header.id} scope="col">
-                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  No hosts enrolled yet.{canManage ? " Use “Add host” to create a registration token." : ""}
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id} className="align-top">
-                      <table.FlexRender cell={cell} />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
       <p className="text-xs text-muted-foreground">
-        Refreshes every {AGENTS_REFRESH_MS / 1000} s.
-        {agents.isError && " The last refresh failed; showing earlier data."}
+        Counts come from each host&apos;s latest inventory.
+        {hidden > 0 && (
+          <>
+            {" "}
+            {hidden} pending or revoked {hidden === 1 ? "agent is" : "agents are"} listed under{" "}
+            <Link href="/agents" className="underline underline-offset-4">
+              Agents
+            </Link>
+            .
+          </>
+        )}
       </p>
     </div>
   );
 }
 
+/** Docker → Hosts: the host inventory (engine, OS, what runs where, connection). */
 export function HostsView() {
   const me = useCurrentUser();
-  const canRead = hasPermission(me, PERMISSION_HOST_READ);
-  const canManage = hasPermission(me, PERMISSION_HOST_MANAGE);
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Hosts</h1>
-          <p className="text-sm text-muted-foreground">
-            Docker hosts running the DBR² agent: enrollment, approval and health.
-          </p>
-        </div>
-        {canRead && canManage && <AddHostDialog />}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Hosts</h1>
+        <p className="text-sm text-muted-foreground">
+          Docker hosts and what runs on them. Enrollment, approval and agent versions are under{" "}
+          <Link href="/agents" className="underline underline-offset-4">
+            Agents
+          </Link>
+          .
+        </p>
       </div>
-      {canRead ? (
-        <>
-          <HostsTable canManage={canManage} />
-          {canManage && <RegistrationTokens />}
-        </>
+      {hasPermission(me, PERMISSION_HOST_READ) ? (
+        <HostsTable />
       ) : (
         <AccessDenied what="Viewing hosts" permission={PERMISSION_HOST_READ} />
       )}

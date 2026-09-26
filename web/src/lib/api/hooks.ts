@@ -3,7 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys } from "./endpoints";
-import type { RecoveryPointState } from "./protection-schemas";
+import type { JobState, JobType, RecoveryPointState } from "./protection-schemas";
 import { isActiveRestore, type RestoreBody, type RestoreState } from "./restore-schemas";
 
 export function useMe() {
@@ -219,5 +219,70 @@ export function useRestorePreview(recoveryPointId: string, body: RestoreBody, op
     staleTime: 0,
     gcTime: 60_000,
     refetchOnWindowFocus: false,
+  });
+}
+
+// --- Phase 6: jobs, fleet-wide containers / volumes, users -------------------
+
+/** Jobs refresh interval: fast while one runs; SSE invalidates in between. */
+export const JOBS_POLL_MS = 5_000;
+export const JOBS_REFRESH_MS = 30_000;
+export const JOBS_LIMIT = 200;
+
+export function useJobs(
+  filters: { applicationId?: string | null; type?: JobType | null; state?: JobState | null },
+  options: { enabled?: boolean; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.jobs(filters),
+    queryFn: ({ signal }) => api.jobs({ ...filters, limit: options.limit ?? JOBS_LIMIT }, signal),
+    refetchInterval: (q) => (q.state.data?.some((j) => j.state === "running") ? JOBS_POLL_MS : JOBS_REFRESH_MS),
+    enabled: options.enabled ?? true,
+  });
+}
+
+/** Containers / volumes change with discovery; `inventory.updated` invalidates them. */
+export const FLEET_REFRESH_MS = 60_000;
+
+export function useContainers(hostId?: string | null, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.containers(hostId),
+    queryFn: ({ signal }) => api.containers({ hostId }, signal),
+    refetchInterval: FLEET_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useVolumes(hostId?: string | null, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.volumes(hostId),
+    queryFn: ({ signal }) => api.volumes({ hostId }, signal),
+    refetchInterval: FLEET_REFRESH_MS,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useUsers(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.users,
+    queryFn: ({ signal }) => api.users(signal),
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useRoles(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.roles,
+    queryFn: ({ signal }) => api.roles(signal),
+    staleTime: 10 * 60_000,
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useGroupMappings(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.groupMappings,
+    queryFn: ({ signal }) => api.groupMappings(signal),
+    enabled: options.enabled ?? true,
   });
 }

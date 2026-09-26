@@ -106,7 +106,7 @@ export function SeverityBadge({ severity }: { severity: string }) {
   return <Badge variant="outline">{severity}</Badge>;
 }
 
-/** Volume class (ADR-0006): Local, External or Ephemeral. */
+/** Volume class (ADR-0006): Local, External or Ephemeral; Unused when no container mounts it. */
 export function VolumeClassBadge({ cls }: { cls: string }) {
   switch (cls) {
     case "local":
@@ -121,6 +121,12 @@ export function VolumeClassBadge({ cls }: { cls: string }) {
       return (
         <Badge variant="outline" className="text-muted-foreground">
           Ephemeral
+        </Badge>
+      );
+    case "unused":
+      return (
+        <Badge variant="outline" className="border-dashed text-muted-foreground">
+          Unused
         </Badge>
       );
     default:

@@ -44,10 +44,11 @@ export function makeQueryClient(): QueryClient {
   return client;
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
   const [queryClient] = useState(makeQueryClient);
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    // `nonce` lets next-themes' inline anti-flash script run under the CSP.
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={nonce}>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>{children}</ToastProvider>
       </QueryClientProvider>

@@ -5,7 +5,7 @@
 // corner. Kept in-house (no extra dependency) because the console only needs
 // short confirmations such as "Discovery started (workflow …)".
 
-import { CircleAlertIcon, CircleCheckIcon, XIcon } from "lucide-react";
+import { CircleAlertIcon, CircleCheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export interface ToastInput {
   title: string;
   description?: ReactNode;
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "warning";
   /** Milliseconds before auto-dismiss (default 8 s). */
   duration?: number;
 }
@@ -65,10 +65,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             className={cn(
               "pointer-events-auto flex items-start gap-3 rounded-lg border bg-popover p-3 text-sm text-popover-foreground shadow-lg",
               t.variant === "destructive" && "border-destructive/50",
+              t.variant === "warning" && "border-amber-500/60",
             )}
           >
             {t.variant === "destructive" ? (
               <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+            ) : t.variant === "warning" ? (
+              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
             ) : (
               <CircleCheckIcon
                 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400"

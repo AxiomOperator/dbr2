@@ -2,6 +2,7 @@
 "use client";
 
 import { ArrowLeftIcon } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -29,9 +30,17 @@ import { BackupSettingsCard } from "@/components/backups/backup-settings-card";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-dialog";
 import { EditMetadataDialog } from "@/components/applications/edit-metadata-dialog";
 import { UnprotectedData } from "@/components/applications/unprotected-data";
+import { ProtectionStatusBadge, RunningBadge } from "@/components/protection/protection-badges";
+import { ProtectionCard } from "@/components/protection/protection-card";
 import { ApplicationRestores } from "@/components/restores/restores-view";
 import { hasPermission, useCurrentUser } from "@/components/auth-guard";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
+
+// React Flow is only needed on the Topology tab: load it on demand.
+const TopologyGraph = dynamic(
+  () => import("@/components/applications/topology-graph").then((m) => m.TopologyGraph),
+  { ssr: false, loading: () => <RowsSkeleton label="Loading topology…" rows={4} /> },
+);
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -77,6 +86,8 @@ function Header({ app }: { app: ApplicationDetail }) {
           <h1 className="text-2xl font-semibold tracking-tight">{shown}</h1>
           {shown !== app.name && <p className="font-mono text-sm text-muted-foreground">{app.name}</p>}
           <div className="flex flex-wrap items-center gap-2">
+            {app.protection && <ProtectionStatusBadge status={app.protection.status} />}
+            <RunningBadge running={app.protection?.running} />
             <KindBadge kind={app.kind} />
             <SourceBadge source={app.source} />
             <UnprotectedBadge count={app.unprotected_high} />
@@ -85,7 +96,9 @@ function Header({ app }: { app: ApplicationDetail }) {
         </div>
         {(canManage || canBackup) && (
           <div className="flex flex-wrap items-center gap-2">
-            {canBackup && <BackUpNowButton applicationId={app.id} name={shown} />}
+            {canBackup && (
+              <BackUpNowButton applicationId={app.id} name={shown} running={app.protection?.running} />
+            )}
             {canManage && <EditMetadataDialog app={app} />}
             {canManage && app.kind === "manual" && (
               <DeleteApplicationButton
@@ -166,6 +179,7 @@ function DetailBody({ id }: { id: string }) {
   return (
     <div className="space-y-6">
       <Header app={d} />
+      {d.protection && <ProtectionCard applicationId={d.id} protection={d.protection} />}
       {a ? (
         <UnprotectedData items={a.unprotected} />
       ) : (
@@ -204,6 +218,7 @@ function DetailTabs({ app: d }: { app: ApplicationDetail }) {
     <Tabs defaultValue={first}>
       <TabsList>
         {a && <TabsTrigger value="resources">Resources</TabsTrigger>}
+        {a && <TabsTrigger value="topology">Topology</TabsTrigger>}
         {a && <TabsTrigger value="containers">Containers ({d.containers_detail.length})</TabsTrigger>}
         {a && <TabsTrigger value="compose">Compose</TabsTrigger>}
         {canBackups && <TabsTrigger value="backups">Backups</TabsTrigger>}
@@ -227,6 +242,11 @@ function DetailTabs({ app: d }: { app: ApplicationDetail }) {
           <NetworksSection analysis={a} />
           <ImagesSection analysis={a} />
           <DependenciesSection analysis={a} />
+        </TabsContent>
+      )}
+      {a && (
+        <TabsContent value="topology" className="mt-4">
+          <TopologyGraph app={d} components={d.protection?.components ?? []} />
         </TabsContent>
       )}
       {a && (

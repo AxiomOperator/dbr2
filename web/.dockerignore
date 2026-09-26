@@ -20,3 +20,7 @@ README.md
 CHANGELOG.md
 AGENTS.md
 CLAUDE.md
+# End-to-end tests and their output are not part of the image.
+e2e
+playwright-report
+test-results

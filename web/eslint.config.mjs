@@ -13,6 +13,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated from api/openapi.yaml by @hey-api/openapi-ts (npm run generate:api).
+    "src/lib/api/generated/**",
+    // Playwright output.
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

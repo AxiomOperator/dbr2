@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Zod schemas for the Phase 5 (Restores) API contract, derived from
-// `api/openapi.yaml` (operations tagged `Restores`: Preview, RestoreBody,
-// StartRestoreBody, RestoreRunDTO). As elsewhere, response objects are
-// non-strict and nullable arrays are normalised to `[]`. The `result`
-// document of a restore is untyped in the contract (`result: {}`); it is
-// parsed leniently with {@link RestoreResultSchema}, which mirrors
-// `workflows/restore.Result` (agent protobuf JSON: empty fields omitted).
+// Restores (Phase 5). Response schemas are the generated OpenAPI Zod schemas
+// wrapped by `contract()` (nullable arrays normalised to `[]`). The `result`
+// document and `path_remaps` of a restore are untyped in the contract
+// (`result: {}`, `path_remaps: {}`); they are parsed leniently here:
+// {@link RestoreResultSchema} mirrors `workflows/restore.Result` (agent
+// protobuf JSON: empty fields omitted).
 
 import { z } from "zod";
+import { contract } from "./contract";
+import type { RestoreBody as RestoreBodyContract, StartRestoreBody as StartRestoreBodyContract } from "./generated";
+import { zListRestoresResponse, zPreview, zRestoreRunDto } from "./generated/zod.gen";
 
-/** A nullable (or omitted) array, normalised to `[]`. */
+/** A nullable (or omitted) array, normalised to `[]` (result parsing only). */
 function list<T extends z.ZodType>(item: T) {
   return z
     .array(item)
@@ -37,7 +39,7 @@ export const RestoreBodySchema = z.object({
   target_host_id: z.string().optional(),
   components: z.array(z.string()).optional(),
   path_remaps: z.array(PathRemapSchema).optional(),
-});
+}) satisfies z.ZodType<RestoreBodyContract>;
 export type RestoreBody = z.infer<typeof RestoreBodySchema>;
 
 /** A production restore needs a reason of at least this many characters (server rule). */
@@ -48,7 +50,7 @@ export const MAX_CONFIRMATION = 200;
 export const StartRestoreBodySchema = RestoreBodySchema.extend({
   reason: z.string().max(MAX_REASON, `Use at most ${MAX_REASON} characters.`).optional(),
   confirmation: z.string().max(MAX_CONFIRMATION).optional(),
-});
+}) satisfies z.ZodType<StartRestoreBodyContract>;
 export type StartRestoreBody = z.infer<typeof StartRestoreBodySchema>;
 
 // ---------------------------------------------------------------------------
@@ -58,60 +60,16 @@ export type StartRestoreBody = z.infer<typeof StartRestoreBodySchema>;
 export const RESTORE_MODES = ["in_place", "alternate_host"] as const;
 export type RestoreMode = (typeof RESTORE_MODES)[number];
 
-export const PreviewComponentSchema = z.object({
-  name: z.string(),
-  kind: z.string(),
-  // overwrite | create | restore_files | load_dump
-  action: z.string(),
-  target: z.string(),
-  size_bytes: z.number(),
-});
-export type PreviewComponent = z.infer<typeof PreviewComponentSchema>;
-
-export const PreviewContainerSchema = z.object({ id: z.string(), name: z.string(), state: z.string() });
-export type PreviewContainer = z.infer<typeof PreviewContainerSchema>;
-
-/** A network: exists | create | missing_external. */
-export const PreviewItemSchema = z.object({ name: z.string(), action: z.string() });
-export type PreviewItem = z.infer<typeof PreviewItemSchema>;
-
-/** An image: present | pull (by digest when known). */
-export const PreviewImageSchema = z.object({
-  ref: z.string(),
-  digest: z.string().optional().default(""),
-  action: z.string(),
-});
-export type PreviewImage = z.infer<typeof PreviewImageSchema>;
-
-export const CollisionSchema = z.object({
-  // container_name | port | network | volume | bind_path | dependency
-  kind: z.string(),
-  name: z.string(),
-  detail: z.string(),
-});
-export type Collision = z.infer<typeof CollisionSchema>;
-
-export const PreviewSchema = z.object({
-  recovery_point_id: z.string(),
-  application_name: z.string(),
-  source_host_id: z.string(),
-  target_host_id: z.string(),
-  target_hostname: z.string(),
-  mode: z.string().optional().default("in_place"),
-  target_application_id: z.string().optional().default(""),
-  production: z.boolean().optional().default(false),
-  production_reasons: list(z.string()),
-  components: list(PreviewComponentSchema),
-  stop_containers: list(PreviewContainerSchema),
-  create_containers: list(z.string()),
-  networks: list(PreviewItemSchema),
-  images: list(PreviewImageSchema),
-  ports: list(z.string()),
-  collisions: list(CollisionSchema),
-  warnings: list(z.string()),
-  blocked: z.boolean().optional().default(false),
-});
+export const PreviewSchema = contract(zPreview);
 export type Preview = z.infer<typeof PreviewSchema>;
+export type PreviewComponent = Preview["components"][number];
+export type PreviewContainer = Preview["stop_containers"][number];
+/** A network: exists | create | missing_external. */
+export type PreviewItem = Preview["networks"][number];
+/** An image: present | pull (by digest when known). */
+export type PreviewImage = Preview["images"][number];
+/** container_name | port | network | volume | bind_path | dependency */
+export type Collision = Preview["collisions"][number];
 
 // ---------------------------------------------------------------------------
 // Result document (workflows/restore.Result)
@@ -181,51 +139,26 @@ export type RestoreResult = z.infer<typeof RestoreResultSchema>;
 // ---------------------------------------------------------------------------
 
 export const RESTORE_STATES = ["requested", "running", "succeeded", "failed", "rolled_back"] as const;
-export const RestoreStateSchema = z.enum(RESTORE_STATES);
-export type RestoreState = z.infer<typeof RestoreStateSchema>;
+export type RestoreState = (typeof RESTORE_STATES)[number];
 
 /** True while the workflow may still change the run. */
 export const isActiveRestore = (state: RestoreState) => state === "requested" || state === "running";
 
-export const RestoreRunSchema = z.object({
-  id: z.string(),
-  recovery_point_id: z.string(),
-  application_id: z.string(),
-  application_name: z.string(),
-  source_host_id: z.string(),
-  target_host_id: z.string(),
-  target_hostname: z.string(),
-  target_application_id: z.string().nullable(),
-  mode: z.string(),
-  production: z.boolean(),
-  components: list(z.string()),
-  // Untyped in the contract (`path_remaps: {}`): keep only well-formed entries.
-  path_remaps: z.unknown().transform((v): PathRemap[] =>
-    Array.isArray(v) ? v.flatMap((r) => (PathRemapSchema.safeParse(r).success ? [r as PathRemap] : [])) : [],
-  ),
-  reason: z.string().nullable(),
-  requested_by: z.string(),
-  state: RestoreStateSchema,
-  step: z.string().nullable(),
-  error: z.string().nullable(),
-  workflow_id: z.string().nullable(),
-  created_at: z.string(),
-  started_at: z.string().nullable(),
-  finished_at: z.string().nullable(),
-  /** Detail view only. */
-  preview: z.unknown().optional(),
-  /** Detail view only; parsed separately with {@link RestoreResultSchema}. */
-  result: z.unknown().optional(),
-});
+/** Untyped in the contract (`path_remaps: {}`): keep only well-formed entries. */
+const PathRemapsSchema = z.unknown().transform((v): PathRemap[] =>
+  Array.isArray(v) ? v.flatMap((r) => (PathRemapSchema.safeParse(r).success ? [r as PathRemap] : [])) : [],
+);
+
+export const RestoreRunSchema = contract(zRestoreRunDto.extend({ path_remaps: PathRemapsSchema }));
 export type RestoreRun = z.infer<typeof RestoreRunSchema>;
 
-export const RestoreRunListSchema = z.object({ items: list(RestoreRunSchema) });
+export const RestoreRunListSchema = contract(
+  zListRestoresResponse.extend({ items: z.array(zRestoreRunDto.extend({ path_remaps: PathRemapsSchema })).nullable() }),
+);
 
 /** The preview recorded with a run, or null when absent / not understood. */
 export function runPreview(run: RestoreRun): Preview | null {
-  if (run.preview == null) return null;
-  const p = PreviewSchema.safeParse(run.preview);
-  return p.success ? p.data : null;
+  return run.preview ?? null;
 }
 
 /** The result document of a run, or null when absent / not understood. */

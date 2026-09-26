@@ -14,11 +14,14 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "mock-api": "node scripts/mock-api.mjs"
+    "mock-api": "node scripts/mock-api.mjs",
+    "generate:api": "openapi-ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "5.103.2",
     "@tanstack/react-table": "9.2.4",
+    "@xyflow/react": "12.12.0",
     "class-variance-authority": "0.7.1",
     "cn": "0.4.0",
     "lucide-react": "1.48.0",
@@ -31,6 +34,8 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",

@@ -64,12 +64,12 @@ export function PlatformStatusCard() {
             Status unavailable: {errorMessage(ready.error)}
           </p>
         )}
-        {ready.isSuccess && Object.keys(ready.data.checks).length === 0 && (
+        {ready.isSuccess && Object.keys(ready.data.checks ?? {}).length === 0 && (
           <p className="text-sm text-muted-foreground">No checks reported.</p>
         )}
-        {ready.isSuccess && Object.keys(ready.data.checks).length > 0 && (
+        {ready.isSuccess && Object.keys(ready.data.checks ?? {}).length > 0 && (
           <dl className="divide-y text-sm">
-            {Object.entries(ready.data.checks).map(([name, status]) => (
+            {Object.entries(ready.data.checks ?? {}).map(([name, status]) => (
               <div key={name} className="flex items-center justify-between py-2">
                 <dt className="capitalize">{name}</dt>
                 <dd>

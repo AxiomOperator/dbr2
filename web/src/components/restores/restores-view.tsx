@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
+import { ArchiveRestoreIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useMemo } from "react";
@@ -22,8 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api/client";
 import { PERMISSION_APPLICATION_READ } from "@/lib/api/fleet-schemas";
 import { RESTORES_LIMIT, RESTORES_REFRESH_MS, RESTORE_POLL_MS, useApplications, useRestores } from "@/lib/api/hooks";
+import { PERMISSION_BACKUP_READ } from "@/lib/api/protection-schemas";
 import {
   isActiveRestore,
+  PERMISSION_RESTORE_EXECUTE,
   PERMISSION_RESTORE_READ,
   RESTORE_STATES,
   type RestoreRun,
@@ -154,13 +157,21 @@ function RestoresList() {
 
 export function RestoresView() {
   const me = useCurrentUser();
+  const canStart = hasPermission(me, PERMISSION_RESTORE_EXECUTE) && hasPermission(me, PERMISSION_BACKUP_READ);
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Restores</h1>
-        <p className="text-sm text-muted-foreground">
-          Recovery history: every restore attempt, including failures and rollbacks.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Restore</h1>
+          <p className="text-sm text-muted-foreground">
+            Recovery history: every restore attempt, including failures and rollbacks.
+          </p>
+        </div>
+        {canStart && (
+          <Link href="/restores/new" className={buttonVariants({ size: "sm" })}>
+            <ArchiveRestoreIcon aria-hidden="true" /> Start a restore
+          </Link>
+        )}
       </div>
       {hasPermission(me, PERMISSION_RESTORE_READ) ? (
         <RestoresList />

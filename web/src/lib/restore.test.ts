@@ -38,15 +38,23 @@ const dr = PreviewSchema.parse(PREVIEW_DR);
 describe("restore schemas", () => {
   it("normalises null arrays and defaults of a preview", () => {
     expect(blocked.production_reasons).toEqual([]);
-    expect(blocked.target_application_id).toBe("");
-    expect(blocked.images[1]?.digest).toBe("");
-    const minimal = PreviewSchema.parse({
+    expect(blocked.target_application_id).toBeFalsy();
+    expect(blocked.images[1]?.digest).toBeFalsy();
+    const base = {
       recovery_point_id: "rp_x",
       application_name: "a",
       source_host_id: "h",
       target_host_id: "h",
       target_hostname: "host",
-    });
+    };
+    // The contract requires mode / production / blocked and every list (nullable).
+    expect(PreviewSchema.safeParse(base).success).toBe(false);
+    const nulls = Object.fromEntries(
+      ["components", "stop_containers", "create_containers", "networks", "images", "ports", "collisions", "warnings"].map(
+        (k) => [k, null],
+      ),
+    );
+    const minimal = PreviewSchema.parse({ ...base, ...nulls, mode: "in_place", production: false, blocked: false });
     expect(minimal).toMatchObject({ mode: "in_place", production: false, blocked: false, collisions: [], components: [] });
   });
 
@@ -58,7 +66,7 @@ describe("restore schemas", () => {
     expect(RestoreRunListSchema.parse({ items: null }).items).toEqual([]);
   });
 
-  it("reads the recorded preview and the result document leniently", () => {
+  it("reads the recorded preview and the result document (leniently)", () => {
     const rb = RestoreRunSchema.parse(RUN_ROLLED_BACK);
     expect(runPreview(rb)?.production).toBe(true);
     const result = runResult(rb)!;
@@ -67,7 +75,8 @@ describe("restore schemas", () => {
     expect(result.health?.containers[1]).toMatchObject({ ok: false, exit_code: 1 });
     expect(result.images).toEqual([]);
     expect(runResult(RestoreRunSchema.parse(RUN_SUCCEEDED))).toBeNull();
-    expect(runPreview(RestoreRunSchema.parse({ ...RUN_SUCCEEDED, preview: { bogus: true } }))).toBeNull();
+    // The recorded preview is typed by the contract: a malformed one is rejected.
+    expect(RestoreRunSchema.safeParse({ ...RUN_SUCCEEDED, preview: { bogus: true } }).success).toBe(false);
   });
 });
 

@@ -29,7 +29,9 @@ import (
 
 	agentv1 "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1"
 	"github.com/AxiomOperator/dbr2/internal/audit"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/pki"
+	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/store"
 	"github.com/AxiomOperator/dbr2/internal/version"
 )
@@ -72,6 +74,7 @@ type Gateway struct {
 	waiters  map[string]*waiter
 
 	latency metric.Float64Histogram
+	events  atomic.Pointer[events.Bus]
 }
 
 type session struct {
@@ -102,6 +105,7 @@ func (s *session) enqueue(m *agentv1.ConnectResponse) bool {
 
 type waiter struct {
 	agentID string
+	kind    string
 	updates chan *agentv1.CommandUpdate
 }
 
@@ -241,6 +245,7 @@ func (g *Gateway) register(s *session) {
 	close(g.changed)
 	g.changed = make(chan struct{})
 	g.mu.Unlock()
+	g.publish(context.Background(), events.New(events.AgentStatus, rbac.HostRead, map[string]any{"host_id": s.agentID, "connected": true}))
 	if old != nil {
 		old.enqueue(&agentv1.ConnectResponse{Body: &agentv1.ConnectResponse_Reject{Reject: &agentv1.Reject{Code: RejectSuperseded, Message: "a newer session replaced this one"}}})
 		old.close(errors.New(RejectSuperseded))
@@ -249,12 +254,16 @@ func (g *Gateway) register(s *session) {
 
 func (g *Gateway) unregister(s *session) {
 	g.mu.Lock()
-	if g.sessions[s.agentID] == s {
+	current := g.sessions[s.agentID] == s
+	if current {
 		delete(g.sessions, s.agentID)
 		close(g.changed)
 		g.changed = make(chan struct{})
 	}
 	g.mu.Unlock()
+	if current {
+		g.publish(context.Background(), events.New(events.AgentStatus, rbac.HostRead, map[string]any{"host_id": s.agentID, "connected": false}))
+	}
 	s.close(errors.New("session ended"))
 }
 
@@ -298,7 +307,7 @@ func (g *Gateway) Dispatch(ctx context.Context, agentID string, cmd *agentv1.Com
 	if cmd.CommandId == "" {
 		return nil, errors.New("command_id is required")
 	}
-	w := &waiter{agentID: agentID, updates: make(chan *agentv1.CommandUpdate, 64)}
+	w := &waiter{agentID: agentID, kind: commandKind(cmd), updates: make(chan *agentv1.CommandUpdate, 64)}
 	g.mu.Lock()
 	g.waiters[cmd.CommandId] = w // a retried dispatch replaces the stale waiter
 	g.mu.Unlock()
@@ -343,14 +352,10 @@ func terminal(s agentv1.CommandState) bool {
 	return s == agentv1.CommandState_COMMAND_STATE_SUCCEEDED || s == agentv1.CommandState_COMMAND_STATE_FAILED
 }
 
+// commandKind is the name of the command's oneof field (e.g.
+// "snapshot_components").
 func commandKind(c *agentv1.Command) string {
-	switch c.Kind.(type) {
-	case *agentv1.Command_Discover:
-		return "discover"
-	case *agentv1.Command_Echo:
-		return "echo"
-	}
-	return "unknown"
+	return oneofName(c.ProtoReflect(), "kind")
 }
 
 // deliver routes an agent's command update to its waiter and applies side
@@ -358,12 +363,11 @@ func commandKind(c *agentv1.Command) string {
 func (g *Gateway) deliver(ctx context.Context, s *session, u *agentv1.CommandUpdate) {
 	agentID, _ := uuid.Parse(s.agentID)
 	stateName := strings.ToLower(strings.TrimPrefix(u.State.String(), "COMMAND_STATE_"))
-	kind := "unknown"
-	if d := u.GetDiscover(); d != nil {
-		kind = "discover"
-	} else if u.GetEcho() != nil {
-		kind = "echo"
+	kind := g.waiterKind(u.CommandId)
+	if kind == "unknown" {
+		kind = oneofName(u.ProtoReflect(), "result")
 	}
+	g.publishProgress(ctx, s.agentID, kind, stateName, u)
 	if terminal(u.State) {
 		if d := u.GetDiscover(); d != nil && u.State == agentv1.CommandState_COMMAND_STATE_SUCCEEDED {
 			if _, err := g.IngestInventory(ctx, s.agentID, d.InventoryJson); err != nil {

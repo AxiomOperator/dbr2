@@ -14,14 +14,22 @@
 //   recovery pts  shop: committed/complete (quiesced), committed/partial
 //                 (live, crash-consistent, optional bind mount failed),
 //                 failed; mft-pg: committed; monitoring: in progress (commits
-//                 after ~2 min), wiki: missing
+//                 after ~2 min), wiki: missing; redis-cache: failed (no
+//                 success yet); metrics-agent: committed/partial
+//   progress      pending recovery points publish job.progress every 0.7 s and
+//                 backup.updated / alert.created when they commit
 //   alerts        backup failed (critical), partial RP (warning), agent
 //                 auto-resume (critical), reindex finished (info, acknowledged)
 //   escrow codes  the mock "package" is NOT encrypted: it carries a comment
 //                 line with the confirmation code, for local testing only.
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { publish } from "./mock-events.mjs";
 import { fleetData } from "./mock-fleet.mjs";
+
+/** Simulated duration of a "Back up now" (progress events every ~0.7 s). */
+const BACKUP_MS = Number(process.env.MOCK_BACKUP_MS ?? 15_000);
+const TICK_MS = 700;
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -34,6 +42,8 @@ const SHOP = "5f939a00-fccb-4376-a6cc-37eeb5542abe";
 const MFT = "9fc3a8cb-13d7-4c97-a291-4aade4ca63ee";
 const MONITORING = "1a2b3c4d-0000-4000-8000-000000000006";
 const WIKI = "1a2b3c4d-0000-4000-8000-000000000007";
+const REDIS = "1a2b3c4d-0000-4000-8000-000000000003";
+const METRICS = "1a2b3c4d-0000-4000-8000-000000000008";
 const PROD = "3f0d7a52-8c1e-4f7b-9a26-1d5e8b7c4a01";
 const EDGE = "8b2e61c4-0f3a-4d59-b7e8-6c1a2d3e4f02";
 
@@ -318,7 +328,113 @@ function shopManifest(rp, { partial = false } = {}) {
       { service: "db", ref: "postgres:18-alpine", digest: "postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2" },
       { service: "worker", ref: "shop-worker:dev" },
     ],
+    topology: topologyOf(fleetData.apps.find((a) => a.id === SHOP)),
     workflow: { workflow_id: rp.workflow_id, run_id: randomUUID(), trigger: rp.trigger },
+    producer: { component: "dbr2-worker", version: "0.1.0.0" },
+  };
+}
+
+/** The application's shape (internal/manifest: Topology) from the fleet mock; no secrets. */
+function topologyOf(app) {
+  if (!app?.analysis) return undefined;
+  const serviceOf = new Map();
+  for (const svc of app.analysis.services) for (const c of svc.containers) serviceOf.set(c.name, svc.name);
+  return {
+    containers: app.containers_detail.map((c) => ({
+      id: c.id,
+      name: c.name,
+      ...(serviceOf.get(c.name) && serviceOf.get(c.name) !== c.name ? { service: serviceOf.get(c.name) } : {}),
+      image: c.image,
+      state: c.state,
+      ...(c.ports.length ? { ports: c.ports } : {}),
+      ...(c.mounts.length
+        ? {
+            mounts: c.mounts.map((m) => ({
+              type: m.type,
+              ...(m.name ? { name: m.name } : {}),
+              ...(m.type === "bind" && m.source ? { source: m.source } : {}),
+              destination: m.destination,
+              rw: m.rw,
+            })),
+          }
+        : {}),
+      ...(c.networks.length ? { networks: c.networks } : {}),
+    })),
+    networks: app.analysis.networks.map((n) => ({ name: n.name, driver: n.driver, ...(n.external ? { external: true } : {}) })),
+    volumes: app.analysis.volumes.map((v) => ({ name: v.name, driver: v.driver, ...(v.external ? { external: true } : {}) })),
+  };
+}
+
+/** Deterministic pseudo size for a component name (bytes). */
+function sizeFor(name) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return 64 * 1024 ** 2 + (h % 2048) * 1024 ** 2;
+}
+
+// Mirrors skipBind in internal/protection/backups.go.
+const SKIP_BIND = ["/proc", "/sys", "/dev", "/run", "/var/run", "/etc/localtime", "/etc/timezone", "/etc/hosts", "/etc/hostname", "/etc/resolv.conf", "/etc/machine-id", "/tmp/.X11-unix"];
+const skipBind = (src) => src.endsWith(".sock") || src === "/" || SKIP_BIND.some((p) => src === p || src.startsWith(`${p}/`));
+
+/**
+ * The components a backup captures (internal/protection buildPlan): config,
+ * protected volumes, distinct bind sources; minus excluded; optional ones
+ * are not required.
+ */
+function planFor(app) {
+  const x = app?.analysis;
+  if (!x) return [];
+  const s = settings.get(app.id) ?? defaultSettings();
+  const out = [{ name: "config", kind: "config", path: x.working_dir ?? "" }];
+  for (const v of x.volumes) if (v.protected_by_default && v.mountpoint) out.push({ name: `volume:${v.name}`, kind: "volume", path: v.mountpoint, volume: v.name });
+  const seen = new Set();
+  for (const b of x.bind_mounts) {
+    if (!b.source || seen.has(b.source) || skipBind(b.source)) continue;
+    seen.add(b.source);
+    out.push({ name: `bind:${b.source}`, kind: "bind_mount", path: b.source });
+  }
+  return out
+    .filter((c) => !s.excluded_components.includes(c.name))
+    .map((c) => ({ ...c, required: c.kind === "config" || !s.optional_components.includes(c.name), size: c.kind === "config" ? 48_213 : sizeFor(c.name) }));
+}
+
+/** A complete manifest for a recovery point of `app` captured with `plan`. */
+function appManifest(r, app, plan) {
+  const components = [];
+  for (const c of plan) {
+    components.push(
+      comp(c.name, c.kind, {
+        required: c.required,
+        snapshot_source: c.kind === "config" ? `maint@dbr2:/config/${app.name}` : `agent@${r.hostname}:${c.path}`,
+        size_bytes: c.size,
+        files: c.kind === "config" ? 3 : Math.round(c.size / 1_048_576) + 17,
+        ...(c.path ? { path: c.path } : {}),
+        ...(c.volume ? { volume_name: c.volume } : {}),
+        started_at: r.created_at,
+        finished_at: iso(),
+      }),
+    );
+    if (c.kind !== "config") {
+      components.push(
+        comp(`fsmeta:${c.name}`, "fsmeta", { size_bytes: 40_960, files: 1, parent: c.name, snapshot_source: `maint@dbr2:/fsmeta/${app.name}`, started_at: r.created_at, finished_at: iso() }),
+      );
+    }
+  }
+  return {
+    schema_version: 1,
+    recovery_point_id: r.id,
+    status: "complete",
+    created_at: r.created_at,
+    consistency_mode: r.consistency_mode,
+    consistency_point: r.consistency_point ?? r.created_at,
+    crash_consistent_only: r.crash_consistent_only,
+    application: { id: app.id, name: fleetData.appName(app), ...(app.analysis?.compose_project ? { compose_project: app.analysis.compose_project } : {}), ...(app.analysis?.working_dir ? { working_dir: app.analysis.working_dir } : {}) },
+    source: { host_id: r.host_id, agent_id: r.host_id, hostname: r.hostname, agent_version: "0.1.0.0" },
+    repository: { id: r.repository_id, name: repositories.find((x) => x.id === r.repository_id)?.name ?? "nas01-backups" },
+    components,
+    images: (app.analysis?.images ?? []).map((im) => ({ ref: im.reference, ...(im.digests?.[0] ? { digest: im.digests[0] } : {}) })),
+    topology: topologyOf(app),
+    workflow: { workflow_id: r.workflow_id, run_id: r._runId ?? randomUUID(), trigger: r.trigger },
     producer: { component: "dbr2-worker", version: "0.1.0.0" },
   };
 }
@@ -363,7 +479,8 @@ function rp(over) {
     consistency_point: created,
     crash_consistent_only: true,
     trigger: "manual",
-    workflow_id: `backup-${over.application_id}-${Date.parse(created)}`,
+    // One exclusive workflow per application (temporalx.ApplicationWorkflowID).
+    workflow_id: `application/${over.application_id}`,
     size_bytes: 0,
     component_count: 0,
     error: null,
@@ -434,6 +551,7 @@ const recoveryPoints = [];
     committed_at: iso(-9 * HOUR + 2 * MIN),
   });
   mft._manifest = simpleManifest(mft, "mft-pg", "3ab8b905bbca892b57bde6f1c10c79e8e86abd14032aa7e854cc8f15bac0eba0");
+  mft._manifest.topology = topologyOf(fleetData.apps.find((a) => a.id === MFT));
   const running = rp({
     application_id: MONITORING,
     application_name: "Monitoring stack",
@@ -442,6 +560,7 @@ const recoveryPoints = [];
     state: "pending",
     consistency_point: null,
     created_at: iso(-40_000),
+    _startMs: Date.now() - 40_000,
     _finishAt: Date.now() + 2 * MIN,
   });
   const missing = rp({
@@ -457,22 +576,124 @@ const recoveryPoints = [];
     committed_at: iso(-8 * DAY + 11 * MIN),
     error: "manifest not found in the Repository during the last reindex",
   });
-  recoveryPoints.push(complete, partial, failed, mft, running, missing);
+  const redisFailed = rp({
+    application_id: REDIS,
+    application_name: "redis-cache",
+    host_id: PROD,
+    hostname: "docker-prod-01",
+    state: "failed",
+    trigger: "schedule",
+    consistency_point: null,
+    error: "snapshot of config failed: agent docker-prod-01: context deadline exceeded",
+    created_at: iso(-4 * HOUR),
+  });
+  const metricsPartial = rp({
+    application_id: METRICS,
+    application_name: "metrics-agent",
+    host_id: EDGE,
+    hostname: "docker-edge-02",
+    state: "committed",
+    status: "partial",
+    size_bytes: 52_113,
+    component_count: 2,
+    error: "optional component bind:/etc/alloy failed: no such file or directory",
+    created_at: iso(-20 * HOUR),
+    committed_at: iso(-20 * HOUR + MIN),
+  });
+  metricsPartial._manifest = {
+    ...simpleManifest(metricsPartial, "metrics-agent", "unused"),
+    status: "partial",
+    components: [
+      comp("config", "config", { snapshot_source: "maint@dbr2:/config/metrics-agent", size_bytes: 52_113, files: 2 }),
+      comp("bind:/etc/alloy", "bind_mount", {
+        required: false,
+        status: "failed",
+        snapshot_id: undefined,
+        root_object_id: undefined,
+        error: "lstat /etc/alloy: no such file or directory",
+        path: "/etc/alloy",
+      }),
+    ],
+  };
+  recoveryPoints.push(complete, partial, failed, mft, running, missing, redisFailed, metricsPartial);
 }
 
-/** Pending recovery points "finish" lazily when read. */
+/**
+ * Moves pending recovery points along: publishes `job.progress` for the
+ * component being captured (hashed / uploaded bytes, files, n of m) and, when
+ * done, commits the recovery point and publishes `backup.updated`. Runs on a
+ * timer and whenever recovery points are read.
+ */
 function advance() {
+  const now = Date.now();
   for (const r of recoveryPoints) {
-    if (r.state !== "pending" || !r._finishAt || r._finishAt > Date.now()) continue;
-    r.state = "committed";
-    r.status = "complete";
-    r.committed_at = iso();
-    r.consistency_point = r.consistency_point ?? r.created_at;
-    r.size_bytes = 734_003_200;
-    r.component_count = 2;
-    r._manifest = simpleManifest(r, r.application_name, "data");
+    if (r.state !== "pending" || !r._finishAt) continue;
+    const app = fleetData.apps.find((a) => a.id === r.application_id);
+    r._plan = r._plan ?? planFor(app);
+    r._runId = r._runId ?? randomUUID();
+    const plan = r._plan;
+    const base = {
+      command_id: `application/${r.application_id}/${r._runId}/snapshot-components`,
+      host_id: r.host_id,
+      kind: "snapshot_components",
+      workflow_id: r.workflow_id,
+      run_id: r._runId,
+      application_id: r.application_id,
+    };
+    if (r._finishAt <= now) {
+      r.state = "committed";
+      r.status = "complete";
+      r.committed_at = iso();
+      r.consistency_point = r.consistency_point ?? r.created_at;
+      r._manifest = app ? appManifest(r, app, plan) : simpleManifest(r, r.application_name, "data");
+      r.size_bytes = r._manifest.components.reduce((n, c) => n + (c.size_bytes ?? 0), 0);
+      r.component_count = r._manifest.components.length;
+      publish("job.progress", "backup.read", { ...base, state: "succeeded", progress: { done: plan.length, total: plan.length } });
+      publish("backup.updated", "backup.read", { recovery_point_id: r.id, application_id: r.application_id, state: "committed", workflow_id: r.workflow_id });
+      const alert = {
+        id: Math.max(0, ...alerts.map((x) => x.id)) + 1,
+        severity: "info",
+        type: "backup.completed",
+        target_type: "application",
+        target_id: r.application_id,
+        message: `Backup of ${r.application_name} committed (Complete, ${r.component_count} components)`,
+        details: { recovery_point_id: r.id },
+        created_at: iso(),
+        acknowledged_at: null,
+      };
+      alerts.push(alert);
+      publish("alert.created", "backup.read", { severity: alert.severity, type: alert.type, target_type: alert.target_type, target_id: alert.target_id, message: alert.message });
+      continue;
+    }
+    if (!r._announced) {
+      r._announced = true;
+      publish("backup.updated", "backup.read", { recovery_point_id: r.id, application_id: r.application_id, state: "pending", workflow_id: r.workflow_id });
+      publish("job.progress", "backup.read", { ...base, state: "accepted", progress: { queued: true } });
+      continue;
+    }
+    if (plan.length === 0) continue;
+    const start = r._startMs ?? Date.parse(r.created_at);
+    const frac = Math.min(0.999, Math.max(0, (now - start) / (r._finishAt - start)));
+    const pos = frac * plan.length;
+    const i = Math.min(plan.length - 1, Math.floor(pos));
+    const c = plan[i];
+    const within = pos - i;
+    const hashed = Math.round(c.size * within);
+    publish("job.progress", "backup.read", {
+      ...base,
+      state: "running",
+      progress: {
+        component: c.name,
+        hashed_bytes: hashed,
+        uploaded_bytes: Math.round(hashed * 0.37),
+        files: Math.round((c.kind === "config" ? 3 : c.size / 1_048_576 + 17) * within),
+        done: i,
+        total: plan.length,
+      },
+    });
   }
 }
+setInterval(advance, TICK_MS).unref();
 
 const alerts = [
   {
@@ -747,7 +968,8 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
           crash_consistent_only: mode === "live",
           consistency_point: null,
           created_at: iso(),
-          _finishAt: Date.now() + 15_000,
+          _startMs: Date.now(),
+          _finishAt: Date.now() + BACKUP_MS,
         });
         recoveryPoints.push(r);
         audit("backup.requested", "success", req, { actor: user.display_name, target_type: "application", target_id: a.id });
@@ -898,6 +1120,10 @@ export function protectionRoutes({ send, problem, readJson, audit }) {
 /** Read access to the recovery points for the other mock modules (mock-restore.mjs). */
 export const protectionData = {
   recoveryPoints,
+  repositories,
+  alerts,
+  planFor,
+  settingsOut,
   /** Lets pending recovery points commit (they finish lazily when read). */
   advance,
 };

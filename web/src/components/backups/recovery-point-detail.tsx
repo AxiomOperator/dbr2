@@ -11,6 +11,7 @@ import {
   RecoveryPointStateBadge,
   RecoveryPointStatusBadge,
 } from "@/components/backups/backup-badges";
+import { DatabasesCard, describeDatabase, nestComponents, TopologyCard } from "@/components/backups/manifest-sections";
 import { CopyButton } from "@/components/common/copy-button";
 import { AccessDenied, QueryError, RowsSkeleton } from "@/components/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -144,7 +145,10 @@ function ComponentsCard({ components }: { components: ManifestComponent[] }) {
             Components <span className="font-normal text-muted-foreground">({components.length})</span>
           </h2>
         </CardTitle>
-        <CardDescription>What the recovery manifest records for each captured component.</CardDescription>
+        <CardDescription>
+          What the recovery manifest records for each captured component; file-system metadata (fsmeta) is shown
+          under the component it belongs to.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {components.length === 0 ? (
@@ -162,12 +166,27 @@ function ComponentsCard({ components }: { components: ManifestComponent[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {components.map((c) => (
-                  <TableRow key={c.name} data-component-status={c.status}>
+                {nestComponents(components).map(({ component: c, depth }) => (
+                  <TableRow key={c.name} data-component-status={c.status} data-depth={depth}>
                     <TableCell className="min-w-44 align-top whitespace-normal">
-                      <div className="font-mono text-xs break-all">{c.name}</div>
-                      {c.parent && <div className="text-xs text-muted-foreground">of {c.parent}</div>}
-                      {c.error && <div className="mt-1 max-w-64 text-xs break-words text-destructive">{c.error}</div>}
+                      <div className={depth ? "flex gap-1.5 pl-4" : undefined}>
+                        {depth === 1 && (
+                          <span aria-hidden="true" className="text-muted-foreground">
+                            └
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <div className="font-mono text-xs break-all">{c.name}</div>
+                          {c.parent && (
+                            <div className="text-xs text-muted-foreground">
+                              {c.kind === "fsmeta" ? "Ownership, modes and SELinux labels of " : "Part of "}
+                              {c.parent}
+                            </div>
+                          )}
+                          {c.database && <div className="text-xs text-muted-foreground">{describeDatabase(c.database)}</div>}
+                          {c.error && <div className="mt-1 max-w-64 text-xs break-words text-destructive">{c.error}</div>}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="align-top">
                       <Badge variant="outline">{c.kind}</Badge>
@@ -253,12 +272,23 @@ function DetailBody({ id }: { id: string }) {
 
   const d = rp.data;
   const manifest = d.manifest === undefined || d.manifest === null ? null : ManifestSchema.safeParse(d.manifest);
+  const manifestFailed =
+    manifest?.success === true
+      ? manifest.data.components.filter((c) => c.status !== "succeeded" && c.kind !== "fsmeta").map((c) => c.name)
+      : [];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Recovery point</h1>
+          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
+            Recovery point
+            {d.status && (
+              <span className="text-base font-normal" data-testid="rp-status">
+                <RecoveryPointStatusBadge status={d.status} />
+              </span>
+            )}
+          </h1>
           <p className="inline-flex flex-wrap items-center gap-2 font-mono text-sm text-muted-foreground">
             {d.id}
             <CopyButton value={d.id} label="recovery point ID" />
@@ -277,11 +307,22 @@ function DetailBody({ id }: { id: string }) {
         </Alert>
       )}
       {d.status === "partial" && (
-        <Alert>
+        <Alert className="border-amber-500/60">
           <AlertTitle>Partial recovery point</AlertTitle>
           <AlertDescription>
-            One or more optional components failed. Required components were captured.
+            <p>One or more optional components failed. Every required component was captured.</p>
+            {manifestFailed.length > 0 && (
+              <p>
+                Not captured: <span className="font-mono text-xs">{manifestFailed.join(", ")}</span>
+              </p>
+            )}
           </AlertDescription>
+        </Alert>
+      )}
+      {d.status === "complete" && (
+        <Alert role="status" className="border-emerald-500/50">
+          <AlertTitle>Complete recovery point</AlertTitle>
+          <AlertDescription>Every component of the backup plan was captured.</AlertDescription>
         </Alert>
       )}
       <SummaryCard rp={d} />
@@ -290,7 +331,11 @@ function DetailBody({ id }: { id: string }) {
           No manifest is available{d.state === "failed" ? ": the backup failed before it was committed." : "."}
         </p>
       ) : manifest.success ? (
-        <ComponentsCard components={manifest.data.components} />
+        <>
+          <ComponentsCard components={manifest.data.components} />
+          <TopologyCard manifest={manifest.data} />
+          <DatabasesCard components={manifest.data.components} />
+        </>
       ) : (
         <Alert>
           <AlertTitle>Manifest not understood</AlertTitle>

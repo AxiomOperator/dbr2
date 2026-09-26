@@ -4,7 +4,9 @@
 // Tiny in-memory mock of the DBR² API contract (Phase 1 auth/audit, plus the
 // Phase 2/3 Hosts and Applications endpoints in ./mock-fleet.mjs and the
 // Phase 4 Repositories & backup endpoints in ./mock-protection.mjs and the
-// Phase 5 Restores endpoints in ./mock-restore.mjs), for
+// Phase 5 Restores endpoints in ./mock-restore.mjs and the Phase 6 jobs,
+// containers, volumes, users and protection status in ./mock-live.mjs, with
+// Server-Sent Events from ./mock-events.mjs), for
 // developing the console without the Go backend. NOT a security reference
 // implementation.
 //
@@ -19,12 +21,19 @@
 //                  backup.read, policy.read: no manage actions, no
 //                  "Back up now", no "Reveal secrets"; restore.read and
 //                  restore.execute like a Restore Operator: non-production
-//                  restores only, e.g. to docker-dr-03)
+//                  restores only, e.g. to docker-dr-03); no user.read, so
+//                  no Users page
+// GET /api/v1/events streams job.progress / backup.updated / restore.updated /
+// alert.created / agent.status / inventory.updated while mock backups and
+// restores run ("Back up now" takes MOCK_BACKUP_MS, default 15 s; restores
+// MOCK_RESTORE_MS, default 15 s).
 // Five wrong passwords lock the master admin for 60 s (423 + Retry-After).
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { eventRoutes } from "./mock-events.mjs";
 import { fleetRoutes } from "./mock-fleet.mjs";
+import { ALL_PERMISSIONS, liveRoutes } from "./mock-live.mjs";
 import { protectionRoutes } from "./mock-protection.mjs";
 import { restoreRoutes } from "./mock-restore.mjs";
 
@@ -51,25 +60,8 @@ const masterAdmin = () => ({
   email: null,
   kind: "master_admin",
   roles: ["administrator"],
-  permissions: [
-    "application.manage",
-    "application.read",
-    "audit.read",
-    "backup.execute",
-    "backup.read",
-    "host.manage",
-    "host.read",
-    "policy.manage",
-    "policy.read",
-    "repository.manage",
-    "repository.read",
-    "restore.execute",
-    "restore.production",
-    "restore.read",
-    "secrets.read",
-    "settings.manage",
-    "users.manage",
-  ],
+  // The Administrator role holds every permission (internal/rbac).
+  permissions: ALL_PERMISSIONS,
   totp_enabled: state.totpEnabled,
 });
 
@@ -79,7 +71,8 @@ const oidcUser = {
   display_name: "Ada Lovelace",
   email: "ada@example.com",
   kind: "oidc",
-  roles: ["operator"],
+  // restore_operator (via an Entra ID group mapping): read-only plus restore.execute.
+  roles: ["restore_operator"],
   permissions: [
     "application.read",
     "backup.read",
@@ -97,13 +90,16 @@ function audit(event_type, result, req, extra = {}) {
     event_id: randomUUID(),
     occurred_at: new Date().toISOString(),
     event_type,
-    actor_display: extra.actor ?? null,
+    actor_display: extra.actor ?? "anonymous",
+    actor_kind: extra.actor ? "user" : "anonymous",
     source_ip: String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "").split(",")[0].trim() || null,
     target_type: extra.target_type ?? "user",
     target_id: extra.target_id ?? null,
     result,
     reason: extra.reason ?? null,
     details: extra.details ?? {},
+    request_id: randomBytes(8).toString("hex"),
+    trace_id: null,
   });
 }
 
@@ -114,12 +110,15 @@ for (let i = 0; i < 120; i++) {
     occurred_at: new Date(Date.now() - (i + 1) * 3_600_000).toISOString(),
     event_type: i % 3 === 0 ? "auth.login" : i % 3 === 1 ? "auth.logout" : "settings.changed",
     actor_display: i % 2 ? "Master Admin" : "Ada Lovelace",
+    actor_kind: "user",
     source_ip: `10.0.0.${(i % 250) + 1}`,
     target_type: "user",
     target_id: i % 2 ? "admin" : "ada@example.com",
     result: i % 7 === 0 ? "failure" : "success",
     reason: i % 7 === 0 ? "invalid_credentials" : null,
     details: { seq: i },
+    request_id: randomBytes(8).toString("hex"),
+    trace_id: null,
   });
 }
 
@@ -357,7 +356,13 @@ const routes = {
 };
 
 const helpers = { send, problem, readJson, audit };
-const paramRoutes = [...fleetRoutes(helpers), ...protectionRoutes(helpers), ...restoreRoutes(helpers)];
+const paramRoutes = [
+  ...fleetRoutes(helpers),
+  ...protectionRoutes(helpers),
+  ...restoreRoutes(helpers),
+  ...liveRoutes(helpers),
+  ...eventRoutes(),
+];
 
 /** Exact routes first, then the parameterised fleet, protection and restore routes. */
 function resolve(method, pathname) {

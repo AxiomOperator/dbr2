@@ -32,7 +32,7 @@ name_reposerver := dbr2-reposerver
 name_dbr2       := dbr2
 
 .PHONY: all build $(BINARIES) test test-integration lint fmt fmt-check vet generate versions \
-        sqlc proto openapi check-generated tools web-install web-build web-test \
+        sqlc proto openapi check-generated tools web-install web-build web-test web-generate web-e2e \
         images dev-up dev-password dev-down clean help rpm rpm-test nfpm
 
 all: generate build test ## Generate, build and test everything
@@ -68,7 +68,7 @@ proto: ## Regenerate Go code from proto/ (buf + protoc-gen-go + protoc-gen-go-gr
 openapi: ## Export the OpenAPI document to api/openapi.yaml (no server needed)
 	$(GO) run ./cmd/server openapi -o api/openapi.yaml
 
-GENERATED := internal/version/components_gen.go internal/store api/openapi.yaml internal/agentpb
+GENERATED := internal/version/components_gen.go internal/store api/openapi.yaml internal/agentpb web/src/lib/api/generated
 
 check-generated: generate ## Fail if generated files are out of date (modified or new untracked)
 	git diff --exit-code -- $(GENERATED)
@@ -112,6 +112,12 @@ web-build: ## Build the Next.js console
 
 web-test: ## Web unit tests + lint + typecheck
 	cd web && npm run lint && npm run typecheck && npm test
+
+web-generate: ## Regenerate the console's API types / Zod schemas from api/openapi.yaml (commit the result)
+	cd web && npm run generate:api
+
+web-e2e: ## Web end-to-end tests (Playwright, Chromium) against the mock API
+	cd web && npx playwright install chromium && npm run test:e2e
 
 ## ---- Packages ----------------------------------------------------------------
 

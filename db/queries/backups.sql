@@ -96,3 +96,17 @@ ORDER BY created_at DESC LIMIT $2;
 -- name: AcknowledgeNotification :execrows
 UPDATE notification_outbox SET acknowledged_at = now(), acknowledged_by = $3
 WHERE id = $1 AND org_id = $2 AND acknowledged_at IS NULL;
+
+-- name: LatestCommittedPerApplication :many
+SELECT DISTINCT ON (application_id) * FROM recovery_points
+WHERE org_id = $1 AND state = 'committed'
+ORDER BY application_id, created_at DESC;
+
+-- name: LatestAttemptPerApplication :many
+SELECT DISTINCT ON (application_id) * FROM recovery_points
+WHERE org_id = $1
+ORDER BY application_id, created_at DESC;
+
+-- name: ListApplicationBackupSettings :many
+SELECT s.* FROM application_backup_settings s JOIN applications a ON a.id = s.application_id
+WHERE a.org_id = $1;

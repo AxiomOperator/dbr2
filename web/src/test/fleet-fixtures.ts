@@ -137,6 +137,23 @@ export const APP_SUMMARY = {
   criticality: null,
   last_seen_at: "2026-09-25T17:53:13.545478Z",
   missing_since: null,
+  protection: {
+    status: "at_risk",
+    reasons: ["1 of 2 components are not in the latest recovery point"],
+    last_backup_at: "2026-09-25T17:40:02.118Z",
+    last_recovery_point_id: "rp_01K5ZQ3M8XJ9T6V2B4N7C1D0EF",
+    last_status: "complete",
+    last_mode: "live",
+    last_attempt_at: "2026-09-25T17:39:51.004Z",
+    last_attempt_state: "committed",
+    components: [
+      { name: "config", kind: "config", required: true, protected: true, last_size_bytes: 48213 },
+      { name: "volume:fbcad_miniodata", kind: "volume", required: true, protected: false, last_size_bytes: 0 },
+    ],
+    components_total: 2,
+    components_protected: 1,
+    unresolved_dependencies: 0,
+  },
 };
 
 export const APP_DETAIL = {

@@ -439,6 +439,146 @@ func (q *Queries) LastCommittedRecoveryPoint(ctx context.Context, applicationID 
 	return i, err
 }
 
+const latestAttemptPerApplication = `-- name: LatestAttemptPerApplication :many
+SELECT DISTINCT ON (application_id) id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points
+WHERE org_id = $1
+ORDER BY application_id, created_at DESC
+`
+
+func (q *Queries) LatestAttemptPerApplication(ctx context.Context, orgID uuid.UUID) ([]RecoveryPoint, error) {
+	rows, err := q.db.Query(ctx, latestAttemptPerApplication, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecoveryPoint
+	for rows.Next() {
+		var i RecoveryPoint
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.RepositoryID,
+			&i.ApplicationID,
+			&i.ApplicationName,
+			&i.AgentID,
+			&i.Hostname,
+			&i.State,
+			&i.Status,
+			&i.Verification,
+			&i.ConsistencyMode,
+			&i.ConsistencyPoint,
+			&i.CrashConsistentOnly,
+			&i.Trigger,
+			&i.RequestedBy,
+			&i.WorkflowID,
+			&i.RunID,
+			&i.SizeBytes,
+			&i.ComponentCount,
+			&i.Manifest,
+			&i.ManifestSnapshotID,
+			&i.Error,
+			&i.CreatedAt,
+			&i.CommittedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const latestCommittedPerApplication = `-- name: LatestCommittedPerApplication :many
+SELECT DISTINCT ON (application_id) id, org_id, repository_id, application_id, application_name, agent_id, hostname, state, status, verification, consistency_mode, consistency_point, crash_consistent_only, trigger, requested_by, workflow_id, run_id, size_bytes, component_count, manifest, manifest_snapshot_id, error, created_at, committed_at, updated_at FROM recovery_points
+WHERE org_id = $1 AND state = 'committed'
+ORDER BY application_id, created_at DESC
+`
+
+func (q *Queries) LatestCommittedPerApplication(ctx context.Context, orgID uuid.UUID) ([]RecoveryPoint, error) {
+	rows, err := q.db.Query(ctx, latestCommittedPerApplication, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecoveryPoint
+	for rows.Next() {
+		var i RecoveryPoint
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.RepositoryID,
+			&i.ApplicationID,
+			&i.ApplicationName,
+			&i.AgentID,
+			&i.Hostname,
+			&i.State,
+			&i.Status,
+			&i.Verification,
+			&i.ConsistencyMode,
+			&i.ConsistencyPoint,
+			&i.CrashConsistentOnly,
+			&i.Trigger,
+			&i.RequestedBy,
+			&i.WorkflowID,
+			&i.RunID,
+			&i.SizeBytes,
+			&i.ComponentCount,
+			&i.Manifest,
+			&i.ManifestSnapshotID,
+			&i.Error,
+			&i.CreatedAt,
+			&i.CommittedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listApplicationBackupSettings = `-- name: ListApplicationBackupSettings :many
+SELECT s.application_id, s.repository_id, s.consistency_mode, s.max_quiesce_seconds, s.pre_hooks, s.post_hooks, s.optional_components, s.excluded_components, s.updated_by, s.updated_at FROM application_backup_settings s JOIN applications a ON a.id = s.application_id
+WHERE a.org_id = $1
+`
+
+func (q *Queries) ListApplicationBackupSettings(ctx context.Context, orgID uuid.UUID) ([]ApplicationBackupSetting, error) {
+	rows, err := q.db.Query(ctx, listApplicationBackupSettings, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ApplicationBackupSetting
+	for rows.Next() {
+		var i ApplicationBackupSetting
+		if err := rows.Scan(
+			&i.ApplicationID,
+			&i.RepositoryID,
+			&i.ConsistencyMode,
+			&i.MaxQuiesceSeconds,
+			&i.PreHooks,
+			&i.PostHooks,
+			&i.OptionalComponents,
+			&i.ExcludedComponents,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNotifications = `-- name: ListNotifications :many
 SELECT id, org_id, event_type, severity, payload, created_at, delivered_at, target_type, target_id, message, acknowledged_at, acknowledged_by FROM notification_outbox WHERE org_id = $1
   AND (NOT $3::boolean OR acknowledged_at IS NULL)

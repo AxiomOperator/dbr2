@@ -16,7 +16,9 @@ import (
 	agentv1 "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1"
 	controlv1 "github.com/AxiomOperator/dbr2/internal/agentpb/control/v1"
 	"github.com/AxiomOperator/dbr2/internal/audit"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/manifest"
+	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/repoclient"
 	"github.com/AxiomOperator/dbr2/internal/store"
 	"github.com/AxiomOperator/dbr2/workflows/backup"
@@ -186,6 +188,8 @@ var restoreEvents = map[string]string{"succeeded": audit.RestoreSucceeded, "fail
 // UpdateRestore records a step or the outcome (audit + alert).
 func (p *Platform) UpdateRestore(ctx context.Context, req *controlv1.UpdateRestoreRequest) (*controlv1.UpdateRestoreResponse, error) {
 	s := p.s
+	defer s.publish(ctx, events.RestoreUpdated, rbac.RestoreRead, map[string]any{"restore_id": req.RestoreId, "state": req.State,
+		"step": req.Step, "error": req.Error})
 	if req.State == "running" {
 		if err := s.q.SetRestoreStep(ctx, store.SetRestoreStepParams{ID: req.RestoreId, Step: &req.Step}); err != nil {
 			return nil, grpcErr(err)

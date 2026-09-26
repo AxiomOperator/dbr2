@@ -24,6 +24,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/audit"
 	"github.com/AxiomOperator/dbr2/internal/auth"
 	"github.com/AxiomOperator/dbr2/internal/config"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/obs"
 	"github.com/AxiomOperator/dbr2/internal/pg"
 	"github.com/AxiomOperator/dbr2/internal/version"
@@ -88,12 +89,14 @@ func serve(ctx context.Context) error {
 		_, err := tc.CheckHealth(ctx, &client.CheckHealthRequest{})
 		return err
 	}})
+	bus := events.NewBus(log)
 	if cfg.ValkeyAddr != "" {
 		vk, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{cfg.ValkeyAddr}, DisableCache: true})
 		if err != nil {
 			log.Warn("valkey unavailable at start-up (cache only; not fatal)", "err", err)
 		} else {
 			defer vk.Close()
+			bus.UseValkey(ctx, vk) // SSE fan-out across dbr2-server instances
 			checks = append(checks, api.ReadyCheck{Name: "valkey", Check: func(ctx context.Context) error {
 				return vk.Do(ctx, vk.B().Ping().Build()).Error()
 			}})
@@ -109,12 +112,13 @@ func serve(ctx context.Context) error {
 		return err
 	}
 	defer stopGateway()
-	_ = gw
+	gw.SetEvents(bus)
+	prot.SetEvents(bus)
 
 	go janitor(ctx, pool, log)
 
 	handler := api.NewHandler(&api.Deps{
-		Auth: svc, Fleet: fl, Protection: prot, Log: log, Ready: checks, DocsPublic: cfg.DocsPublic, CookieSecure: cfg.CookieSecure,
+		Auth: svc, Fleet: fl, Protection: prot, Events: bus, Log: log, Ready: checks, DocsPublic: cfg.DocsPublic, CookieSecure: cfg.CookieSecure,
 		WebLoginPath: cfg.WebLoginPath, PublicURL: cfg.PublicURL, AllowedOrigins: cfg.AllowedOrigins(),
 		TrustedProxies: cfg.TrustedProxies(),
 	})

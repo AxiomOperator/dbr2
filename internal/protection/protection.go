@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,8 +26,10 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/audit"
 	"github.com/AxiomOperator/dbr2/internal/auth"
 	"github.com/AxiomOperator/dbr2/internal/escrow"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/gateway"
+	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/repoclient"
 	"github.com/AxiomOperator/dbr2/internal/store"
 	"github.com/AxiomOperator/dbr2/internal/temporalx"
@@ -65,6 +68,16 @@ type Service struct {
 	// repoClient builds management clients (replaceable in tests).
 	repoClient func(managementURL string) RepoManager
 	now        func() time.Time
+	events     atomic.Pointer[events.Bus]
+}
+
+// SetEvents enables live updates (SSE).
+func (s *Service) SetEvents(b *events.Bus) { s.events.Store(b) }
+
+func (s *Service) publish(ctx context.Context, typ string, perm rbac.Permission, data any) {
+	if b := s.events.Load(); b != nil {
+		b.Publish(ctx, events.New(typ, perm, data))
+	}
 }
 
 // RepoManager is the subset of the reposerver management API used here.
@@ -118,6 +131,8 @@ func (s *Service) alert(ctx context.Context, q *store.Queries, severity, typ, ta
 	if payload == nil {
 		payload = []byte("{}")
 	}
+	s.publish(ctx, events.AlertCreated, rbac.BackupRead, map[string]any{"severity": severity, "type": typ,
+		"target_type": targetType, "target_id": targetID, "message": msg})
 	return q.InsertNotification(ctx, store.InsertNotificationParams{OrgID: s.opts.OrgID, Severity: severity, EventType: typ,
 		TargetType: &targetType, TargetID: &targetID, Message: msg, Payload: payload})
 }

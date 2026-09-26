@@ -48,7 +48,14 @@ import {
 } from "@/lib/api/protection-schemas";
 import { useBackupSettings, useRepositories } from "@/lib/api/hooks";
 import { formatDateTime } from "@/lib/format";
-import { backupComponents, hookTargets, joinCommand, splitCommand, type BackupComponent } from "@/lib/protection";
+import {
+  componentDetail,
+  componentKind,
+  hookTargets,
+  joinCommand,
+  splitCommand,
+  type BackupComponent,
+} from "@/lib/protection";
 
 const DEFAULT_REPO = "__default__";
 const AUTO = "automatic";
@@ -399,18 +406,25 @@ function ComponentsEditor({
   );
 }
 
-/** Derived components plus any configured name the latest analysis no longer has. */
+/**
+ * The application's backup components as the server plans them
+ * (`protection.components`), plus configured optional / excluded names the
+ * plan does not list (excluded components are left out of the plan).
+ */
 export function componentRows(app: ApplicationDetail, s: Pick<SettingsDraft, "optional" | "excluded">): BackupComponent[] {
-  const rows = backupComponents(app.analysis);
+  const rows: BackupComponent[] = (app.protection?.components ?? []).map((c) => ({
+    name: c.name,
+    kind: c.kind,
+    detail: componentDetail(app.analysis, c.name) ?? "Not in the latest analysis",
+  }));
+  if (!rows.some((r) => r.name === "config")) {
+    rows.unshift({ name: "config", kind: "config", detail: componentDetail(app.analysis, "config")! });
+  }
   const known = new Set(rows.map((r) => r.name));
   for (const name of [...s.optional, ...s.excluded]) {
     if (known.has(name)) continue;
     known.add(name);
-    rows.push({
-      name,
-      kind: name.startsWith("bind:") ? "bind_mount" : name.startsWith("volume:") ? "volume" : "config",
-      detail: "Not in the latest analysis",
-    });
+    rows.push({ name, kind: componentKind(name), detail: componentDetail(app.analysis, name) ?? "Not in the latest analysis" });
   }
   return rows;
 }

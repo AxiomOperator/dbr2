@@ -1,9 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// One typed function per endpoint. Request bodies are validated with
-// the same Zod schemas the forms use before they leave the browser.
+// One typed function per endpoint. Request bodies are validated twice before
+// they leave the browser: with the console's form schema (user-facing
+// messages) and with the generated OpenAPI schema (the contract). Responses
+// are validated with the generated schemas (see ./contract.ts).
 
 import { apiRequest } from "./client";
+import {
+  zAddEscrowRecipientBody,
+  zAddGroupMappingBody,
+  zChangePasswordBody,
+  zConfirmRepositoryEscrowBody,
+  zConfirmTotpBody,
+  zCreateApplicationBody,
+  zCreateRegistrationTokenBody,
+  zCreateRepositoryBody,
+  zDisableTotpBody,
+  zLoginBody,
+  zPreviewRestoreBody,
+  zPutBackupSettingsBody,
+  zPutHostSettingsBody,
+  zReasonInputBody,
+  zRemoveGroupMappingBody,
+  zSetUserRolesBody,
+  zSetUserStatusBody,
+  zStartBackupBody,
+  zStartRestoreBody2,
+  zUpdateApplicationBody,
+} from "./generated/zod.gen";
 import {
   AuditEventPageSchema,
   AuthProvidersSchema,
@@ -33,6 +57,8 @@ import {
   CreateRegistrationTokenRequestSchema,
   CreateRegistrationTokenResponseSchema,
   DiscoverResponseSchema,
+  FleetContainerListSchema,
+  FleetVolumeListSchema,
   ReasonRequestSchema,
   RegistrationTokenListSchema,
   UpdateApplicationRequestSchema,
@@ -52,6 +78,7 @@ import {
   EscrowRecipientListSchema,
   EscrowRecipientSchema,
   HostSettingsSchema,
+  JobListSchema,
   RecoveryPointListSchema,
   RecoveryPointSchema,
   RepositoryListSchema,
@@ -63,11 +90,24 @@ import {
   type AddEscrowRecipientRequest,
   type ConfirmEscrowRequest,
   type CreateRepositoryRequest,
+  type JobState,
+  type JobType,
   type RecoveryPointState,
   type StartBackupRequest,
   type UpdateBackupSettingsRequest,
   type UpdateHostSettingsRequest,
 } from "./protection-schemas";
+import {
+  GroupMappingListSchema,
+  GroupMappingRequestSchema,
+  RoleListSchema,
+  SetRolesRequestSchema,
+  SetStatusRequestSchema,
+  UserListSchema,
+  type GroupMappingRequest,
+  type SetRolesRequest,
+  type SetStatusRequest,
+} from "./users-schemas";
 import {
   PreviewSchema,
   RestoreBodySchema,
@@ -101,23 +141,23 @@ export const api = {
   login: (req: LoginRequest) =>
     apiRequest("/auth/login", {
       method: "POST",
-      body: LoginRequestSchema.parse(req),
+      body: zLoginBody.parse(LoginRequestSchema.parse(req)),
       schema: LoginResponseSchema,
     }),
 
   logout: () => apiRequest("/auth/logout", { method: "POST" }),
 
   changePassword: (req: ChangePasswordRequest) =>
-    apiRequest("/auth/password", { method: "POST", body: ChangePasswordRequestSchema.parse(req) }),
+    apiRequest("/auth/password", { method: "POST", body: zChangePasswordBody.parse(ChangePasswordRequestSchema.parse(req)) }),
 
   totpEnroll: () =>
     apiRequest("/auth/totp/enroll", { method: "POST", schema: TotpEnrollResponseSchema }),
 
   totpConfirm: (req: TotpCodeRequest) =>
-    apiRequest("/auth/totp/confirm", { method: "POST", body: TotpCodeRequestSchema.parse(req) }),
+    apiRequest("/auth/totp/confirm", { method: "POST", body: zConfirmTotpBody.parse(TotpCodeRequestSchema.parse(req)) }),
 
   totpDisable: (req: TotpCodeRequest) =>
-    apiRequest("/auth/totp/disable", { method: "POST", body: TotpCodeRequestSchema.parse(req) }),
+    apiRequest("/auth/totp/disable", { method: "POST", body: zDisableTotpBody.parse(TotpCodeRequestSchema.parse(req)) }),
 
   auditEvents: (params: { limit?: number; cursor?: string | null }, signal?: AbortSignal) =>
     apiRequest("/audit-events", {
@@ -140,7 +180,7 @@ export const api = {
   agentAction: (id: string, action: AgentAction, req: ReasonRequest) =>
     apiRequest(`/agents/${seg(id)}/${action}`, {
       method: "POST",
-      body: ReasonRequestSchema.parse(req),
+      body: zReasonInputBody.parse(ReasonRequestSchema.parse(req)),
       schema: AgentSchema,
     }),
 
@@ -154,7 +194,7 @@ export const api = {
   createRegistrationToken: (req: CreateRegistrationTokenRequest) =>
     apiRequest("/agents/registration-tokens", {
       method: "POST",
-      body: CreateRegistrationTokenRequestSchema.parse(req),
+      body: zCreateRegistrationTokenBody.parse(CreateRegistrationTokenRequestSchema.parse(req)),
       schema: CreateRegistrationTokenResponseSchema,
     }),
 
@@ -172,14 +212,14 @@ export const api = {
   updateApplication: (id: string, req: UpdateApplicationRequest) =>
     apiRequest(`/applications/${seg(id)}`, {
       method: "PATCH",
-      body: UpdateApplicationRequestSchema.parse(req),
+      body: zUpdateApplicationBody.parse(UpdateApplicationRequestSchema.parse(req)),
       schema: ApplicationSummarySchema,
     }),
 
   createApplication: (req: CreateApplicationRequest) =>
     apiRequest("/applications", {
       method: "POST",
-      body: CreateApplicationRequestSchema.parse(req),
+      body: zCreateApplicationBody.parse(CreateApplicationRequestSchema.parse(req)),
       schema: CreateApplicationResponseSchema,
     }),
 
@@ -201,7 +241,7 @@ export const api = {
   addEscrowRecipient: (req: AddEscrowRecipientRequest) =>
     apiRequest("/escrow/recipients", {
       method: "POST",
-      body: AddEscrowRecipientRequestSchema.parse(req),
+      body: zAddEscrowRecipientBody.parse(AddEscrowRecipientRequestSchema.parse(req)),
       schema: EscrowRecipientSchema,
     }),
 
@@ -216,7 +256,7 @@ export const api = {
   createRepository: (req: CreateRepositoryRequest) =>
     apiRequest("/repositories", {
       method: "POST",
-      body: CreateRepositoryRequestSchema.parse(req),
+      body: zCreateRepositoryBody.parse(CreateRepositoryRequestSchema.parse(req)),
       schema: CreateRepositoryResponseSchema,
     }),
 
@@ -227,7 +267,7 @@ export const api = {
   confirmRepositoryEscrow: (id: string, req: ConfirmEscrowRequest) =>
     apiRequest(`/repositories/${seg(id)}/escrow/confirm`, {
       method: "POST",
-      body: ConfirmEscrowRequestSchema.parse(req),
+      body: zConfirmRepositoryEscrowBody.parse(ConfirmEscrowRequestSchema.parse(req)),
       schema: RepositorySchema,
     }),
 
@@ -240,7 +280,7 @@ export const api = {
   startBackup: (applicationId: string, req: StartBackupRequest = {}) =>
     apiRequest(`/applications/${seg(applicationId)}/backups`, {
       method: "POST",
-      body: StartBackupRequestSchema.parse(req),
+      body: zStartBackupBody.parse(StartBackupRequestSchema.parse(req)),
       schema: WorkflowResponseSchema,
     }),
 
@@ -250,7 +290,7 @@ export const api = {
   updateBackupSettings: (applicationId: string, req: UpdateBackupSettingsRequest) =>
     apiRequest(`/applications/${seg(applicationId)}/backup-settings`, {
       method: "PUT",
-      body: UpdateBackupSettingsRequestSchema.parse(req),
+      body: zPutBackupSettingsBody.parse(UpdateBackupSettingsRequestSchema.parse(req)),
       schema: BackupSettingsSchema,
     }),
 
@@ -287,7 +327,7 @@ export const api = {
   updateHostSettings: (agentId: string, req: UpdateHostSettingsRequest) =>
     apiRequest(`/agents/${seg(agentId)}/settings`, {
       method: "PUT",
-      body: UpdateHostSettingsRequestSchema.parse(req),
+      body: zPutHostSettingsBody.parse(UpdateHostSettingsRequestSchema.parse(req)),
       schema: HostSettingsSchema,
     }),
 
@@ -297,7 +337,7 @@ export const api = {
   restorePreview: (recoveryPointId: string, req: RestoreBody, signal?: AbortSignal) =>
     apiRequest(`/recovery-points/${seg(recoveryPointId)}/restore-preview`, {
       method: "POST",
-      body: RestoreBodySchema.parse(req),
+      body: zPreviewRestoreBody.parse(RestoreBodySchema.parse(req)),
       schema: PreviewSchema,
       signal,
     }),
@@ -310,7 +350,7 @@ export const api = {
   startRestore: (recoveryPointId: string, req: StartRestoreBody) =>
     apiRequest(`/recovery-points/${seg(recoveryPointId)}/restores`, {
       method: "POST",
-      body: StartRestoreBodySchema.parse(req),
+      body: zStartRestoreBody2.parse(StartRestoreBodySchema.parse(req)),
       schema: RestoreRunSchema,
     }),
 
@@ -328,6 +368,63 @@ export const api = {
 
   restore: (id: string, signal?: AbortSignal) =>
     apiRequest(`/restores/${seg(id)}`, { schema: RestoreRunSchema, signal }),
+
+  /** 202: compensation runs and the restore ends rolled_back (or failed). 409 when it is not running. */
+  cancelRestore: (id: string) => apiRequest(`/restores/${seg(id)}/cancel`, { method: "POST" }),
+
+  // --- Phase 6: jobs, fleet-wide containers / volumes, users ----------------
+
+  jobs: async (
+    params: { applicationId?: string | null; type?: JobType | null; state?: JobState | null; limit?: number },
+    signal?: AbortSignal,
+  ) =>
+    (
+      await apiRequest("/jobs", {
+        schema: JobListSchema,
+        query: { application_id: params.applicationId, type: params.type, state: params.state, limit: params.limit },
+        signal,
+      })
+    ).items,
+
+  containers: async (params: { hostId?: string | null } = {}, signal?: AbortSignal) =>
+    (await apiRequest("/containers", { schema: FleetContainerListSchema, query: { host_id: params.hostId }, signal }))
+      .items,
+
+  volumes: async (params: { hostId?: string | null } = {}, signal?: AbortSignal) =>
+    (await apiRequest("/volumes", { schema: FleetVolumeListSchema, query: { host_id: params.hostId }, signal })).items,
+
+  users: async (signal?: AbortSignal) => (await apiRequest("/users", { schema: UserListSchema, signal })).items,
+
+  roles: async (signal?: AbortSignal) => (await apiRequest("/roles", { schema: RoleListSchema, signal })).items,
+
+  /** Replaces the manually granted roles (group-mapped roles are managed by Entra ID). */
+  setUserRoles: (id: string, req: SetRolesRequest) =>
+    apiRequest(`/users/${seg(id)}/roles`, {
+      method: "PUT",
+      body: zSetUserRolesBody.parse(SetRolesRequestSchema.parse(req)),
+    }),
+
+  /** Disabling revokes every session of the user. */
+  setUserStatus: (id: string, req: SetStatusRequest) =>
+    apiRequest(`/users/${seg(id)}/status`, {
+      method: "PUT",
+      body: zSetUserStatusBody.parse(SetStatusRequestSchema.parse(req)),
+    }),
+
+  groupMappings: async (signal?: AbortSignal) =>
+    (await apiRequest("/oidc/group-mappings", { schema: GroupMappingListSchema, signal })).items,
+
+  addGroupMapping: (req: GroupMappingRequest) =>
+    apiRequest("/oidc/group-mappings", {
+      method: "POST",
+      body: zAddGroupMappingBody.parse(GroupMappingRequestSchema.parse(req)),
+    }),
+
+  removeGroupMapping: (req: GroupMappingRequest) =>
+    apiRequest("/oidc/group-mappings/remove", {
+      method: "POST",
+      body: zRemoveGroupMappingBody.parse(GroupMappingRequestSchema.parse(req)),
+    }),
 };
 
 /** TanStack Query keys, centralised so invalidation stays consistent. */
@@ -365,4 +462,17 @@ export const queryKeys = {
   restores: (filters: { applicationId?: string | null; state?: string | null }) =>
     ["restores", "list", { applicationId: filters.applicationId ?? null, state: filters.state ?? null }] as const,
   restore: (id: string) => ["restores", "detail", id] as const,
+  jobsAll: ["jobs"] as const,
+  jobs: (filters: { applicationId?: string | null; type?: string | null; state?: string | null }) =>
+    [
+      "jobs",
+      { applicationId: filters.applicationId ?? null, type: filters.type ?? null, state: filters.state ?? null },
+    ] as const,
+  containers: (hostId?: string | null) => ["containers", { hostId: hostId ?? null }] as const,
+  containersAll: ["containers"] as const,
+  volumes: (hostId?: string | null) => ["volumes", { hostId: hostId ?? null }] as const,
+  volumesAll: ["volumes"] as const,
+  users: ["users"] as const,
+  roles: ["roles"] as const,
+  groupMappings: ["group-mappings"] as const,
 };

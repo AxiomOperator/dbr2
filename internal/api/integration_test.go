@@ -5,6 +5,7 @@
 package api_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -27,6 +28,7 @@ import (
 	"github.com/AxiomOperator/dbr2/internal/api"
 	"github.com/AxiomOperator/dbr2/internal/audit"
 	"github.com/AxiomOperator/dbr2/internal/auth"
+	"github.com/AxiomOperator/dbr2/internal/events"
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/gateway"
 	"github.com/AxiomOperator/dbr2/internal/inventory"
@@ -41,6 +43,7 @@ type env struct {
 	gw     *gateway.Gateway
 	srv    *httptest.Server
 	idp    *testutil.FakeOIDC
+	bus    *events.Bus
 	adminU string
 	adminP string
 }
@@ -82,8 +85,10 @@ func newEnv(t *testing.T, rateLimit int) *env {
 		t.Fatal(err)
 	}
 	fl := fleet.New(fleet.Options{OrgID: uuid.MustParse(db.DefaultOrgID), GatewayAddress: "dbr2.example.lan:8443", TaskQueue: "q"}, pool, rec, e.gw, box, nil)
+	e.bus = events.NewBus(log)
+	e.gw.SetEvents(e.bus)
 	e.srv.Config.Handler = api.NewHandler(&api.Deps{
-		Auth: svc, Fleet: fl, Log: log, WebLoginPath: "/login", PublicURL: e.srv.URL, AllowedOrigins: []string{e.srv.URL},
+		Auth: svc, Fleet: fl, Events: e.bus, Log: log, WebLoginPath: "/login", PublicURL: e.srv.URL, AllowedOrigins: []string{e.srv.URL},
 		Ready: []api.ReadyCheck{{Name: "postgres", Critical: true, Check: pool.Ping}},
 	})
 	return e
@@ -505,5 +510,75 @@ func TestHostsAndApplicationsAPI(t *testing.T) {
 		if auditTypes(t, e.pool)[want] == 0 {
 			t.Errorf("missing audit event %s", want)
 		}
+	}
+}
+
+// TestEventStream covers the SSE endpoint: authentication, typed events
+// from the gateway (inventory ingestion), the types filter and heartbeats.
+func TestEventStream(t *testing.T) {
+	e := newEnv(t, 100)
+	anon := e.browser()
+	if r := anon.do("GET", "/api/v1/events", nil); r.status != 401 {
+		t.Fatalf("anonymous stream: %d", r.status)
+	}
+	admin := e.browser()
+	admin.expect(200, "POST", "/api/v1/auth/login", map[string]any{"username": "dbr2-admin", "password": e.adminP})
+
+	open := func(query string) (*bufio.Reader, func()) {
+		ctx, cancel := context.WithCancel(context.Background())
+		req, _ := http.NewRequestWithContext(ctx, "GET", e.srv.URL+"/api/v1/events"+query, nil)
+		res, err := admin.http.Do(req)
+		if err != nil || res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+			t.Fatalf("stream: %v %v", err, res)
+		}
+		return bufio.NewReader(res.Body), func() { cancel(); res.Body.Close() }
+	}
+	next := func(r *bufio.Reader) (string, string) {
+		var ev, data string
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				t.Fatal(err)
+			}
+			line = strings.TrimRight(line, "\n")
+			switch {
+			case strings.HasPrefix(line, "event: "):
+				ev = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				data = strings.TrimPrefix(line, "data: ")
+			case line == "" && ev != "":
+				return ev, data
+			}
+		}
+		t.Fatal("no event")
+		return "", ""
+	}
+	all, closeAll := open("")
+	defer closeAll()
+	only, closeOnly := open("?types=agent.status")
+	defer closeOnly()
+	for e.bus.Subscribers() < 2 {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ag, err := store.New(e.pool).CreateAgent(context.Background(), store.CreateAgentParams{OrgID: uuid.MustParse(db.DefaultOrgID),
+		Hostname: "docker-09", AgentVersion: "0.1.0.3", ProtocolVersion: "0.1.0.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(inventory.Inventory{SchemaVersion: 1, CollectedAt: time.Now().UTC()})
+	if _, err := e.gw.IngestInventory(context.Background(), ag.ID.String(), data); err != nil {
+		t.Fatal(err)
+	}
+	if ev, d := next(all); ev != "inventory.updated" || !strings.Contains(d, ag.ID.String()) {
+		t.Fatalf("got %s %s", ev, d)
+	}
+	e.bus.Publish(context.Background(), events.New(events.AgentStatus, "host.read", map[string]any{"host_id": "h1", "connected": true}))
+	if ev, d := next(only); ev != "agent.status" || d != `{"host_id":"h1","connected":true}` {
+		t.Fatalf("filtered stream got %s %s", ev, d)
+	}
+	if ev, _ := next(all); ev != "agent.status" {
+		t.Fatalf("got %s", ev)
 	}
 }

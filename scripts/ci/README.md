@@ -29,7 +29,8 @@ job has least-privilege `permissions` (default `contents: read`).
 |---|---|---|
 | `go` | `go vet`, gofmt, SPDX headers; unit tests (`-race`); build with `BUILD=run_number`; generated code committed and current | `make lint test build check-generated` |
 | `integration` | integration tests (`-tags integration`, testcontainers, Docker) | `make test-integration` |
-| `web` | lint, typecheck, unit tests, production build | `make web-install web-test web-build` |
+| `web` | lint, typecheck, unit tests (incl. generated-contract staleness), production build | `make web-install web-test web-build` |
+| `web-e2e` | Playwright end-to-end tests (Chromium) against the mock API and a production build; fails on any CSP violation; report uploaded on failure | `make web-e2e` |
 | `api-contract` | `api/openapi.yaml` is committed and matches `make openapi`; on PRs, no breaking change without an `api` version bump (see *Breaking-change policy*); oasdiff changelog in the job summary | `check-api-contract.sh` |
 | `proto` | `buf lint`; on PRs, `buf breaking` against the base branch without an `agent-protocol` version bump fails (see *Breaking-change policy*; skips with a notice if `buf.yaml` is absent) | `check-proto.sh` |
 | `changelog` (PR) | component changelog entries (ADR-0015) | `check-changelog.sh` |

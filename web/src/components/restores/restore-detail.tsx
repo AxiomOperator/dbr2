@@ -20,6 +20,9 @@ import {
   RestoreModeBadge,
   RestoreStateBadge,
 } from "@/components/restores/restore-badges";
+import { ApplicationJobProgress } from "@/components/live/job-progress";
+import { useLiveStatus } from "@/components/live/live-events";
+import { CancelRestoreButton } from "@/components/restores/cancel-restore";
 import { RestorePreviewView } from "@/components/restores/restore-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -36,10 +39,11 @@ import {
 } from "@/components/ui/table";
 import { isApiError } from "@/lib/api/client";
 import { PERMISSION_APPLICATION_READ, PERMISSION_HOST_READ } from "@/lib/api/fleet-schemas";
-import { RESTORE_POLL_MS, useAgents, useRestore } from "@/lib/api/hooks";
+import { RESTORE_POLL_MS, useRestore } from "@/lib/api/hooks";
 import { PERMISSION_BACKUP_READ } from "@/lib/api/protection-schemas";
 import {
   isActiveRestore,
+  PERMISSION_RESTORE_EXECUTE,
   PERMISSION_RESTORE_READ,
   runPreview,
   runResult,
@@ -109,12 +113,7 @@ function SummaryCard({ run }: { run: RestoreRun }) {
   const canApps = hasPermission(me, PERMISSION_APPLICATION_READ);
   const canHosts = hasPermission(me, PERMISSION_HOST_READ);
   const canRps = hasPermission(me, PERMISSION_BACKUP_READ);
-  const crossHost = run.source_host_id !== run.target_host_id;
-  // The run carries only the source host's ID: resolve its name when allowed.
-  const agents = useAgents({ enabled: canHosts && crossHost });
-  const sourceName = crossHost
-    ? (agents.data?.find((a) => a.id === run.source_host_id)?.hostname ?? run.source_host_id)
-    : run.target_hostname;
+  const sourceName = run.source_hostname || run.source_host_id;
   const host = (id: string, name: string) =>
     canHosts ? (
       <Link href={`/hosts/${id}`} className="underline-offset-4 hover:underline">
@@ -372,6 +371,8 @@ function ResultCard({ result, state }: { result: RestoreResult; state: RestoreRu
 }
 
 function DetailBody({ id }: { id: string }) {
+  const me = useCurrentUser();
+  const live = useLiveStatus();
   const q = useRestore(id);
 
   if (q.isPending) return <RowsSkeleton label="Loading restore…" />;
@@ -392,6 +393,7 @@ function DetailBody({ id }: { id: string }) {
   const result = runResult(run);
   const steps = restoreSteps(run, preview);
   const active = isActiveRestore(run.state);
+  const canCancel = active && hasPermission(me, PERMISSION_RESTORE_EXECUTE);
 
   return (
     <div className="space-y-6">
@@ -408,12 +410,20 @@ function DetailBody({ id }: { id: string }) {
             <RestoreStateBadge state={run.state} step={run.step} />
             <RestoreModeBadge mode={run.mode} />
             {run.production && <ProductionBadge />}
+            {canCancel && <CancelRestoreButton run={run} />}
           </div>
         </div>
         <StepProgress steps={steps} />
+        {active && run.step === "restore-data" && (
+          <div className="max-w-xl rounded-lg border border-sky-500/40 p-3">
+            <ApplicationJobProgress applicationId={run.target_application_id || run.application_id} />
+          </div>
+        )}
         {active && (
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            Refreshes every {RESTORE_POLL_MS / 1000} s while the restore runs.
+            {live === "live"
+              ? "Updates live while the restore runs."
+              : `Refreshes every ${RESTORE_POLL_MS / 1000} s while the restore runs.`}
             {q.isError && " The last refresh failed; showing earlier data."}
           </p>
         )}

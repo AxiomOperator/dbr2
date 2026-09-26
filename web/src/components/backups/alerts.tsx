@@ -201,10 +201,11 @@ export function AlertsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
         <p className="text-sm text-muted-foreground">
-          Backup failures, partial recovery points, quiesce warnings, agent auto-resumes and
-          applications that were not resumed.
+          Alerts raised by DBR²: backup failures, partial recovery points, quiesce warnings, agent
+          auto-resumes and applications that were not resumed. New alerts also pop up live while the
+          console is open; email and webhook delivery arrives with Phase 7.
         </p>
       </div>
       {canRead ? (
@@ -292,7 +293,7 @@ export function AlertsCard() {
                 ))}
               </ul>
             )}
-            <Link href="/alerts" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <Link href="/notifications" className={buttonVariants({ variant: "outline", size: "sm" })}>
               View all alerts
             </Link>
           </>

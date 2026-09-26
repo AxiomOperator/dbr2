@@ -2,8 +2,8 @@
 import type { Metadata } from "next";
 import { AlertsView } from "@/components/backups/alerts";
 
-export const metadata: Metadata = { title: "Alerts" };
+export const metadata: Metadata = { title: "Notifications" };
 
-export default function AlertsPage() {
+export default function NotificationsPage() {
   return <AlertsView />;
 }

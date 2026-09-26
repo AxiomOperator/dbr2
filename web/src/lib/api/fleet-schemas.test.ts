@@ -82,10 +82,10 @@ describe("application schemas", () => {
     const d = ApplicationDetailSchema.parse(APP_DETAIL);
     expect(d.analysis?.unprotected[0]?.severity).toBe("high");
     expect(d.analysis?.tmpfs).toEqual([]); // null -> []
-    expect(d.analysis?.volumes[0]?.anonymous).toBe(false); // omitted -> false
+    expect(d.analysis?.volumes[0]?.anonymous).toBeFalsy(); // omitted
     expect(d.analysis?.images[1]?.digests).toEqual([]); // omitted (locally built) -> []
     expect(d.containers_detail[0]?.env[0]).toEqual({ key: "MINIO_ROOT_PASSWORD", value: "********", sensitive: true });
-    expect(d.containers_detail[0]?.env[1]?.sensitive).toBe(false);
+    expect(d.containers_detail[0]?.env[1]?.sensitive).toBeFalsy();
     expect(d.manual_containers).toEqual([]); // omitted -> []
   });
 

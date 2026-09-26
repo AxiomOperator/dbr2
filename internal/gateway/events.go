@@ -13,6 +13,8 @@ import (
 
 	agentv1 "github.com/AxiomOperator/dbr2/internal/agentpb/agent/v1"
 	"github.com/AxiomOperator/dbr2/internal/audit"
+	"github.com/AxiomOperator/dbr2/internal/events"
+	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/store"
 )
 
@@ -61,6 +63,9 @@ func (g *Gateway) recordAgentEvent(ctx context.Context, agentID string, ev *agen
 	if err := g.q.InsertNotification(ctx, store.InsertNotificationParams{OrgID: g.cfg.OrgID, Severity: sev, EventType: typ,
 		TargetType: &targetType, TargetID: &target, Message: ev.Message, Payload: payload}); err != nil {
 		g.log.ErrorContext(ctx, "raising agent alert failed", "agent_id", agentID, "err", err)
+	} else {
+		g.publish(ctx, events.New(events.AlertCreated, rbac.BackupRead, map[string]any{"severity": sev, "type": typ,
+			"target_type": targetType, "target_id": target, "message": ev.Message}))
 	}
 	g.log.WarnContext(ctx, "agent event", "agent_id", agentID, "event", ev.Type, "severity", sev, "application_id", ev.ApplicationId, "message", ev.Message)
 }

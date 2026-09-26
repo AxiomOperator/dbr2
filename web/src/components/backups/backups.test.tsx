@@ -92,7 +92,10 @@ describe("Back up now", () => {
     const dialog = await screen.findByRole("dialog", { name: "Back up Web shop now" });
     expect(within(dialog).getByRole("combobox")).toHaveTextContent("Use the backup settings (Quiesced)");
     await user.click(within(dialog).getByRole("button", { name: "Start backup" }));
-    expect(await screen.findByText("backup-wf-7")).toBeInTheDocument();
+    // The dialog switches to the live progress view and a toast reports the workflow.
+    expect(await screen.findByRole("dialog", { name: "Backing up Web shop" })).toBeInTheDocument();
+    expect((await screen.findAllByText("backup-wf-7")).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("job-progress-waiting")).toHaveTextContent("Backup running");
     expect(bodies).toEqual([{}]);
   });
 
@@ -179,7 +182,7 @@ describe("backup settings draft", () => {
     });
   });
 
-  it("lists derived components plus configured names no longer in the analysis", () => {
+  it("lists the API's planned components plus configured names no longer in the analysis", () => {
     const rows = componentRows(app, { optional: ["bind:/srv/shop/uploads"], excluded: [] });
     expect(rows.map((r) => [r.name, r.detail])).toEqual([
       ["config", "/home/garrettpost/Projects/fbcad"],
@@ -349,7 +352,7 @@ describe("recovery points", () => {
     expect(within(rows[1]!).getByText("system_u:object_r:container_file_t:s0")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("999:999 · 0700")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("2143")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("of volume:shop_pgdata")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText(/Ownership, modes and SELinux labels of\s+volume:shop_pgdata/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Web shop" })).toHaveAttribute("href", `/applications/${APP_ID}`);
     // Repository link only with repository.read.
     expect(screen.queryByRole("link", { name: REPO_ID })).not.toBeInTheDocument();
@@ -446,6 +449,6 @@ describe("alerts", () => {
     ]);
     const latest = screen.getByRole("list", { name: "Latest alerts" });
     expect(within(latest).getAllByRole("listitem")[0]).toHaveTextContent("docker-prod-01 resumed wiki");
-    expect(screen.getByRole("link", { name: "View all alerts" })).toHaveAttribute("href", "/alerts");
+    expect(screen.getByRole("link", { name: "View all alerts" })).toHaveAttribute("href", "/notifications");
   });
 });

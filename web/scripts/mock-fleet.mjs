@@ -19,6 +19,7 @@
 //                 returns the real values (audited)
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { publish } from "./mock-events.mjs";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -204,6 +205,9 @@ function inventoryFor(agentId) {
 // ---------------------------------------------------------------------------
 // Applications
 // ---------------------------------------------------------------------------
+
+/** Set by mock-live.mjs: computes `protection` (it needs recovery points and restores). */
+const hooks = { protection: null };
 
 const hostname = (id) => agents.find((a) => a.id === id)?.hostname ?? "unknown";
 
@@ -503,6 +507,7 @@ function summary(a) {
     criticality: a.criticality,
     last_seen_at: a.last_seen_at,
     missing_since: a.missing_since,
+    ...(hooks.protection ? { protection: hooks.protection(a) } : {}),
   };
 }
 
@@ -745,6 +750,7 @@ export function fleetRoutes({ send, problem, readJson, audit }) {
         }
         if (action === "suspend" || action === "revoke") a.connected = false;
         if (action === "revoke") a.certificate_not_after = iso();
+        if (action !== "resume") publish("agent.status", "host.read", { host_id: a.id, connected: a.connected });
         audit(`agent.${action}`, "success", req, { actor: user.display_name, target_type: "agent", target_id: a.id, reason });
         send(res, 200, a);
       },
@@ -759,6 +765,10 @@ export function fleetRoutes({ send, problem, readJson, audit }) {
         if (!a) return;
         if (a.status !== "active") return problem(res, 409, "conflict", "Conflict", `the agent is ${a.status}`);
         send(res, 202, { workflow_id: `discover-host-${a.id}-${Date.now()}` });
+        setTimeout(() => {
+          const count = apps.filter((x) => x.host_id === a.id && !x.missing_since).length;
+          publish("inventory.updated", "host.read", { host_id: a.id, applications: count });
+        }, 2_000);
       },
     ],
 
@@ -898,4 +908,9 @@ export const fleetData = {
   agents,
   apps,
   appName: (a) => a.display_name || a.name,
+  hostname,
+  /** @param {(app: object) => object} fn */
+  setProtection: (fn) => {
+    hooks.protection = fn;
+  },
 };

@@ -206,4 +206,37 @@ describe("proxyRequest", () => {
       "http://second:9090/api/v1/version",
     ]);
   });
+
+  it("streams Server-Sent Events event by event, uncompressed and unbuffered", async () => {
+    const encoder = new TextEncoder();
+    let push: ((s: string) => void) | undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (s) => controller.enqueue(encoder.encode(s));
+      },
+    });
+    const fetchImpl = mockFetch(
+      () => new Response(body, { status: 200, headers: { "content-type": "text/event-stream", "cache-control": "no-cache" } }),
+    );
+    const res = await proxyRequest(new Request("http://c/api/v1/events", { headers: { accept: "text/event-stream" } }), {
+      fetchImpl,
+      env: {},
+    });
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    const reader = res.body!.getReader();
+    push!(": connected\n\n");
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(": connected\n\n");
+    push!("event: agent.status\ndata: {}\n\n");
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain("event: agent.status");
+    await reader.cancel();
+  });
+
+  it("does not touch caching headers of ordinary responses", async () => {
+    const fetchImpl = mockFetch(() => Response.json({ ok: true }, { headers: { "cache-control": "private" } }));
+    const res = await proxyRequest(new Request("http://c/api/v1/version"), { fetchImpl, env: {} });
+    expect(res.headers.get("cache-control")).toBe("private");
+    expect(res.headers.get("x-accel-buffering")).toBeNull();
+  });
 });

@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { AnalysisSchema } from "@/lib/api/fleet-schemas";
 import {
-  backupComponents,
+  componentDetail,
+  componentKind,
   describeWindow,
   hhmmToMinutes,
   hookTargets,
@@ -73,7 +74,7 @@ describe("splitCommand", () => {
   });
 });
 
-describe("backupComponents", () => {
+describe("component names", () => {
   const analysis = AnalysisSchema.parse({
     key: "compose:shop",
     kind: "compose",
@@ -95,16 +96,21 @@ describe("backupComponents", () => {
     containers: ["shop-db-1", "shop-web-1"],
   });
 
-  it("derives config, protected volumes and distinct bind sources like the server", () => {
-    expect(backupComponents(analysis).map((c) => c.name)).toEqual([
+  it("derives the kind from the name", () => {
+    expect(["config", "volume:shop_pgdata", "bind:/srv/shop/uploads", "database:db"].map(componentKind)).toEqual([
       "config",
-      "volume:shop_pgdata",
-      "bind:/srv/shop/uploads",
+      "volume",
+      "bind_mount",
+      "database",
     ]);
   });
 
-  it("offers only config without an analysis", () => {
-    expect(backupComponents(null).map((c) => c.name)).toEqual(["config"]);
+  it("finds where a component's data lives in the analysis", () => {
+    expect(componentDetail(analysis, "config")).toBe("/srv/shop");
+    expect(componentDetail(analysis, "volume:shop_pgdata")).toBe("/var/lib/docker/volumes/shop_pgdata/_data");
+    expect(componentDetail(analysis, "bind:/srv/shop/uploads")).toBe("/srv/shop/uploads");
+    expect(componentDetail(analysis, "volume:gone")).toBeNull();
+    expect(componentDetail(null, "config")).toBe("Application definition and metadata");
   });
 
   it("lists hook targets (services and containers)", () => {

@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/((?!api/).*)", headers: securityHeaders }];
   },
+  // Phase 6 renamed Alerts to Notifications (System group); old links keep working.
+  async redirects() {
+    return [{ source: "/alerts", destination: "/notifications", permanent: true }];
+  },
 };
 
 export default nextConfig;

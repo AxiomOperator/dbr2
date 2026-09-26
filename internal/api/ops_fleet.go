@@ -13,6 +13,7 @@ import (
 
 	"github.com/AxiomOperator/dbr2/internal/fleet"
 	"github.com/AxiomOperator/dbr2/internal/inventory"
+	"github.com/AxiomOperator/dbr2/internal/protection"
 	"github.com/AxiomOperator/dbr2/internal/rbac"
 	"github.com/AxiomOperator/dbr2/internal/temporalx"
 )
@@ -61,25 +62,41 @@ type RegistrationTokenDTO struct {
 
 // ApplicationSummary is an application in the list.
 type ApplicationSummary struct {
-	ID              string     `json:"id" format:"uuid"`
-	Name            string     `json:"name"`
-	DisplayName     *string    `json:"display_name"`
-	Kind            string     `json:"kind" enum:"compose,container,manual"`
-	HostID          string     `json:"host_id" format:"uuid"`
-	Hostname        string     `json:"hostname"`
-	Source          string     `json:"source" enum:"original,reconstructed,unknown" doc:"Provenance of the Compose definition."`
-	Services        int        `json:"services"`
-	Containers      int        `json:"containers"`
-	Volumes         int        `json:"volumes"`
-	BindMounts      int        `json:"bind_mounts"`
-	UnprotectedHigh int        `json:"unprotected_high" doc:"Writable paths not backed by a volume or bind mount (high severity)."`
-	Dependencies    int        `json:"dependencies"`
-	SecretsCount    int        `json:"secrets_count"`
-	Owner           *string    `json:"owner"`
-	Environment     *string    `json:"environment"`
-	Criticality     *string    `json:"criticality"`
-	LastSeenAt      time.Time  `json:"last_seen_at"`
-	MissingSince    *time.Time `json:"missing_since" doc:"Set when the application disappeared from the host's latest inventory."`
+	ID              string                 `json:"id" format:"uuid"`
+	Name            string                 `json:"name"`
+	DisplayName     *string                `json:"display_name"`
+	Kind            string                 `json:"kind" enum:"compose,container,manual"`
+	HostID          string                 `json:"host_id" format:"uuid"`
+	Hostname        string                 `json:"hostname"`
+	Source          string                 `json:"source" enum:"original,reconstructed,unknown" doc:"Provenance of the Compose definition."`
+	Services        int                    `json:"services"`
+	Containers      int                    `json:"containers"`
+	Volumes         int                    `json:"volumes"`
+	BindMounts      int                    `json:"bind_mounts"`
+	UnprotectedHigh int                    `json:"unprotected_high" doc:"Writable paths not backed by a volume or bind mount (high severity)."`
+	Dependencies    int                    `json:"dependencies"`
+	SecretsCount    int                    `json:"secrets_count"`
+	Owner           *string                `json:"owner"`
+	Environment     *string                `json:"environment"`
+	Criticality     *string                `json:"criticality"`
+	LastSeenAt      time.Time              `json:"last_seen_at"`
+	MissingSince    *time.Time             `json:"missing_since" doc:"Set when the application disappeared from the host's latest inventory."`
+	Protection      *protection.Protection `json:"protection,omitempty" doc:"Protection status (protected, at_risk, failed, unprotected) with reasons, the latest recovery point and attempt, a running operation, and coverage: each component the application has now and whether the latest recovery point contains it."`
+}
+
+// protectionFor returns protection per application (empty when the
+// protection service is not configured or fails; the inventory view still
+// works).
+func (d *Deps) protectionFor(ctx context.Context, apps []fleet.Application) map[uuid.UUID]protection.Protection {
+	if d.Protection == nil {
+		return nil
+	}
+	m, err := d.Protection.ProtectionFor(ctx, apps)
+	if err != nil {
+		d.Log.WarnContext(ctx, "protection status unavailable", "err", err)
+		return nil
+	}
+	return m
 }
 
 func summary(a fleet.Application) ApplicationSummary {
@@ -391,8 +408,13 @@ func registerFleet(a huma.API, d *Deps) {
 				}
 			}{}
 			out.Body.Items = make([]ApplicationSummary, 0, len(apps))
+			prot := d.protectionFor(ctx, apps)
 			for _, x := range apps {
-				out.Body.Items = append(out.Body.Items, summary(x))
+				s := summary(x)
+				if p, ok := prot[x.Record.ID]; ok {
+					s.Protection = &p
+				}
+				out.Body.Items = append(out.Body.Items, s)
 			}
 			return out, nil
 		})
@@ -409,7 +431,11 @@ func registerFleet(a huma.API, d *Deps) {
 			if err != nil {
 				return nil, d.fleetErr(ctx, err)
 			}
-			det := ApplicationDetail{ApplicationSummary: summary(app), ManualContainers: app.Record.ManualContainers, Analysis: app.Analysis,
+			sum := summary(app)
+			if p, ok := d.protectionFor(ctx, []fleet.Application{app})[app.Record.ID]; ok {
+				sum.Protection = &p
+			}
+			det := ApplicationDetail{ApplicationSummary: sum, ManualContainers: app.Record.ManualContainers, Analysis: app.Analysis,
 				ContainersDetail: []ContainerDTO{}}
 			if inv := app.Inventory; inv != nil && app.Analysis != nil {
 				inventory.Redact(inv)
