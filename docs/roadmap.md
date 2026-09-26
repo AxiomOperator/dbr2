@@ -305,6 +305,18 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-25 — Fix — `make dev-up` build failure (DNS inside build containers)
+- **Notes:**
+  - **Symptom (reported by the owner):** `make dev-up` failed in `go mod download` (and `npm ci`) with `lookup proxy.golang.org on [2600:…::1]:53: … network is unreachable`.
+  - **Cause:**
+    - The host resolves through the systemd-resolved stub (`127.0.0.53`), so Docker's build containers fall back to the real upstream resolvers.
+    - The first upstream is the router's IPv6 address, and the default build network has no IPv6 route.
+    - Earlier builds had worked from the module cache. New modules (Phase 5–6 dependencies) exposed the problem.
+  - **Fix:** the development Compose file builds with `network: host`, so builds use the host's working resolver. Production images are built in CI and are unaffected.
+  - **Alternative for other machines:** set `"dns": [...]` in `/etc/docker/daemon.json`, or enable IPv6 on Docker networks.
+  - Verified: `make dev-up` builds all four images and every service is healthy.
+- **Files:** `deployments/docker-compose/compose.dev.yaml`, `deployments/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-25 — Feature — Phase 6 (Web console) complete
 - **Notes:**
   - **Live updates:** `GET /api/v1/events` (Server-Sent Events).

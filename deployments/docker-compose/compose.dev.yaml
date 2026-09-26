@@ -5,6 +5,9 @@
 # no throughput testing — final_stack → Testing → Storage mocking).
 #   docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 # Console: https://localhost:9443 (Caddy internal CA; accept the certificate).
+# Builds use the host network (`network: host`): on hosts whose resolver is
+# systemd-resolved with an IPv6 upstream, the default build network cannot
+# reach DNS (go mod download / npm ci fail with "network is unreachable").
 
 services:
   proxy:
@@ -16,6 +19,7 @@ services:
     build:
       context: ../../web
       args: { BUILD: "0" }
+      network: host
 
   dbr2-server:
     image: dbr2-server:dev
@@ -23,6 +27,7 @@ services:
       context: ../..
       dockerfile: deployments/docker/Dockerfile.services
       args: { CMD: server, BUILD: "0" }
+      network: host
     environment:
       DBR2_PUBLIC_URL: https://localhost:${DBR2_DEV_HTTPS_PORT:-9443}
       DBR2_GATEWAY_PUBLIC_ADDRESS: localhost:${DBR2_DEV_GATEWAY_PORT:-18443}
@@ -36,6 +41,7 @@ services:
       context: ../..
       dockerfile: deployments/docker/Dockerfile.services
       args: { CMD: worker, BUILD: "0" }
+      network: host
 
   dbr2-reposerver:
     image: dbr2-reposerver:dev
@@ -43,6 +49,7 @@ services:
       context: ../..
       dockerfile: deployments/docker/Dockerfile.services
       args: { CMD: reposerver, BUILD: "0" }
+      network: host
     user: "${DBR2_DEV_UID:-1000}:${DBR2_DEV_GID:-1000}"
     environment:
       DBR2_REPOSITORY_ID: dev

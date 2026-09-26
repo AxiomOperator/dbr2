@@ -4,6 +4,9 @@ All notable changes to the `deployment` component. Format: [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Fixed
+- `compose.dev.yaml` builds with `network: host`: on hosts using systemd-resolved with an IPv6 upstream resolver, the default build network could not resolve DNS and `make dev-up` failed in `go mod download` / `npm ci`.
+
 ### Added
 - dbr2-reposerver: state volume, internal token, `DBR2_REPOSERVER_TLS_NAMES`, Kopia server published on `${DBR2_REPOSERVER_PORT:-51515}` (dev: loopback only), `stop_grace_period: 30s`; `make dev-up` pre-creates `.dev/reposerver-state`.
 - Root `.dockerignore`: `.dev`, secrets, `.env`, build output and `node_modules` no longer enter the service build context.
