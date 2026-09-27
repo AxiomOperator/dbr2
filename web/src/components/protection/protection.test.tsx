@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { filterApplications } from "@/components/applications/applications-view";
 import { CurrentUserProvider } from "@/components/auth-guard";
 import { ProtectionOverviewCard } from "@/components/dashboard/protection-overview-card";
@@ -44,6 +44,11 @@ describe("filterApplications by protection status", () => {
 
 describe("ProtectionCard", () => {
   it("shows reasons, the last backup, the error and per-component coverage from the API", () => {
+    // Pin "now" an hour after the fixture's last backup: the relative time
+    // becomes "yesterday" (no "ago") once the fixture is a day old.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.parse(protection.last_backup_at!) + 3600_000));
+    onTestFinished(() => void vi.useRealTimers());
     renderWithQuery(
       <CurrentUserProvider me={meWith(["application.read", "backup.read"])}>
         <ProtectionCard

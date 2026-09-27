@@ -18,6 +18,9 @@ All notable changes to the `web` component. Format: [Keep a Changelog](https://k
 - Mock API: `scripts/mock-policies.mjs` (policies with cron validation and timezone-aware next run, assignments, contracts evaluated on read, deletion / undelete of recovery points and Repositories, notification channels, deliveries, test, SMTP) and `scripts/mock-platform.mjs` (verification, escrow health / regenerate / drills, platform backups, System Repository); seeds include a violated contract, a scheduled deletion, a verification failure with errors, unhealthy escrow, a failed webhook delivery and a partial platform backup; verification and deletion publish `backup.updated`, verification failures `alert.created`. The mock contract test covers every new endpoint.
 - Tests: schedule presets / cron parsing and descriptions / retention summaries, event patterns and wildcard matching, write-only secret semantics, policy form (preview, API error, request), policy assignment, contract card and list, typed-confirmation deletion and undelete (recovery points and Repositories), channel form / event picker / send test / deliveries, SMTP, escrow health fixes, regenerate and drill flows, verification card, platform page (265 → 312 unit tests); Playwright: create policy + assign, delete with grace + undelete, notification channel create + test, escrow drill, and the new pages (10 → 14 tests).
 
+### Fixed
+- The ProtectionCard test pins the clock. Its fixture's last backup became "yesterday" (no "ago") once it was a day old, which failed CI on 2026-09-27.
+
 ### Changed
 - Restore Testing placeholder now points to verification and escrow drills and lists what remains for a later release (automatic sandbox restore tests).
 - Radix Select can be opened in unit tests (`vitest.setup.ts` polyfills pointer capture and `scrollIntoView`).

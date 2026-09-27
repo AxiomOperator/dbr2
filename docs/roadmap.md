@@ -311,6 +311,12 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-26 — Fix — Date-dependent web test
+- **Notes:**
+  - CI for `d82b762` failed in `protection.test.tsx`. The fixture's `last_backup_at` (2026-09-25T17:40Z) was more than a day old, so `formatRelative` (`numeric: "auto"`) rendered "yesterday", which the test's `/ago|now/` did not match.
+  - It was not related to that commit. The test now fixes "now" an hour after the fixture's backup.
+- **Files:** `web/src/components/protection/protection.test.tsx`, `web/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-26 — Fix — Restored config files kept the agent's (root) ownership
 - **Notes:**
   - **Owner report:** "I tested everything and it restored it as root not the original user???"
