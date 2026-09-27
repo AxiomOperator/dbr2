@@ -311,6 +311,26 @@ Goal: remove the architectural unknowns before building.
 
 Newest first. Each entry lists the date, the type (Feature / Enhancement / Fix / Deployment / Decision / Docs), a summary and **notes**.
 
+### 2026-09-26 — Fix — Restored config files kept the agent's (root) ownership
+- **Notes:**
+  - **Owner report:** "I tested everything and it restored it as root not the original user???"
+  - **What happened (planix, native RPM agent):**
+    - The project directory and its config files had been deleted before restore `rs_01M3G9Z47SRM8E7X4BGQ43BVJH` ran (`had_previous` false). The restore recreated them as `root:root`, and the directory as mode 0700 because of the agent's `UMask=0077`.
+    - Volumes and databases were not affected: Kopia keeps uid/gid, and the root owner is applied from the spec.
+    - Only the captured files were written; nothing else in the project directory was deleted.
+  - **Root cause:**
+    - Config staging copied files as the agent (root) without keeping their owners, so the snapshot recorded root.
+    - Restore created missing parent directories with `MkdirAll`, which also gives root ownership and umask permissions.
+  - **Fix:**
+    - **Capture:** staged config files keep their owner, and every ancestor directory's owner and mode is staged too. Such snapshots are marked with `format.json` (format 2).
+    - **Restore:** missing parent directories of config files and bind mounts are created one by one. Each gets the owner and mode recorded in a format-2 snapshot (when not remapped), or else the owner of the nearest existing ancestor with mode 0755. Existing directories are never changed.
+    - **Older snapshots:** they recorded root, so each file takes the owner of the file it replaces, or else of its parent directory.
+  - **Tests:** a unit test for directory creation, and a root-only test (run in a `golang` container as root) that captures a project owned by uid 1234, deletes it, restores it, and checks owner and mode of the directories and files.
+  - **Action for the owner:**
+    - Fix the already-restored planix tree by hand (`chown -R`); the agent can't know it was wrong.
+    - Rebuild and reinstall the agent RPM. New backups record exact ownership.
+- **Files:** `internal/agent/{ownership.go,ownership_test.go,snapshot.go,restore.go}`, `cmd/agent/CHANGELOG.md`, `docs/roadmap.md`
+
 ### 2026-09-26 — Enhancement — `dbr2-deploy.sh` start, stop and restart
 - **Notes:**
   - **Owner request:** "please include a start/stop/restart".

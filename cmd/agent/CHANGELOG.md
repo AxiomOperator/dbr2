@@ -9,6 +9,9 @@ All notable changes to the `agent` component. Format: [Keep a Changelog](https:/
 - `runtime.DumpControl` (`ExecOutput` streaming stdout, `CopyFromContainer`) implemented by `DockerRuntime`.
 - `engine.Repository.Verify` (Phase 9): walks a snapshot tree, checks every object against the index (and the pack blob list on direct connections) and fully reads a deterministic `ReadPercent` sample of files; problems are listed in `VerifyStats.Errors`.
 
+### Fixed
+- Restored config files and recreated directories were owned by root (the agent) instead of their original owner. Config snapshots now keep file owners and stage every ancestor directory's owner and mode (marked by `format.json`, format 2). Restore creates missing parent directories of config files and bind mounts with the recorded owner and mode, or else the owner of the nearest existing ancestor and mode 0755, without changing existing directories. Files from older snapshots take the owner of the file they replace, or else of its parent directory.
+
 ### Changed
 - `engine.Repository.SnapshotStream`: a read error of the stream now fails the snapshot and nothing is saved (previously saved with an error count).
 - Image components are reported skipped with "image capture is not supported (images are pulled by digest on restore)".

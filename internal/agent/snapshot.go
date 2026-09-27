@@ -351,6 +351,9 @@ func (j *snapshotJob) config(ctx context.Context, s *agentv1.ComponentSpec, r *a
 		}
 		staged++
 	}
+	if err := writeConfigFormat(stage); err != nil {
+		return nil, err
+	}
 	if len(s.MetadataJson) > 0 {
 		if err := os.WriteFile(filepath.Join(stage, "discovery.json"), s.MetadataJson, 0o600); err != nil {
 			return nil, err
@@ -405,10 +408,18 @@ func stageFile(stage, src string) error {
 	if err := out.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(dst, fi.Mode().Perm()); err != nil { // umask-proof
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		if err := chownIfRoot(dst, st.Uid, st.Gid); err != nil { // keep the real owner (not the agent's)
+			return err
+		}
+	}
+	if err := os.Chmod(dst, fi.Mode().Perm()); err != nil { // umask-proof; after chown (it clears setuid)
 		return err
 	}
-	return os.Chtimes(dst, fi.ModTime(), fi.ModTime())
+	if err := os.Chtimes(dst, fi.ModTime(), fi.ModTime()); err != nil {
+		return err
+	}
+	return stageAncestors(stage, src)
 }
 
 // stageContainers writes each container's raw inspect document (unredacted:

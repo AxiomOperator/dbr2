@@ -291,7 +291,9 @@ func (job *restoreJob) filesystem(ctx context.Context, s *agentv1.RestoreSpec, r
 			return permanent(fmt.Errorf("target_path %q is not absolute", s.TargetPath))
 		}
 		target, suffix = filepath.Clean(s.TargetPath), "-"+filepath.Base(s.TargetPath)
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		// Missing parents inherit the owner of the nearest existing directory
+		// (never root just because the agent runs as root).
+		if err := ensureParents(target, nil); err != nil {
 			return permanent(err)
 		}
 	}
@@ -577,14 +579,44 @@ func (job *restoreJob) config(ctx context.Context, s *agentv1.RestoreSpec, r *ag
 	if err != nil {
 		return err
 	}
+	// Format 2 snapshots carry the real owners of files and their ancestor
+	// directories; older ones recorded root for every staged file.
+	exact := readConfigFormat(job.repo.OpenFile(ctx, s.SnapshotId, configFormatFile)).FilesOwnership
 	for _, f := range files {
 		src := "/" + strings.TrimPrefix(f.rel, "files/")
 		target := filepath.Clean(job.remap(src))
 		if !filepath.IsAbs(target) {
 			return permanent(fmt.Errorf("remapped path %q is not absolute", target))
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		var lookup func(string) (uint32, uint32, os.FileMode, bool)
+		if exact && target == src { // not remapped: the recorded directories apply
+			lookup = func(dir string) (uint32, uint32, os.FileMode, bool) {
+				ents, err := job.repo.ListDir(ctx, s.SnapshotId, "files"+filepath.Dir(dir))
+				if err != nil {
+					return 0, 0, 0, false
+				}
+				for _, e := range ents {
+					if e.Name == filepath.Base(dir) && e.IsDir() {
+						return e.UID, e.GID, e.Mode, true
+					}
+				}
+				return 0, 0, 0, false
+			}
+		}
+		if err := ensureParents(target, lookup); err != nil {
 			return permanent(err)
+		}
+		ent := f.DirEntry
+		if !exact {
+			// Legacy snapshot: the recorded owner is the agent. Keep the
+			// owner of the file being replaced, else its directory's.
+			ref := target
+			if !exists(ref) {
+				ref = filepath.Dir(target)
+			}
+			if uid, gid, _, err := ownerOf(ref); err == nil {
+				ent.UID, ent.GID = uid, gid
+			}
 		}
 		rec, err := job.begin(s.Name, "file", target, "-"+filepath.Base(target))
 		if err != nil {
@@ -594,7 +626,7 @@ func (job *restoreJob) config(ctx context.Context, s *agentv1.RestoreSpec, r *ag
 		if err != nil {
 			return engineErr(err)
 		}
-		err = writeStaged(rec.Staging, rc, f.DirEntry)
+		err = writeStaged(rec.Staging, rc, ent)
 		rc.Close()
 		if err != nil {
 			return err
